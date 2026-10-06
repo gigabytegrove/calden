@@ -1,0 +1,7 @@
+.git
+.github
+.env
+data
+*.log
+.DS_Store
+ci-trigger.txt
