@@ -17,6 +17,18 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+          cache: false
+
+      - name: Resolve dependencies
+        run: go mod tidy
+
+      - name: Compile CalDen before container build
+        run: go build ./cmd/calden
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
