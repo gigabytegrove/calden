@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -24,7 +25,7 @@ const version = "0.1.0-alpha1"
 
 func main() {
 	port := env("CALDEN_PORT", "8787")
-	databaseURL := env("CALDEN_DATABASE_URL", "postgres://calden:calden@localhost:5432/calden?sslmode=disable")
+	databaseURL := databaseURLFromEnv()
 	dataDir := env("CALDEN_DATA_DIR", "./data")
 	webDir := env("CALDEN_WEB_DIR", "./web")
 
@@ -69,7 +70,7 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("Calden %s listening on :%s", version, port)
+		log.Printf("CalDen %s listening on :%s", version, port)
 		err := srv.ListenAndServe()
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("http server: %v", err)
@@ -86,6 +87,29 @@ func main() {
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Printf("shutdown: %v", err)
 	}
+}
+
+func databaseURLFromEnv() string {
+	if explicit := strings.TrimSpace(os.Getenv("CALDEN_DATABASE_URL")); explicit != "" {
+		return explicit
+	}
+
+	host := env("CALDEN_DB_HOST", "localhost")
+	port := env("CALDEN_DB_PORT", "5432")
+	name := env("CALDEN_DB_NAME", "calden")
+	user := env("CALDEN_DB_USER", "calden")
+	password := env("CALDEN_DB_PASSWORD", "calden")
+
+	u := &url.URL{
+		Scheme: "postgres",
+		User:   url.UserPassword(user, password),
+		Host:   host + ":" + port,
+		Path:   name,
+	}
+	q := u.Query()
+	q.Set("sslmode", env("CALDEN_DB_SSLMODE", "disable"))
+	u.RawQuery = q.Encode()
+	return u.String()
 }
 
 func env(key, fallback string) string {
