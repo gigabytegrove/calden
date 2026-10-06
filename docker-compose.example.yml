@@ -1,11 +1,14 @@
-# CalDen Docker Compose example
+# CalDen - Docker Compose example for Dokploy, Portainer, Dockge,
+# or any "raw Compose" deployment where the CalDen source repository
+# is NOT checked out on the Docker host.
 #
-# 1. Save this file as compose.yaml beside the CalDen source.
-# 2. Copy .env.example to .env and change CALDEN_DB_PASSWORD.
-# 3. Run: docker compose up -d --build
+# Required environment variable:
+#   CALDEN_DB_PASSWORD=use-a-long-random-password
 #
-# CalDen will be available at:
-# http://YOUR-SERVER-IP:8787
+# Optional:
+#   CALDEN_PORT=8787
+#   CALDEN_DB_NAME=calden
+#   CALDEN_DB_USER=calden
 
 services:
   db:
@@ -14,7 +17,7 @@ services:
     environment:
       POSTGRES_DB: ${CALDEN_DB_NAME:-calden}
       POSTGRES_USER: ${CALDEN_DB_USER:-calden}
-      POSTGRES_PASSWORD: ${CALDEN_DB_PASSWORD:?Set CALDEN_DB_PASSWORD in .env}
+      POSTGRES_PASSWORD: ${CALDEN_DB_PASSWORD:?Set CALDEN_DB_PASSWORD}
     volumes:
       - calden-db:/var/lib/postgresql/data
     healthcheck:
@@ -25,8 +28,8 @@ services:
       start_period: 10s
 
   calden:
-    build:
-      context: .
+    image: ghcr.io/gigabytegrove/calden:latest
+    pull_policy: always
     restart: unless-stopped
     depends_on:
       db:
@@ -37,7 +40,7 @@ services:
       CALDEN_DB_PORT: 5432
       CALDEN_DB_NAME: ${CALDEN_DB_NAME:-calden}
       CALDEN_DB_USER: ${CALDEN_DB_USER:-calden}
-      CALDEN_DB_PASSWORD: ${CALDEN_DB_PASSWORD:?Set CALDEN_DB_PASSWORD in .env}
+      CALDEN_DB_PASSWORD: ${CALDEN_DB_PASSWORD:?Set CALDEN_DB_PASSWORD}
       CALDEN_DB_SSLMODE: disable
       CALDEN_DATA_DIR: /data
     ports:
