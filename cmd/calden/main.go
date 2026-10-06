@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/gigabytegrove/calden/internal/api"
+	"github.com/gigabytegrove/calden/internal/reminders"
 	"github.com/gigabytegrove/calden/internal/store"
 )
 
@@ -47,6 +48,10 @@ func main() {
 		log.Fatalf("migrations: %v", err)
 	}
 
+	workerCtx, workerCancel := context.WithCancel(context.Background())
+	defer workerCancel()
+	reminders.Start(workerCtx, db)
+
 	handler := api.New(api.Config{
 		DB:        db,
 		JWTSecret: jwtSecret,
@@ -74,6 +79,7 @@ func main() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
+	workerCancel()
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
