@@ -4,7 +4,9 @@ on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
+  issues: write
+  pull-requests: write
 
 jobs:
   compile:
@@ -23,6 +25,7 @@ jobs:
       - name: Compile and report
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set +e
           OUTPUT="$(go build ./cmd/calden 2>&1)"
@@ -32,6 +35,6 @@ jobs:
           if [ "$RC" -ne 0 ]; then
             BODY="$(printf 'CalDen compile diagnostic:\n\n```\n%s\n```\n' "$OUTPUT")"
             jq -n --arg body "$BODY" '{body:$body}' > /tmp/comment.json
-            curl --fail-with-body -sS               -X POST               -H "Authorization: Bearer $GH_TOKEN"               -H "Accept: application/vnd.github+json"               -H "X-GitHub-Api-Version: 2022-11-28"               "https://api.github.com/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/comments"               --data-binary @/tmp/comment.json
+            curl --fail-with-body -sS               -X POST               -H "Authorization: Bearer $GH_TOKEN"               -H "Accept: application/vnd.github+json"               -H "X-GitHub-Api-Version: 2022-11-28"               "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments"               --data-binary @/tmp/comment.json
             exit "$RC"
           fi
