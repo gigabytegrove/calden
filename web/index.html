@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#111827">
+  <title>Calden</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<div id="auth" class="auth-shell">
+  <main class="auth-card">
+    <div class="brand">Calden</div>
+    <p id="auth-subtitle">Your family calendar.</p>
+    <form id="setup-form" class="stack hidden">
+      <h1>Set up your family calendar</h1>
+      <label>Your name<input name="display_name" autocomplete="name" required></label>
+      <label>Username<input name="username" autocomplete="username" required minlength="3"></label>
+      <label>Password<input name="password" type="password" autocomplete="new-password" required minlength="8"></label>
+      <button type="submit">Create my account</button>
+    </form>
+    <form id="login-form" class="stack hidden">
+      <h1>Welcome back</h1>
+      <label>Username<input name="username" autocomplete="username" required></label>
+      <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+      <button type="submit">Sign in</button>
+    </form>
+    <p id="auth-error" class="error"></p>
+  </main>
+</div>
+
+<div id="app" class="app hidden">
+  <header class="topbar">
+    <div class="brand">Calden</div>
+    <div class="top-actions"><span id="me"></span><button id="logout" class="quiet">Sign out</button></div>
+  </header>
+  <main class="page">
+    <section class="hero">
+      <div><p class="eyebrow" id="today-label"></p><h1>Today</h1></div>
+      <button id="new-event">+ Add event</button>
+    </section>
+    <section id="calendar-strip" class="calendar-strip"></section>
+    <section>
+      <div class="section-title"><h2>Coming up</h2><span id="event-count"></span></div>
+      <div id="events" class="events"></div>
+    </section>
+  </main>
+  <nav class="bottom-nav">
+    <button class="active">Today</button><button>Calendar</button><button id="nav-add">Add</button><button>Notifications</button><button>More</button>
+  </nav>
+</div>
+
+<dialog id="event-dialog">
+  <form id="event-form" method="dialog" class="stack">
+    <div class="dialog-head"><h2>Add event</h2><button type="button" class="icon-button" data-close>×</button></div>
+    <label>What?<input name="title" required maxlength="200" placeholder="Electric bill"></label>
+    <label>Calendar<select name="calendar_id" id="calendar-select" required></select></label>
+    <div class="two"><label>Starts<input name="starts_at" type="datetime-local" required></label><label>Ends<input name="ends_at" type="datetime-local" required></label></div>
+    <fieldset><legend>Who is this for?</legend><div id="people-picker" class="people-picker"></div></fieldset>
+    <label>Where?<input name="location" maxlength="500" placeholder="Optional"></label>
+    <label>Notes<textarea name="notes" rows="3" maxlength="5000" placeholder="Optional"></textarea></label>
+    <label>Phone reminder
+      <select name="personal_reminder"><option value="">None</option><option value="10">10 minutes before</option><option value="30">30 minutes before</option><option value="60">1 hour before</option><option value="1440">1 day before</option></select>
+    </label>
+    <div class="dialog-actions"><button type="button" class="quiet" data-close>Cancel</button><button type="submit">Save event</button></div>
+    <p id="event-error" class="error"></p>
+  </form>
+</dialog>
+<script src="/app.js" defer></script>
+</body>
+</html>
