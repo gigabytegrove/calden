@@ -52,6 +52,13 @@ func New(cfg Config) http.Handler {
 	mux.Handle("PUT /api/calendars/{id}/permissions", s.auth(s.admin(http.HandlerFunc(s.setCalendarPermissions))))
 	mux.Handle("GET /api/events", s.auth(http.HandlerFunc(s.listEvents)))
 	mux.Handle("POST /api/events", s.auth(http.HandlerFunc(s.createEvent)))
+	mux.Handle("PUT /api/events/{id}", s.auth(http.HandlerFunc(s.updateEvent)))
+	mux.Handle("DELETE /api/events/{id}", s.auth(http.HandlerFunc(s.deleteEvent)))
+	mux.Handle("PUT /api/calendars/{id}", s.auth(s.admin(http.HandlerFunc(s.updateCalendar))))
+	mux.Handle("DELETE /api/calendars/{id}", s.auth(s.admin(http.HandlerFunc(s.deleteCalendar))))
+	mux.Handle("GET /api/integrations/monita", s.auth(s.admin(http.HandlerFunc(s.getMonitaIntegration))))
+	mux.Handle("PUT /api/integrations/monita", s.auth(s.admin(http.HandlerFunc(s.saveMonitaIntegration))))
+	mux.Handle("POST /api/integrations/monita/test", s.auth(s.admin(http.HandlerFunc(s.testMonitaIntegration))))
 	mux.Handle("/", s.static())
 	return securityHeaders(mux)
 }
