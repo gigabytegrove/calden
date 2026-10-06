@@ -1,5 +1,5 @@
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
-const state={token:localStorage.getItem("calden_token")||"",me:null,users:[],calendars:[],events:[]};
+const state={token:localStorage.getItem("calden_token")||"",me:null,users:[],calendars:[],events:[],editingEvent:null};
 
 async function api(path,options={}){
   const headers={"Content-Type":"application/json",...(options.headers||{})};
@@ -56,14 +56,43 @@ function eventCard(e){
   const when=e.all_day?"All day":new Intl.DateTimeFormat(undefined,{hour:"numeric",minute:"2-digit"}).format(start);
   const day=new Intl.DateTimeFormat(undefined,{month:"short",day:"numeric"}).format(start);
   const avatars=(e.assignees||[]).map(u=>`<span class="avatar" title="${escapeHTML(u.display_name)}">${u.avatar_url?`<img src="${escapeAttr(u.avatar_url)}" alt="">`:escapeHTML(u.initials)}</span>`).join("");
-  return `<article class="event" style="--cal:${safeColor(e.color)}"><div class="event-time">${escapeHTML(day)}<div class="event-meta">${escapeHTML(when)}</div></div><div><div class="event-title">${escapeHTML(e.title)}</div><div class="event-meta">${escapeHTML(e.calendar_name)}${e.location?" · "+escapeHTML(e.location):""}</div></div><div class="avatars">${avatars}</div></article>`;
+  return `<article class="event" style="--cal:${safeColor(e.color)}"><div class="event-time">${escapeHTML(day)}<div class="event-meta">${escapeHTML(when)}</div></div><div><div class="event-title">${escapeHTML(e.title)}</div><div class="event-meta">${escapeHTML(e.calendar_name)}${e.location?" · "+escapeHTML(e.location):""}</div></div><div class="event-actions"><div class="avatars">${avatars}</div><button class="quiet event-edit" data-event-id="${e.id}" type="button">Edit</button></div></article>`;
 }
-function openEvent(){
+function openEvent(existing=null){
   if(!state.calendars.some(c=>c.can_edit)){if(state.me.role==="admin")openManage();else alert("You do not have a calendar you can add events to yet.");return}
-  const f=$("#event-form"),start=new Date(Date.now()+3600000);start.setMinutes(0,0,0);const end=new Date(start.getTime()+3600000);
-  f.reset();f.starts_at.value=localInput(start);f.ends_at.value=localInput(end);$("#event-error").textContent="";$("#event-dialog").showModal();
+  const f=$("#event-form"); f.reset(); state.editingEvent=existing;
+  $("#event-dialog-title").textContent=existing?"Edit event":"Add event";
+  $("#delete-event").classList.toggle("hidden",!existing);
+  if(existing){
+    f.event_id.value=existing.id;
+    f.title.value=existing.title;
+    f.calendar_id.value=existing.calendar_id;
+    f.starts_at.value=localInput(new Date(existing.starts_at));
+    f.ends_at.value=localInput(new Date(existing.ends_at));
+    f.location.value=existing.location||"";
+    f.notes.value=existing.notes||"";
+    const personal=(existing.reminders||[]).find(r=>r.kind==="personal"&&r.provider==="android");
+    const system=(existing.reminders||[]).find(r=>r.kind==="system"&&r.provider==="monita");
+    f.personal_reminder.value=personal?String(personal.minutes_before):"";
+    f.system_reminder_enabled.checked=!!system;
+    f.system_reminder.value=system?String(system.minutes_before):"1440";
+    [...f.querySelectorAll('input[name="assignee"]')].forEach(i=>i.checked=(existing.assignees||[]).some(a=>a.id===i.value));
+  }else{
+    const start=new Date(Date.now()+3600000);start.setMinutes(0,0,0);const end=new Date(start.getTime()+3600000);
+    f.starts_at.value=localInput(start);f.ends_at.value=localInput(end);f.system_reminder.value="1440";
+  }
+  $("#system-reminder-time").classList.toggle("hidden",!f.system_reminder_enabled.checked);
+  $("#event-error").textContent="";$("#event-dialog").showModal();
 }
-function openManage(){renderManage();$("#manage-dialog").showModal()}
+async function openManage(){
+  renderManage();$("#manage-dialog").showModal();
+  if(state.me.role==="admin"){
+    try{
+      const m=await api("/api/integrations/monita"),f=$("#monita-form");
+      f.enabled.checked=!!m.enabled;f.server_url.value=m.server_url||"";f.token.value=m.token||"";f.default_channel.value=m.default_channel||"";
+    }catch{}
+  }
+}
 function localInput(d){const p=n=>String(n).padStart(2,"0");return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`}
 function escapeHTML(v=""){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function escapeAttr(v=""){return escapeHTML(v)}
@@ -72,10 +101,16 @@ function safeColor(v){return /^#[0-9a-f]{6}$/i.test(v)?v:"#667085"}
 $("#setup-form").addEventListener("submit",async e=>{e.preventDefault();$("#auth-error").textContent="";try{const out=await api("/api/setup",{method:"POST",body:JSON.stringify(formJSON(e.currentTarget))});setToken(out.token);await boot();openManage()}catch(err){$("#auth-error").textContent=err.message}});
 $("#login-form").addEventListener("submit",async e=>{e.preventDefault();$("#auth-error").textContent="";try{const out=await api("/api/login",{method:"POST",body:JSON.stringify(formJSON(e.currentTarget))});setToken(out.token);await boot()}catch(err){$("#auth-error").textContent=err.message}});
 $("#logout").addEventListener("click",()=>{setToken("");showAuth("login")});
-$("#new-event").addEventListener("click",openEvent);$("#nav-add").addEventListener("click",openEvent);
+$("#new-event").addEventListener("click",()=>openEvent());$("#nav-add").addEventListener("click",()=>openEvent());
 $("#manage").addEventListener("click",openManage);$("#nav-more").addEventListener("click",()=>{if(state.me.role==="admin")openManage()});
 $$("[data-close-event]").forEach(b=>b.addEventListener("click",()=>$("#event-dialog").close()));
-$$("[data-close-manage]").forEach(b=>b.addEventListener("click",()=>$("#manage-dialog").close()));
+$("[data-close-manage]").forEach(b=>b.addEventListener("click",()=>$("#manage-dialog").close()));
+$("#events").addEventListener("click",e=>{const b=e.target.closest(".event-edit");if(!b)return;const ev=state.events.find(x=>x.id===b.dataset.eventId);if(ev)openEvent(ev)});
+$("#event-form").system_reminder_enabled.addEventListener("change",e=>$("#system-reminder-time").classList.toggle("hidden",!e.target.checked));
+$("#delete-event").addEventListener("click",async()=>{
+  if(!state.editingEvent||!confirm("Delete this event?"))return;
+  try{await api("/api/events/"+state.editingEvent.id,{method:"DELETE"});$("#event-dialog").close();state.editingEvent=null;await loadEvents();render()}catch(err){$("#event-error").textContent=err.message}
+});
 
 $("#person-form").addEventListener("submit",async e=>{
   e.preventDefault();$("#person-error").textContent="";
@@ -93,8 +128,22 @@ $("#calendar-form").addEventListener("submit",async e=>{
 });
 $("#event-form").addEventListener("submit",async e=>{
   e.preventDefault();$("#event-error").textContent="";
-  const f=e.currentTarget,fd=new FormData(f),reminder=fd.get("personal_reminder");
-  const payload={title:fd.get("title"),calendar_id:fd.get("calendar_id"),starts_at:new Date(fd.get("starts_at")).toISOString(),ends_at:new Date(fd.get("ends_at")).toISOString(),all_day:false,location:fd.get("location"),notes:fd.get("notes"),assignee_ids:fd.getAll("assignee"),reminders:reminder?[{kind:"personal",provider:"android",minutes_before:Number(reminder),destination:""}]:[]};
-  try{await api("/api/events",{method:"POST",body:JSON.stringify(payload)});$("#event-dialog").close();await loadEvents();render()}catch(err){$("#event-error").textContent=err.message}
+  const f=e.currentTarget,fd=new FormData(f),reminder=fd.get("personal_reminder"),systemEnabled=f.system_reminder_enabled.checked;
+  const reminders=[];
+  if(reminder)reminders.push({kind:"personal",provider:"android",minutes_before:Number(reminder),destination:""});
+  if(systemEnabled)reminders.push({kind:"system",provider:"monita",minutes_before:Number(fd.get("system_reminder")||1440),destination:""});
+  const payload={title:fd.get("title"),calendar_id:fd.get("calendar_id"),starts_at:new Date(fd.get("starts_at")).toISOString(),ends_at:new Date(fd.get("ends_at")).toISOString(),all_day:false,location:fd.get("location"),notes:fd.get("notes"),assignee_ids:fd.getAll("assignee"),reminders};
+  const target=state.editingEvent?"/api/events/"+state.editingEvent.id:"/api/events";
+  const method=state.editingEvent?"PUT":"POST";
+  try{await api(target,{method,body:JSON.stringify(payload)});$("#event-dialog").close();state.editingEvent=null;await loadEvents();render()}catch(err){$("#event-error").textContent=err.message}
+});
+$("#monita-form").addEventListener("submit",async e=>{
+  e.preventDefault();const f=e.currentTarget;$("#monita-status").textContent="";
+  const payload={enabled:f.enabled.checked,server_url:f.server_url.value,token:f.token.value,default_channel:f.default_channel.value};
+  try{await api("/api/integrations/monita",{method:"PUT",body:JSON.stringify(payload)});$("#monita-status").textContent="Monita settings saved."}catch(err){$("#monita-status").textContent=err.message}
+});
+$("#test-monita").addEventListener("click",async()=>{
+  $("#monita-status").textContent="Sending test…";
+  try{await api("/api/integrations/monita/test",{method:"POST",body:"{}"});$("#monita-status").textContent="Test reminder sent."}catch(err){$("#monita-status").textContent=err.message}
 });
 boot().catch(()=>showAuth("login"));
