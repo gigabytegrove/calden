@@ -1,0 +1,34 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: calden
+      POSTGRES_USER: calden
+      POSTGRES_PASSWORD: calden
+    volumes:
+      - calden-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U calden -d calden"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  calden:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      CALDEN_PORT: ${CALDEN_PORT:-8787}
+      CALDEN_DATABASE_URL: ${CALDEN_DATABASE_URL:-postgres://calden:calden@db:5432/calden?sslmode=disable}
+      CALDEN_DATA_DIR: ${CALDEN_DATA_DIR:-/data}
+    ports:
+      - "${CALDEN_PORT:-8787}:8787"
+    volumes:
+      - calden-data:/data
+
+volumes:
+  calden-db:
+  calden-data:
