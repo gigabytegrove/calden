@@ -40,15 +40,20 @@ func (s *server) listUsers(w http.ResponseWriter,r *http.Request) {
 }
 
 func (s *server) createUser(w http.ResponseWriter,r *http.Request) {
-	var in struct { Username,DisplayName,Password,Role string }
-	if decode(r,&in)!=nil { writeError(w,400,"Check the account details"); return }
+	var in struct {
+		Username string `json:"username"`
+		DisplayName string `json:"display_name"`
+		Password string `json:"password"`
+		Role string `json:"role"`
+	}
+	if decode(r,&in)!=nil || strings.TrimSpace(in.DisplayName)=="" { writeError(w,400,"Check the account details"); return }
 	if err:=validateLogin(in.Username,in.Password); err!=nil { writeError(w,400,err.Error()); return }
 	in.Role=strings.ToLower(strings.TrimSpace(in.Role)); if in.Role=="" { in.Role="member" }
 	if in.Role!="member" && in.Role!="restricted" && in.Role!="admin" { writeError(w,400,"Choose a valid account type"); return }
 	hash,err:=hashPassword(in.Password); if err!=nil { writeError(w,500,"Could not create account"); return }
 	var id uuid.UUID
 	err=s.db.QueryRow(r.Context(),`INSERT INTO users(username,display_name,password_hash,role,initials) VALUES(lower($1),$2,$3,$4,$5) RETURNING id`,
-		in.Username,cleanText(in.DisplayName,100),hash,in.Role,initials(in.DisplayName)).Scan(&id)
+		strings.TrimSpace(in.Username),cleanText(in.DisplayName,100),hash,in.Role,initials(in.DisplayName)).Scan(&id)
 	if err!=nil { writeError(w,409,"That username is already in use"); return }
 	writeJSON(w,201,map[string]any{"id":id})
 }
@@ -76,11 +81,13 @@ func (s *server) listCalendars(w http.ResponseWriter,r *http.Request) {
 }
 
 func (s *server) createCalendar(w http.ResponseWriter,r *http.Request) {
-	var in struct { Name,Color,Icon,Description string; VisibleTo,EditableBy []uuid.UUID `json:"visible_to"` }
-	// custom decode below because EditableBy tag differs
 	var raw struct {
-		Name string `json:"name"`; Color string `json:"color"`; Icon string `json:"icon"`; Description string `json:"description"`
-		VisibleTo []uuid.UUID `json:"visible_to"`; EditableBy []uuid.UUID `json:"editable_by"`
+		Name string `json:"name"`
+		Color string `json:"color"`
+		Icon string `json:"icon"`
+		Description string `json:"description"`
+		VisibleTo []uuid.UUID `json:"visible_to"`
+		EditableBy []uuid.UUID `json:"editable_by"`
 	}
 	if decode(r,&raw)!=nil { writeError(w,400,"Check the calendar details"); return }
 	if strings.TrimSpace(raw.Name)=="" || !validColor(raw.Color) { writeError(w,400,"Calendar name and color are required"); return }
@@ -98,6 +105,10 @@ func (s *server) createCalendar(w http.ResponseWriter,r *http.Request) {
 		if seen[u] { continue }; seen[u]=true
 		_,err=tx.Exec(r.Context(),`INSERT INTO calendar_permissions(calendar_id,user_id,can_view,can_edit,can_delete) VALUES($1,$2,true,$3,$3)`,id,u,edit[u])
 		if err!=nil { writeError(w,400,"One of the selected people is invalid"); return }
+	}
+	if !seen[currentActor(r).ID] {
+		_,err=tx.Exec(r.Context(),`INSERT INTO calendar_permissions(calendar_id,user_id,can_view,can_edit,can_delete) VALUES($1,$2,true,true,true)`,id,currentActor(r).ID)
+		if err!=nil { writeError(w,500,"Could not grant calendar access"); return }
 	}
 	if err=tx.Commit(r.Context()); err!=nil { writeError(w,500,"Could not save calendar"); return }
 	writeJSON(w,201,map[string]any{"id":id})
