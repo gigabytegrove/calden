@@ -11,7 +11,7 @@
 <div id="auth" class="auth-shell">
   <main class="auth-card">
     <div class="brand">Calden</div>
-    <p id="auth-subtitle">Your family calendar.</p>
+    <p>Your family calendar.</p>
     <form id="setup-form" class="stack hidden">
       <h1>Set up your family calendar</h1>
       <label>Your name<input name="display_name" autocomplete="name" required></label>
@@ -32,7 +32,7 @@
 <div id="app" class="app hidden">
   <header class="topbar">
     <div class="brand">Calden</div>
-    <div class="top-actions"><span id="me"></span><button id="logout" class="quiet">Sign out</button></div>
+    <div class="top-actions"><button id="manage" class="quiet hidden">Manage</button><span id="me"></span><button id="logout" class="quiet">Sign out</button></div>
   </header>
   <main class="page">
     <section class="hero">
@@ -46,13 +46,13 @@
     </section>
   </main>
   <nav class="bottom-nav">
-    <button class="active">Today</button><button>Calendar</button><button id="nav-add">Add</button><button>Notifications</button><button>More</button>
+    <button class="active">Today</button><button>Calendar</button><button id="nav-add">Add</button><button>Notifications</button><button id="nav-more">More</button>
   </nav>
 </div>
 
 <dialog id="event-dialog">
-  <form id="event-form" method="dialog" class="stack">
-    <div class="dialog-head"><h2>Add event</h2><button type="button" class="icon-button" data-close>×</button></div>
+  <form id="event-form" class="stack">
+    <div class="dialog-head"><h2>Add event</h2><button type="button" class="icon-button" data-close-event>×</button></div>
     <label>What?<input name="title" required maxlength="200" placeholder="Electric bill"></label>
     <label>Calendar<select name="calendar_id" id="calendar-select" required></select></label>
     <div class="two"><label>Starts<input name="starts_at" type="datetime-local" required></label><label>Ends<input name="ends_at" type="datetime-local" required></label></div>
@@ -62,9 +62,42 @@
     <label>Phone reminder
       <select name="personal_reminder"><option value="">None</option><option value="10">10 minutes before</option><option value="30">30 minutes before</option><option value="60">1 hour before</option><option value="1440">1 day before</option></select>
     </label>
-    <div class="dialog-actions"><button type="button" class="quiet" data-close>Cancel</button><button type="submit">Save event</button></div>
+    <div class="dialog-actions"><button type="button" class="quiet" data-close-event>Cancel</button><button type="submit">Save event</button></div>
     <p id="event-error" class="error"></p>
   </form>
+</dialog>
+
+<dialog id="manage-dialog">
+  <div class="manage-shell">
+    <div class="dialog-head"><div><p class="eyebrow">Family settings</p><h2>Manage Calden</h2></div><button type="button" class="icon-button" data-close-manage>×</button></div>
+    <div class="manage-grid">
+      <section>
+        <h3>People</h3>
+        <div id="people-list" class="simple-list"></div>
+        <form id="person-form" class="stack compact">
+          <h4>Add a person</h4>
+          <label>Name<input name="display_name" required maxlength="100"></label>
+          <label>Username<input name="username" required minlength="3" maxlength="50"></label>
+          <label>Temporary password<input name="password" type="password" required minlength="8"></label>
+          <label>Account type<select name="role"><option value="member">Family member</option><option value="restricted">Restricted member</option><option value="admin">Administrator</option></select></label>
+          <button type="submit">Add person</button><p id="person-error" class="error"></p>
+        </form>
+      </section>
+      <section>
+        <h3>Calendars</h3>
+        <div id="calendar-list" class="simple-list"></div>
+        <form id="calendar-form" class="stack compact">
+          <h4>Add a calendar</h4>
+          <label>Name<input name="name" required maxlength="100" placeholder="Bills"></label>
+          <label>Color<input name="color" type="color" value="#2f6fed" required></label>
+          <label>Description<input name="description" maxlength="500" placeholder="Optional"></label>
+          <fieldset><legend>Who can see it?</legend><div id="calendar-viewers" class="check-list"></div></fieldset>
+          <fieldset><legend>Who can make changes?</legend><div id="calendar-editors" class="check-list"></div></fieldset>
+          <button type="submit">Create calendar</button><p id="calendar-error" class="error"></p>
+        </form>
+      </section>
+    </div>
+  </div>
 </dialog>
 <script src="/app.js" defer></script>
 </body>
