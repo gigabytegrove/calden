@@ -155,7 +155,13 @@ func (s *server) listEvents(w http.ResponseWriter,r *http.Request) {
 			for arows.Next(){ var uid uuid.UUID; var n,ini string; var avatar *string; if arows.Scan(&uid,&n,&ini,&avatar)==nil {assignees=append(assignees,map[string]any{"id":uid,"display_name":n,"initials":ini,"avatar_url":avatar})} }
 			arows.Close()
 		}
-		out=append(out,map[string]any{"id":id,"calendar_id":calID,"title":title,"notes":notes,"location":location,"starts_at":start,"ends_at":end,"all_day":allDay,"status":status,"calendar_name":calName,"color":color,"assignees":assignees})
+		reminders:=[]map[string]any{}
+		rrows,_:=s.db.Query(r.Context(),`SELECT kind,provider,minutes_before,destination FROM reminders WHERE event_id=$1 AND enabled=true ORDER BY minutes_before DESC`,id)
+		if rrows!=nil {
+			for rrows.Next(){ var kind,provider string; var minutes int; var destination *string; if rrows.Scan(&kind,&provider,&minutes,&destination)==nil {reminders=append(reminders,map[string]any{"kind":kind,"provider":provider,"minutes_before":minutes,"destination":destination})} }
+			rrows.Close()
+		}
+		out=append(out,map[string]any{"id":id,"calendar_id":calID,"title":title,"notes":notes,"location":location,"starts_at":start,"ends_at":end,"all_day":allDay,"status":status,"calendar_name":calName,"color":color,"assignees":assignees,"reminders":reminders})
 	}
 	writeJSON(w,200,out)
 }
