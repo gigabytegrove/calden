@@ -1,1 +1,1 @@
-Temporary compile diagnostic trigger.\n
+Temporary compile diagnostic trigger - second pass.\n
