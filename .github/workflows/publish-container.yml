@@ -1,0 +1,46 @@
+name: Publish CalDen Container
+
+on:
+  push:
+    branches: ["main"]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Sign in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish CalDen
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/gigabytegrove/calden:latest
+            ghcr.io/gigabytegrove/calden:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.title=CalDen
+            org.opencontainers.image.description=A family calendar and scheduling system you control.
+            org.opencontainers.image.source=https://github.com/gigabytegrove/calden
+            org.opencontainers.image.revision=${{ github.sha }}
