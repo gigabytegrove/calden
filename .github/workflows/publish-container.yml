@@ -4,7 +4,19 @@ on:
   push:
     branches: ["main"]
     tags: ["v*"]
+    paths:
+      - "cmd/**"
+      - "internal/**"
+      - "web/**"
+      - "Dockerfile"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/publish-container.yml"
   workflow_dispatch:
+
+concurrency:
+  group: calden-container-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
