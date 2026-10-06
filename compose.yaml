@@ -3,31 +3,44 @@ services:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: calden
-      POSTGRES_USER: calden
-      POSTGRES_PASSWORD: calden
+      POSTGRES_DB: ${CALDEN_DB_NAME:-calden}
+      POSTGRES_USER: ${CALDEN_DB_USER:-calden}
+      POSTGRES_PASSWORD: ${CALDEN_DB_PASSWORD:?Set CALDEN_DB_PASSWORD in .env}
     volumes:
       - calden-db:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U calden -d calden"]
+      test: ["CMD-SHELL", "pg_isready -U ${CALDEN_DB_USER:-calden} -d ${CALDEN_DB_NAME:-calden}"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 12
+      start_period: 10s
 
   calden:
-    build: .
+    build:
+      context: .
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
     environment:
-      CALDEN_PORT: ${CALDEN_PORT:-8787}
-      CALDEN_DATABASE_URL: ${CALDEN_DATABASE_URL:-postgres://calden:calden@db:5432/calden?sslmode=disable}
-      CALDEN_DATA_DIR: ${CALDEN_DATA_DIR:-/data}
+      CALDEN_PORT: 8787
+      CALDEN_DB_HOST: db
+      CALDEN_DB_PORT: 5432
+      CALDEN_DB_NAME: ${CALDEN_DB_NAME:-calden}
+      CALDEN_DB_USER: ${CALDEN_DB_USER:-calden}
+      CALDEN_DB_PASSWORD: ${CALDEN_DB_PASSWORD:?Set CALDEN_DB_PASSWORD in .env}
+      CALDEN_DB_SSLMODE: disable
+      CALDEN_DATA_DIR: /data
     ports:
       - "${CALDEN_PORT:-8787}:8787"
     volumes:
       - calden-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8787/api/health | grep -q '\"ok\":true'"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
 volumes:
   calden-db:
