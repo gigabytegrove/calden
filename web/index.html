@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#111827">
-  <title>Calden</title>
+  <title>CalDen</title>
   <link rel="stylesheet" href="/app.css">
 </head>
 <body>
@@ -52,7 +52,7 @@
 
 <dialog id="event-dialog">
   <form id="event-form" class="stack">
-    <div class="dialog-head"><h2>Add event</h2><button type="button" class="icon-button" data-close-event>×</button></div>
+    <div class="dialog-head"><h2 id="event-dialog-title">Add event</h2><button type="button" class="icon-button" data-close-event>×</button></div><input type="hidden" name="event_id">
     <label>What?<input name="title" required maxlength="200" placeholder="Electric bill"></label>
     <label>Calendar<select name="calendar_id" id="calendar-select" required></select></label>
     <div class="two"><label>Starts<input name="starts_at" type="datetime-local" required></label><label>Ends<input name="ends_at" type="datetime-local" required></label></div>
@@ -62,14 +62,18 @@
     <label>Phone reminder
       <select name="personal_reminder"><option value="">None</option><option value="10">10 minutes before</option><option value="30">30 minutes before</option><option value="60">1 hour before</option><option value="1440">1 day before</option></select>
     </label>
-    <div class="dialog-actions"><button type="button" class="quiet" data-close-event>Cancel</button><button type="submit">Save event</button></div>
+    <label class="toggle-row"><input name="system_reminder_enabled" type="checkbox"> <span>Also remind the family through Monita</span></label>
+    <label id="system-reminder-time" class="hidden">Family reminder
+      <select name="system_reminder"><option value="60">1 hour before</option><option value="120">2 hours before</option><option value="1440">1 day before</option><option value="4320">3 days before</option><option value="10080">1 week before</option></select>
+    </label>
+    <div class="dialog-actions"><button id="delete-event" type="button" class="danger hidden">Delete</button><span class="grow"></span><button type="button" class="quiet" data-close-event>Cancel</button><button type="submit">Save event</button></div>
     <p id="event-error" class="error"></p>
   </form>
 </dialog>
 
 <dialog id="manage-dialog">
   <div class="manage-shell">
-    <div class="dialog-head"><div><p class="eyebrow">Family settings</p><h2>Manage Calden</h2></div><button type="button" class="icon-button" data-close-manage>×</button></div>
+    <div class="dialog-head"><div><p class="eyebrow">Family settings</p><h2>Manage CalDen</h2></div><button type="button" class="icon-button" data-close-manage>×</button></div>
     <div class="manage-grid">
       <section>
         <h3>People</h3>
@@ -97,6 +101,17 @@
         </form>
       </section>
     </div>
+    <section class="integration-card">
+      <div><p class="eyebrow">System reminders</p><h3>Monita</h3><p class="muted">CalDen can send household-wide reminders through your Monita server.</p></div>
+      <form id="monita-form" class="stack">
+        <label class="toggle-row"><input name="enabled" type="checkbox"> <span>Use Monita for family reminders</span></label>
+        <label>Monita server<input name="server_url" placeholder="https://notify.example.com"></label>
+        <label>Token<input name="token" type="password" autocomplete="off" placeholder="Your Monita token"></label>
+        <label>Default channel<input name="default_channel" placeholder="Family"></label>
+        <div class="dialog-actions"><button id="test-monita" type="button" class="quiet">Send test</button><button type="submit">Save Monita</button></div>
+        <p id="monita-status" class="muted"></p>
+      </form>
+    </section>
   </div>
 </dialog>
 <script src="/app.js" defer></script>
