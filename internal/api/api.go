@@ -34,6 +34,7 @@ type actor struct {
 }
 
 type contextKey string
+
 const actorKey contextKey = "actor"
 
 func New(cfg Config) http.Handler {
@@ -152,7 +153,7 @@ func (s *server) login(w http.ResponseWriter, r *http.Request) {
 	var id uuid.UUID
 	var hash, role string
 	var active bool
-	err := s.db.QueryRow(r.Context(), "SELECT id,password_hash,role,active FROM users WHERE username=lower($1)", strings.TrimSpace(in.Username)).Scan(&id,&hash,&role,&active)
+	err := s.db.QueryRow(r.Context(), "SELECT id,password_hash,role,active FROM users WHERE username=lower($1)", strings.TrimSpace(in.Username)).Scan(&id, &hash, &role, &active)
 	if err != nil || !active || bcrypt.CompareHashAndPassword([]byte(hash), []byte(in.Password)) != nil {
 		writeError(w, 401, "Incorrect username or password")
 		return
@@ -166,7 +167,7 @@ func (s *server) login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) token(id uuid.UUID, role string) (string, error) {
-	claims := jwt.MapClaims{"sub": id.String(), "role": role, "iat": time.Now().Unix(), "exp": time.Now().Add(30*24*time.Hour).Unix()}
+	claims := jwt.MapClaims{"sub": id.String(), "role": role, "iat": time.Now().Unix(), "exp": time.Now().Add(30 * 24 * time.Hour).Unix()}
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.jwtSecret)
 }
 
@@ -178,46 +179,66 @@ func (s *server) auth(next http.Handler) http.Handler {
 			return
 		}
 		raw := strings.TrimSpace(strings.TrimPrefix(auth, "Bearer "))
-		token, err := jwt.Parse(raw, func(t *jwt.Token) (any,error) {
-			if t.Method != jwt.SigningMethodHS256 { return nil, errors.New("invalid signing method") }
-			return s.jwtSecret,nil
+		token, err := jwt.Parse(raw, func(t *jwt.Token) (any, error) {
+			if t.Method != jwt.SigningMethodHS256 {
+				return nil, errors.New("invalid signing method")
+			}
+			return s.jwtSecret, nil
 		})
 		if err != nil || !token.Valid {
 			writeError(w, 401, "Session expired. Please sign in again")
 			return
 		}
 		claims, ok := token.Claims.(jwt.MapClaims)
-		if !ok { writeError(w,401,"Please sign in"); return }
+		if !ok {
+			writeError(w, 401, "Please sign in")
+			return
+		}
 		id, err := uuid.Parse(asString(claims["sub"]))
-		if err != nil { writeError(w,401,"Please sign in"); return }
+		if err != nil {
+			writeError(w, 401, "Please sign in")
+			return
+		}
 		var role string
 		var active bool
-		if err := s.db.QueryRow(r.Context(),"SELECT role,active FROM users WHERE id=$1",id).Scan(&role,&active); err != nil || !active {
-			writeError(w,401,"Please sign in"); return
+		if err := s.db.QueryRow(r.Context(), "SELECT role,active FROM users WHERE id=$1", id).Scan(&role, &active); err != nil || !active {
+			writeError(w, 401, "Please sign in")
+			return
 		}
-		ctx := withActor(r.Context(), actor{ID:id,Role:role})
-		next.ServeHTTP(w,r.WithContext(ctx))
+		ctx := withActor(r.Context(), actor{ID: id, Role: role})
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
 func (s *server) admin(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter,r *http.Request) {
-		if currentActor(r).Role != "admin" { writeError(w,403,"Administrator access is required"); return }
-		next.ServeHTTP(w,r)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if currentActor(r).Role != "admin" {
+			writeError(w, 403, "Administrator access is required")
+			return
+		}
+		next.ServeHTTP(w, r)
 	})
 }
 
-func validateLogin(username,password string) error {
+func validateLogin(username, password string) error {
 	u := strings.TrimSpace(username)
-	if len(u) < 3 || len(u) > 50 { return errors.New("Username must be 3 to 50 characters") }
-	if len(password) < 8 { return errors.New("Password must be at least 8 characters") }
+	if len(u) < 3 || len(u) > 50 {
+		return errors.New("Username must be 3 to 50 characters")
+	}
+	if len(password) < 8 {
+		return errors.New("Password must be at least 8 characters")
+	}
 	return nil
 }
 
 func initials(name string) string {
 	parts := strings.Fields(name)
-	if len(parts)==0 { return "?" }
+	if len(parts) == 0 {
+		return "?"
+	}
 	out := strings.ToUpper(string([]rune(parts[0])[0]))
-	if len(parts)>1 { out += strings.ToUpper(string([]rune(parts[len(parts)-1])[0])) }
+	if len(parts) > 1 {
+		out += strings.ToUpper(string([]rune(parts[len(parts)-1])[0]))
+	}
 	return out
 }
