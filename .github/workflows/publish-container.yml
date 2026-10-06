@@ -9,6 +9,7 @@ on:
 permissions:
   contents: read
   packages: write
+  statuses: write
 
 jobs:
   publish:
@@ -27,7 +28,20 @@ jobs:
         run: go mod tidy
 
       - name: Compile CalDen before container build
-        run: go build ./cmd/calden
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          BUILD_OUTPUT="$(go build ./cmd/calden 2>&1)"
+          BUILD_RC=$?
+          set -e
+          printf '%s\n' "$BUILD_OUTPUT"
+          if [ "$BUILD_RC" -ne 0 ]; then
+            MESSAGE="$(printf '%s\n' "$BUILD_OUTPUT" | tail -n 1 | tr '\n' ' ' | cut -c1-130)"
+            jq -n               --arg state "failure"               --arg context "calden-compile-diagnostic"               --arg description "$MESSAGE"               '{state:$state,context:$context,description:$description}' > /tmp/status.json
+            curl --fail-with-body -sS               -X POST               -H "Authorization: Bearer $GH_TOKEN"               -H "Accept: application/vnd.github+json"               -H "X-GitHub-Api-Version: 2022-11-28"               "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}"               --data-binary @/tmp/status.json || true
+            exit "$BUILD_RC"
+          fi
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
