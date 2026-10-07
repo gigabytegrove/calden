@@ -13,6 +13,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/gigabytegrove/calden/internal/recurrence"
 )
 
 type monitaSettings struct {
@@ -21,12 +23,24 @@ type monitaSettings struct {
 	DefaultChannel string `json:"default_channel"`
 }
 
+type reminderSource struct {
+	ReminderID     uuid.UUID
+	MinutesBefore  int
+	Title          string
+	Location       string
+	SeriesStart    time.Time
+	SeriesEnd      time.Time
+	Destination    *string
+	Rule           *recurrence.Rule
+}
+
 type dueReminder struct {
-	ReminderID  uuid.UUID
-	Title       string
-	Location    string
-	StartsAt    time.Time
-	Destination *string
+	ReminderID      uuid.UUID
+	Title           string
+	Location        string
+	StartsAt        time.Time
+	OccurrenceStart time.Time
+	Destination     *string
 }
 
 func Start(ctx context.Context, db *pgxpool.Pool) {
@@ -51,32 +65,33 @@ func run(ctx context.Context, db *pgxpool.Pool) {
 		return
 	}
 
-	rows, err := db.Query(ctx, `
-        SELECT r.id,e.title,e.location,e.starts_at,r.destination
-        FROM reminders r
-        JOIN events e ON e.id=r.event_id
-        LEFT JOIN reminder_deliveries d ON d.reminder_id=r.id
-        WHERE r.enabled=true
-          AND r.kind='system'
-          AND r.provider='monita'
-          AND e.status='confirmed'
-          AND (e.starts_at - make_interval(mins => r.minutes_before)) <= now()
-          AND e.starts_at >= now() - interval '1 day'
-          AND COALESCE(d.status,'pending') <> 'sent'
-          AND COALESCE(d.attempts,0) < 5
-        ORDER BY e.starts_at
-        LIMIT 50`)
+	sources, err := loadReminderSources(ctx, db)
 	if err != nil {
 		log.Printf("reminder worker query: %v", err)
 		return
 	}
-	defer rows.Close()
-
-	var due []dueReminder
-	for rows.Next() {
-		var d dueReminder
-		if err := rows.Scan(&d.ReminderID, &d.Title, &d.Location, &d.StartsAt, &d.Destination); err == nil {
-			due = append(due, d)
+	now := time.Now()
+	due := []dueReminder{}
+	for _, source := range sources {
+		offset := time.Duration(source.MinutesBefore) * time.Minute
+		duration := source.SeriesEnd.Sub(source.SeriesStart)
+		windowFrom := now.Add(-24*time.Hour - duration)
+		windowTo := now.Add(offset + duration + 2*time.Minute)
+		occurrences := recurrence.Expand(source.SeriesStart, source.SeriesEnd, source.Rule, windowFrom, windowTo, 500)
+		for _, occurrence := range occurrences {
+			if occurrence.Start.Before(now.Add(-24 * time.Hour)) {
+				continue
+			}
+			if occurrence.Start.Add(-offset).After(now) {
+				continue
+			}
+			if alreadyDelivered(ctx, db, source.ReminderID, occurrence.Start) {
+				continue
+			}
+			due = append(due, dueReminder{
+				ReminderID: source.ReminderID, Title: source.Title, Location: source.Location,
+				StartsAt: occurrence.Start, OccurrenceStart: occurrence.Start, Destination: source.Destination,
+			})
 		}
 	}
 
@@ -92,17 +107,81 @@ func run(ctx context.Context, db *pgxpool.Pool) {
 		}
 		err := sendMonita(cfg, destination, d.Title, message)
 		if err != nil {
-			_, _ = db.Exec(ctx, `INSERT INTO reminder_deliveries(reminder_id,status,attempts,last_error,updated_at)
-                VALUES($1,'failed',1,$2,now())
-                ON CONFLICT(reminder_id) DO UPDATE SET status='failed',attempts=reminder_deliveries.attempts+1,last_error=$2,updated_at=now()`,
-				d.ReminderID, cleanError(err))
-			log.Printf("Monita reminder %s failed: %v", d.ReminderID, err)
+			_, _ = db.Exec(ctx, `INSERT INTO reminder_deliveries(reminder_id,occurrence_start,status,attempts,last_error,updated_at)
+				VALUES($1,$2,'failed',1,$3,now())
+				ON CONFLICT(reminder_id,occurrence_start) DO UPDATE
+				SET status='failed',attempts=reminder_deliveries.attempts+1,last_error=$3,updated_at=now()`,
+				d.ReminderID, d.OccurrenceStart, cleanError(err))
+			log.Printf("Monita reminder %s occurrence %s failed: %v", d.ReminderID, d.OccurrenceStart.Format(time.RFC3339), err)
 			continue
 		}
-		_, _ = db.Exec(ctx, `INSERT INTO reminder_deliveries(reminder_id,status,attempts,last_error,sent_at,updated_at)
-            VALUES($1,'sent',1,NULL,now(),now())
-            ON CONFLICT(reminder_id) DO UPDATE SET status='sent',attempts=reminder_deliveries.attempts+1,last_error=NULL,sent_at=now(),updated_at=now()`, d.ReminderID)
+		_, _ = db.Exec(ctx, `INSERT INTO reminder_deliveries(reminder_id,occurrence_start,status,attempts,last_error,sent_at,updated_at)
+			VALUES($1,$2,'sent',1,NULL,now(),now())
+			ON CONFLICT(reminder_id,occurrence_start) DO UPDATE
+			SET status='sent',attempts=reminder_deliveries.attempts+1,last_error=NULL,sent_at=now(),updated_at=now()`,
+			d.ReminderID, d.OccurrenceStart)
 	}
+}
+
+func loadReminderSources(ctx context.Context, db *pgxpool.Pool) ([]reminderSource, error) {
+	rows, err := db.Query(ctx, `
+		SELECT r.id,r.minutes_before,e.title,e.location,e.starts_at,e.ends_at,r.destination,
+		       er.frequency,er.interval_value,er.weekdays,er.until_at,er.occurrence_count
+		FROM reminders r
+		JOIN events e ON e.id=r.event_id
+		LEFT JOIN event_recurrence er ON er.event_id=e.id
+		WHERE r.enabled=true
+		  AND r.kind='system'
+		  AND r.provider='monita'
+		  AND e.status='confirmed'
+		  AND (er.event_id IS NOT NULL OR e.starts_at >= now() - interval '1 day')
+		  AND (er.until_at IS NULL OR er.until_at >= now() - interval '1 day')
+		ORDER BY e.starts_at
+		LIMIT 1000`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []reminderSource{}
+	for rows.Next() {
+		var source reminderSource
+		var frequency *string
+		var interval *int
+		var weekdaysRaw []byte
+		var until *time.Time
+		var count *int
+		if err := rows.Scan(
+			&source.ReminderID, &source.MinutesBefore, &source.Title, &source.Location,
+			&source.SeriesStart, &source.SeriesEnd, &source.Destination,
+			&frequency, &interval, &weekdaysRaw, &until, &count,
+		); err != nil {
+			continue
+		}
+		if frequency != nil && interval != nil {
+			weekdays := []int{}
+			if len(weekdaysRaw) > 0 {
+				_ = json.Unmarshal(weekdaysRaw, &weekdays)
+			}
+			source.Rule = recurrence.Normalize(&recurrence.Rule{
+				Frequency: *frequency, Interval: *interval, Weekdays: weekdays,
+				Until: until, OccurrenceCount: count,
+			}, source.SeriesStart)
+		}
+		out = append(out, source)
+	}
+	return out, rows.Err()
+}
+
+func alreadyDelivered(ctx context.Context, db *pgxpool.Pool, reminderID uuid.UUID, occurrenceStart time.Time) bool {
+	var status string
+	var attempts int
+	err := db.QueryRow(ctx, `SELECT status,attempts FROM reminder_deliveries
+		WHERE reminder_id=$1 AND occurrence_start=$2`, reminderID, occurrenceStart).Scan(&status, &attempts)
+	if err != nil {
+		return false
+	}
+	return status == "sent" || attempts >= 5
 }
 
 func loadMonita(ctx context.Context, db *pgxpool.Pool) (monitaSettings, bool) {
@@ -130,7 +209,7 @@ func sendMonita(cfg monitaSettings, channel, title, message string) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "CalDen/0.1")
+	req.Header.Set("User-Agent", "CalDen")
 	resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
 	if err != nil {
 		return err
