@@ -294,48 +294,7 @@ func (s *server) reconcileGoogleDuplicateImports(
 				return reconciled, err
 			}
 
-			if _, err = tx.Exec(ctx, `INSERT INTO event_assignees(event_id,user_id)
-				SELECT $1,user_id FROM event_assignees WHERE event_id=$2
-				ON CONFLICT(event_id,user_id) DO NOTHING`, ownerEvent, loserEvent); err != nil {
-				return reconciled, err
-			}
-			if _, err = tx.Exec(ctx, `INSERT INTO reminders(event_id,kind,provider,minutes_before,destination,enabled)
-				SELECT $1,r.kind,r.provider,r.minutes_before,r.destination,r.enabled
-				FROM reminders r
-				WHERE r.event_id=$2
-				  AND NOT EXISTS (
-					SELECT 1 FROM reminders existing
-					WHERE existing.event_id=$1
-					  AND existing.kind=r.kind
-					  AND existing.provider=r.provider
-					  AND existing.minutes_before=r.minutes_before
-					  AND COALESCE(existing.destination,'')=COALESCE(r.destination,'')
-					  AND existing.enabled=r.enabled
-				  )`, ownerEvent, loserEvent); err != nil {
-				return reconciled, err
-			}
-			var ownerCalendarType string
-			if err = tx.QueryRow(ctx, `SELECT calendar_type FROM calendars WHERE id=$1`, ownerCalendar).Scan(&ownerCalendarType); err != nil {
-				return reconciled, err
-			}
-			if ownerCalendarType == "bill_pay" {
-				if _, err = tx.Exec(ctx, `INSERT INTO bill_event_details(event_id,amount_due,amount_is_estimate,payer_user_id,updated_at)
-					SELECT $1,amount_due,amount_is_estimate,payer_user_id,updated_at
-					FROM bill_event_details WHERE event_id=$2
-					ON CONFLICT(event_id) DO NOTHING`, ownerEvent, loserEvent); err != nil {
-					return reconciled, err
-				}
-				if _, err = tx.Exec(ctx, `INSERT INTO bill_payments(event_id,occurrence_start,paid_by_user_id,amount_paid,paid_at,updated_at)
-					SELECT $1,occurrence_start,paid_by_user_id,amount_paid,paid_at,updated_at
-					FROM bill_payments WHERE event_id=$2
-					ON CONFLICT(event_id,occurrence_start) DO NOTHING`, ownerEvent, loserEvent); err != nil {
-					return reconciled, err
-				}
-			}
-			if _, err = tx.Exec(ctx, `UPDATE notifications SET event_id=$1 WHERE event_id=$2`, ownerEvent, loserEvent); err != nil {
-				return reconciled, err
-			}
-			if _, err = tx.Exec(ctx, `DELETE FROM events WHERE id=$1`, loserEvent); err != nil {
+			if err = s.mergeImportedEventRows(ctx, tx, ownerEvent, loserEvent, ownerCalendar); err != nil {
 				return reconciled, err
 			}
 			reconciled++
