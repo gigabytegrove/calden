@@ -1877,7 +1877,8 @@ $("#review-google-calendar")?.addEventListener("click",async()=>{
     const body=await res.json().catch(()=>null);
     if(!res.ok)throw new Error(body?.error||"Could not review Google Calendar export");
     renderGoogleImportMapping(body);
-    status.textContent=`Found ${body.calendar_count||0} Google calendar${Number(body.calendar_count)===1?"":"s"}. Review each destination below before importing.`;
+    const suppressed=Number(body.duplicate_events_suppressed)||0;
+    status.textContent=`Found ${body.calendar_count||0} Google calendar${Number(body.calendar_count)===1?"":"s"}${suppressed?" · "+suppressed+" stale duplicate event copy"+(suppressed===1?"":"ies")+" detected and suppressed":""}. Review each destination below before importing.`;
   }catch(err){
     status.textContent=err.message;
   }finally{
@@ -1899,7 +1900,9 @@ $("#import-google-calendar")?.addEventListener("click",async()=>{
     const body=await res.json().catch(()=>null);
     if(!res.ok)throw new Error(body?.error||"Google Calendar import failed");
     const cleanup=Number(body.cleaned_calendars)||0;
-    status.textContent=`Imported ${body.calendar_count||0} calendar${Number(body.calendar_count)===1?"":"s"}: ${body.created||0} new events, ${body.updated||0} updated${cleanup?" · "+cleanup+" old duplicate calendar"+(cleanup===1?"":"s")+" removed":""}.`;
+    const reconciled=Number(body.duplicate_events_reconciled)||0;
+    const suppressed=Number(body.duplicate_events_suppressed)||0;
+    status.textContent=`Imported ${body.calendar_count||0} calendar${Number(body.calendar_count)===1?"":"s"}: ${body.created||0} new events, ${body.updated||0} updated${suppressed?" · "+suppressed+" stale Google event copy"+(suppressed===1?"":"ies")+" suppressed":""}${reconciled?" · "+reconciled+" existing duplicate event"+(reconciled===1?"":"s")+" repaired":""}${cleanup?" · "+cleanup+" old duplicate calendar"+(cleanup===1?"":"s")+" removed":""}.`;
     renderGoogleImportResults(body);
     await reloadSharedData();
     renderCalendars();renderCategories();renderBillNavigation();renderBills();renderEventControls();renderCalendar();renderAgenda();renderNotifications();renderSettings();
