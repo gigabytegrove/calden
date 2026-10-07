@@ -131,8 +131,8 @@ func (s *server) updateEvent(w http.ResponseWriter, r *http.Request) {
 	if in.Recurrence != nil {
 		rule := recurrence.Normalize(in.Recurrence, in.StartsAt)
 		weekdays, _ := json.Marshal(rule.Weekdays)
-		if _, err = tx.Exec(r.Context(), `INSERT INTO event_recurrence(event_id,frequency,interval_value,weekdays,until_at,occurrence_count)
-			VALUES($1,$2,$3,$4,$5,$6)`, id, rule.Frequency, rule.Interval, weekdays, rule.Until, rule.OccurrenceCount); err != nil {
+		if _, err = tx.Exec(r.Context(), `INSERT INTO event_recurrence(event_id,frequency,interval_value,weekdays,until_at,occurrence_count,raw_rule)
+			VALUES($1,$2,$3,$4,$5,$6,$7)`, id, rule.Frequency, rule.Interval, weekdays, rule.Until, rule.OccurrenceCount, rule.Raw); err != nil {
 			writeError(w, 400, "Could not save repeat settings")
 			return
 		}

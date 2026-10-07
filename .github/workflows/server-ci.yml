@@ -266,6 +266,17 @@ jobs:
             await form.locator('input[name="username"]').fill('seconduser');
             await form.locator('input[name="password"]').fill('another-password-123');
             await form.locator('select[name="role"]').selectOption('member');
+            const avatarPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZlX8AAAAASUVORK5CYII=', 'base64');
+            await page.locator('#person-avatar-file').setInputFiles({
+              name: 'second-user.png',
+              mimeType: 'image/png',
+              buffer: avatarPng,
+            });
+            await page.locator('#person-avatar-preview img').waitFor({ state: 'visible' });
+            const avatarPreviewLoaded = await page.locator('#person-avatar-preview img').evaluate(img =>
+              img.complete && img.naturalWidth > 0 && img.naturalHeight > 0
+            );
+            if (!avatarPreviewLoaded) throw new Error('Profile image preview did not load');
             await form.locator('button[type="submit"]').click();
             await page.locator('#people-list').getByText('Second User').waitFor({ state: 'visible' });
 
@@ -277,6 +288,11 @@ jobs:
             await categoryForm.locator('textarea[name="description"]').fill('Trips and travel plans');
             await categoryForm.locator('button[type="submit"]').click();
             await page.locator('#category-list').getByText('Travel', { exact: true }).waitFor({ state: 'visible' });
+
+            await page.locator('.nav-item[data-page="integrations"]').click();
+            await page.locator('#page-integrations').waitFor({ state: 'visible' });
+            await page.locator('#google-import-drop').waitFor({ state: 'visible' });
+            await page.locator('#page-integrations').getByText('Google Calendar', { exact: true }).waitFor({ state: 'visible' });
 
             await page.locator('.nav-item[data-page="settings"]').click();
             await page.locator('#page-settings').waitFor({ state: 'visible' });
@@ -550,6 +566,119 @@ jobs:
 
           request(f"/api/events/{series_id}","DELETE",token=token)
           print(json.dumps({"first_import":first,"second_import":second,"occurrences":len(imported)},indent=2))
+          PY
+
+      - name: Verify Google Calendar multi-calendar migration
+        run: |
+          python - <<'PY'
+          import datetime as dt
+          import io
+          import json
+          import urllib.parse
+          import urllib.request
+          import uuid
+          import zipfile
+
+          base="http://127.0.0.1:8787"
+
+          def json_request(path, method="GET", payload=None, token=None):
+              headers={}
+              if token:
+                  headers["Authorization"]="Bearer "+token
+              data=None
+              if payload is not None:
+                  data=json.dumps(payload).encode()
+                  headers["Content-Type"]="application/json"
+              req=urllib.request.Request(base+path,data=data,headers=headers,method=method)
+              with urllib.request.urlopen(req) as response:
+                  body=response.read()
+                  return None if not body else json.loads(body)
+
+          token=json_request("/api/login","POST",{"username":"testadmin","password":"test-password-123"})["token"]
+
+          now=dt.datetime.now(dt.timezone.utc)
+          next_month=(now.replace(day=1)+dt.timedelta(days=32)).replace(day=1,hour=14,minute=0,second=0,microsecond=0)
+          first_monday=next_month+dt.timedelta(days=(7-next_month.weekday())%7)
+          end=first_monday+dt.timedelta(hours=1)
+          family_day=first_monday+dt.timedelta(days=10)
+
+          personal=(
+              "BEGIN:VCALENDAR\r\n"
+              "VERSION:2.0\r\n"
+              "X-WR-CALNAME:Google Personal\r\n"
+              "BEGIN:VEVENT\r\n"
+              "UID:google-first-monday@test\r\n"
+              f"DTSTART:{first_monday.strftime('%Y%m%dT%H%M%SZ')}\r\n"
+              f"DTEND:{end.strftime('%Y%m%dT%H%M%SZ')}\r\n"
+              "SUMMARY:Google First Monday\r\n"
+              "LOCATION:Imported Room\r\n"
+              "RRULE:FREQ=MONTHLY;COUNT=3;BYDAY=1MO\r\n"
+              "END:VEVENT\r\n"
+              "END:VCALENDAR\r\n"
+          )
+          shared=(
+              "BEGIN:VCALENDAR\r\n"
+              "VERSION:2.0\r\n"
+              "X-WR-CALNAME:Google Shared\r\n"
+              "BEGIN:VEVENT\r\n"
+              "UID:google-shared-day@test\r\n"
+              f"DTSTART;VALUE=DATE:{family_day.strftime('%Y%m%d')}\r\n"
+              f"DTEND;VALUE=DATE:{(family_day+dt.timedelta(days=1)).strftime('%Y%m%d')}\r\n"
+              "SUMMARY:Google Shared Day\r\n"
+              "END:VEVENT\r\n"
+              "END:VCALENDAR\r\n"
+          )
+
+          archive=io.BytesIO()
+          with zipfile.ZipFile(archive,"w",zipfile.ZIP_DEFLATED) as z:
+              z.writestr("Takeout/Calendar/Google Personal.ics",personal)
+              z.writestr("Takeout/Calendar/Google Shared.ics",shared)
+          payload=archive.getvalue()
+
+          def import_google():
+              boundary="----CalDenGoogleCI"+uuid.uuid4().hex
+              body=(
+                  f"--{boundary}\r\n"
+                  'Content-Disposition: form-data; name="reuse_by_name"\r\n\r\n'
+                  "true\r\n"
+                  f"--{boundary}\r\n"
+                  'Content-Disposition: form-data; name="archive"; filename="google-calendar.zip"\r\n'
+                  "Content-Type: application/zip\r\n\r\n"
+              ).encode()+payload+f"\r\n--{boundary}--\r\n".encode()
+              req=urllib.request.Request(
+                  base+"/api/integrations/google/import",
+                  data=body,
+                  headers={
+                      "Authorization":"Bearer "+token,
+                      "Content-Type":f"multipart/form-data; boundary={boundary}",
+                  },
+                  method="POST",
+              )
+              with urllib.request.urlopen(req) as response:
+                  return json.load(response)
+
+          first=import_google()
+          assert first["calendar_count"] == 2, first
+          assert first["created_calendars"] == 2, first
+          assert first["created"] == 2, first
+
+          second=import_google()
+          assert second["calendar_count"] == 2, second
+          assert second["reused_calendars"] == 2, second
+          assert second["updated"] == 2, second
+
+          calendars=json_request("/api/calendars",token=token)
+          names={c["name"] for c in calendars}
+          assert {"Google Personal","Google Shared"}.issubset(names), calendars
+
+          from_q=urllib.parse.quote((first_monday-dt.timedelta(days=1)).isoformat().replace("+00:00","Z"))
+          to_q=urllib.parse.quote((first_monday+dt.timedelta(days=100)).isoformat().replace("+00:00","Z"))
+          events=json_request(f"/api/events?from={from_q}&to={to_q}",token=token)
+          monday=[e for e in events if e["title"]=="Google First Monday"]
+          assert len(monday) == 3, monday
+          assert all(e["recurrence"]["raw"]=="FREQ=MONTHLY;COUNT=3;BYDAY=1MO" for e in monday), monday
+          assert all(e["starts_at"][0:10] != "" for e in monday), monday
+          print(json.dumps({"first":first,"second":second,"advanced_occurrences":len(monday)},indent=2))
           PY
 
       - name: Verify complete backup and cold restore

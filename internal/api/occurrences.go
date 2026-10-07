@@ -265,9 +265,10 @@ func (s *server) validSeriesOccurrence(ctx context.Context, parentID uuid.UUID, 
 	var weekdaysRaw []byte
 	var until *time.Time
 	var count *int
-	err := s.db.QueryRow(ctx, `SELECT e.calendar_id,e.starts_at,e.ends_at,er.frequency,er.interval_value,er.weekdays,er.until_at,er.occurrence_count
+	var rawRule string
+	err := s.db.QueryRow(ctx, `SELECT e.calendar_id,e.starts_at,e.ends_at,er.frequency,er.interval_value,er.weekdays,er.until_at,er.occurrence_count,COALESCE(er.raw_rule,'')
 		FROM events e JOIN event_recurrence er ON er.event_id=e.id WHERE e.id=$1`, parentID).
-		Scan(&calendarID, &seriesStart, &seriesEnd, &frequency, &interval, &weekdaysRaw, &until, &count)
+		Scan(&calendarID, &seriesStart, &seriesEnd, &frequency, &interval, &weekdaysRaw, &until, &count, &rawRule)
 	if err == pgx.ErrNoRows {
 		return uuid.Nil, false, nil
 	}
@@ -281,7 +282,7 @@ func (s *server) validSeriesOccurrence(ctx context.Context, parentID uuid.UUID, 
 	}
 	rule := recurrence.Normalize(&recurrence.Rule{
 		Frequency: frequency, Interval: interval, Weekdays: weekdays,
-		Until: until, OccurrenceCount: count,
+		Until: until, OccurrenceCount: count, Raw: rawRule,
 	}, seriesStart)
 	windowFrom := originalStart.Add(-time.Second)
 	windowTo := originalStart.Add(seriesEnd.Sub(seriesStart)).Add(time.Second)
