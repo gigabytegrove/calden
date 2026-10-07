@@ -129,8 +129,8 @@ async function openManage(){
 }
 function setSetupStep(step){
   state.setupStep=Math.max(0,Math.min(3,step));
-  $(".setup-step").forEach(s=>s.classList.toggle("hidden",Number(s.dataset.step)!==state.setupStep));
-  $(".setup-dot").forEach(d=>d.classList.toggle("active",Number(d.dataset.dot)<=state.setupStep));
+  $$(".setup-step").forEach(s=>s.classList.toggle("hidden",Number(s.dataset.step)!==state.setupStep));
+  $$(".setup-dot").forEach(d=>d.classList.toggle("active",Number(d.dataset.dot)<=state.setupStep));
   $("#setup-back").classList.toggle("hidden",state.setupStep===0);
   $("#setup-next").classList.toggle("hidden",state.setupStep===3);
   $("#setup-finish").classList.toggle("hidden",state.setupStep!==3);
@@ -219,7 +219,7 @@ $("#logout").addEventListener("click",()=>{setToken("");showAuth("login")});
 $("#new-event").addEventListener("click",()=>openEvent());$("#nav-add").addEventListener("click",()=>openEvent());
 $("#manage").addEventListener("click",openManage);$("#nav-more").addEventListener("click",()=>{if(state.me.role==="admin")openManage()});
 $$("[data-close-event]").forEach(b=>b.addEventListener("click",()=>$("#event-dialog").close()));
-$("[data-close-manage]").forEach(b=>b.addEventListener("click",()=>$("#manage-dialog").close()));
+$$("[data-close-manage]").forEach(b=>b.addEventListener("click",()=>$("#manage-dialog").close()));
 $("#events").addEventListener("click",e=>{const b=e.target.closest(".event-edit");if(!b)return;const ev=state.events.find(x=>x.id===b.dataset.eventId);if(ev)openEvent(ev)});
 $("#event-form").system_reminder_enabled.addEventListener("change",e=>$("#system-reminder-time").classList.toggle("hidden",!e.target.checked));
 $("#delete-event").addEventListener("click",async()=>{
