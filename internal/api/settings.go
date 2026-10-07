@@ -108,5 +108,9 @@ func (s *server) saveGeneralSettings(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "Could not save household settings")
 		return
 	}
+	s.audit(r, "update", "settings", nil, "Updated household settings", map[string]any{
+		"household_name": in.HouseholdName, "timezone": in.Timezone,
+		"week_start": in.WeekStart, "default_view": in.DefaultView,
+	})
 	writeJSON(w, http.StatusOK, in)
 }
