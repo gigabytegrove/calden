@@ -443,7 +443,7 @@ function renderTimeline(days){
       const left=item.column/item.columns*100,width=100/item.columns;
       const e=item.event;
       return `<button class="timed-event" data-event-key="${escapeAttr(eventKey(e))}" style="--cal:${safeColor(e.calendar_color||e.color)};--top:${top}%;--height:${height}%;--left:${left}%;--width:${width}%">
-        <strong>${escapeHTML(e.title)}</strong><span>${formatTime(new Date(e.starts_at))}${e.category_name?" · "+escapeHTML(e.category_name):""}</span>${avatarMini(e)}
+        <strong>${escapeHTML(e.title)}</strong><span>${formatTime(new Date(e.starts_at))}${billAmountLabel(e)?" · "+escapeHTML(billAmountLabel(e)):""}${e.bill_payer?.display_name?" · "+escapeHTML(e.bill_payer.display_name):""}${e.category_name?" · "+escapeHTML(e.category_name):""}</span>${avatarMini(e)}
       </button>`;
     }).join("");
     const now=new Date(),nowMinutes=now.getHours()*60+now.getMinutes();
@@ -475,7 +475,7 @@ function renderDayGrid(days){
 
 function calendarEventBlock(e,compact=false){
   const time=e.all_day?"All day":formatTime(new Date(e.starts_at));
-  const meta=[time,e.category_name].filter(Boolean).join(" · ");
+  const meta=[time,billAmountLabel(e),e.bill_payer?.display_name,e.category_name].filter(Boolean).join(" · ");
   return `<button class="calendar-event ${compact?"compact":""}" data-event-key="${escapeAttr(eventKey(e))}" style="--cal:${safeColor(e.calendar_color||e.color)}">
     <span class="event-color"></span><span class="calendar-event-copy"><strong>${e.is_recurring?'<span class="repeat-mark" title="Repeating event">↻</span> ':""}${escapeHTML(e.title)}</strong><small>${escapeHTML(meta)}</small></span>${avatarMini(e)}
   </button>`;
@@ -532,7 +532,7 @@ function eventCard(e){
   const start=new Date(e.starts_at),end=new Date(e.ends_at);
   return `<button class="agenda-event" data-event-key="${escapeAttr(eventKey(e))}" style="--cal:${safeColor(e.calendar_color||e.color)}">
     <span class="agenda-color"></span><span class="agenda-date"><strong>${formatDate(start,{month:"short",day:"numeric"})}</strong><small>${e.all_day?"All day":formatTime(start)}</small></span>
-    <span class="agenda-main"><strong>${e.is_recurring?'<span class="repeat-mark" title="Repeating event">↻</span> ':""}${escapeHTML(e.title)}</strong><small>${escapeHTML(e.calendar_name)}${e.location?" · "+escapeHTML(e.location):""}${e.all_day?"":` · ends ${escapeHTML(formatTime(end))}`}</small></span>
+    <span class="agenda-main"><strong>${e.is_recurring?'<span class="repeat-mark" title="Repeating event">↻</span> ':""}${escapeHTML(e.title)}${billAmountLabel(e)?` · ${escapeHTML(billAmountLabel(e))}`:""}</strong><small>${escapeHTML(e.calendar_name)}${e.bill_payer?.display_name?" · payer "+escapeHTML(e.bill_payer.display_name):""}${e.location?" · "+escapeHTML(e.location):""}${e.all_day?"":` · ends ${escapeHTML(formatTime(end))}`}</small></span>
     ${avatarMini(e)}
   </button>`;
 }
@@ -627,7 +627,7 @@ function renderCalendars(){
   if(state.me.role!=="admin")return;
   $("#calendar-list").innerHTML=state.calendars.map(c=>`<article class="management-card">
     <span class="calendar-swatch" style="--cal:${safeColor(c.color)}"></span>
-    <div class="management-copy"><strong>${escapeHTML(c.name)}</strong><span>${escapeHTML(c.description||"No description")}</span><small>${c.can_edit?"Editable":"View only"}</small></div>
+    <div class="management-copy"><strong>${escapeHTML(c.name)}</strong><span>${escapeHTML(c.description||"No description")}</span><small>${c.calendar_type==="bill_pay"?"Bill Pay · ":""}${c.can_edit?"Editable":"View only"}</small></div>
     <button class="button secondary compact edit-calendar" type="button" data-calendar-id="${c.id}">Edit</button>
   </article>`).join("")||'<div class="empty-state"><strong>No calendars</strong><span>Create your first calendar.</span></div>';
   $("#calendar-list").querySelectorAll(".edit-calendar").forEach(b=>b.addEventListener("click",()=>beginCalendarEdit(b.dataset.calendarId)));
