@@ -1634,8 +1634,8 @@ $("#delete-category").addEventListener("click",async()=>{
   if(!state.editingCategory)return;
   const category=state.editingCategory;
   const count=Number(category.event_count)||0;
-  const impact=count?\` ${count} event${count===1?"":"s"} will become uncategorized; the events themselves will not be deleted.\`:"";
-  if(!confirm(\`Permanently delete "${category.name}"?${impact}\`))return;
+  const impact=count?` ${count} event${count===1?"":"s"} will become uncategorized; the events themselves will not be deleted.`:"";
+  if(!confirm(`Permanently delete "${category.name}"?${impact}`))return;
   try{
     await api("/api/categories/"+category.id,{method:"DELETE"});
     if(state.filters.category===category.id)state.filters.category="";
