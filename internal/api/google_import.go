@@ -314,17 +314,23 @@ func (s *server) reconcileGoogleDuplicateImports(
 				  )`, ownerEvent, loserEvent); err != nil {
 				return reconciled, err
 			}
-			if _, err = tx.Exec(ctx, `INSERT INTO bill_event_details(event_id,amount_due,amount_is_estimate,payer_user_id,updated_at)
-				SELECT $1,amount_due,amount_is_estimate,payer_user_id,updated_at
-				FROM bill_event_details WHERE event_id=$2
-				ON CONFLICT(event_id) DO NOTHING`, ownerEvent, loserEvent); err != nil {
+			var ownerCalendarType string
+			if err = tx.QueryRow(ctx, `SELECT calendar_type FROM calendars WHERE id=$1`, ownerCalendar).Scan(&ownerCalendarType); err != nil {
 				return reconciled, err
 			}
-			if _, err = tx.Exec(ctx, `INSERT INTO bill_payments(event_id,occurrence_start,paid_by_user_id,amount_paid,paid_at,updated_at)
-				SELECT $1,occurrence_start,paid_by_user_id,amount_paid,paid_at,updated_at
-				FROM bill_payments WHERE event_id=$2
-				ON CONFLICT(event_id,occurrence_start) DO NOTHING`, ownerEvent, loserEvent); err != nil {
-				return reconciled, err
+			if ownerCalendarType == "bill_pay" {
+				if _, err = tx.Exec(ctx, `INSERT INTO bill_event_details(event_id,amount_due,amount_is_estimate,payer_user_id,updated_at)
+					SELECT $1,amount_due,amount_is_estimate,payer_user_id,updated_at
+					FROM bill_event_details WHERE event_id=$2
+					ON CONFLICT(event_id) DO NOTHING`, ownerEvent, loserEvent); err != nil {
+					return reconciled, err
+				}
+				if _, err = tx.Exec(ctx, `INSERT INTO bill_payments(event_id,occurrence_start,paid_by_user_id,amount_paid,paid_at,updated_at)
+					SELECT $1,occurrence_start,paid_by_user_id,amount_paid,paid_at,updated_at
+					FROM bill_payments WHERE event_id=$2
+					ON CONFLICT(event_id,occurrence_start) DO NOTHING`, ownerEvent, loserEvent); err != nil {
+					return reconciled, err
+				}
 			}
 			if _, err = tx.Exec(ctx, `UPDATE notifications SET event_id=$1 WHERE event_id=$2`, ownerEvent, loserEvent); err != nil {
 				return reconciled, err
