@@ -243,16 +243,51 @@ func (s *server) deleteCalendar(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "Invalid calendar")
 		return
 	}
+
+	var name string
 	var events int
-	if err = s.db.QueryRow(r.Context(), "SELECT count(*) FROM events WHERE calendar_id=$1", id).Scan(&events); err != nil {
-		writeError(w, 500, "Could not check calendar")
+	if err = s.db.QueryRow(r.Context(), `SELECT c.name,
+		(SELECT count(*) FROM events e WHERE e.calendar_id=c.id AND e.recurrence_parent_id IS NULL)
+		FROM calendars c WHERE c.id=$1`, id).Scan(&name, &events); err != nil {
+		writeError(w, 404, "Calendar not found")
 		return
 	}
+
+	var in struct {
+		Force        bool   `json:"force"`
+		Confirmation string `json:"confirmation"`
+	}
+	if r.Body != nil && r.ContentLength != 0 {
+		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+			writeError(w, 400, "Check the delete confirmation")
+			return
+		}
+	}
+
+	expectedConfirmation := "DELETE " + name
 	if events > 0 {
-		writeError(w, 409, "Move or delete this calendar's events first")
+		if !in.Force {
+			writeJSON(w, http.StatusConflict, map[string]any{
+				"error":                       "Move or delete this calendar's events first",
+				"event_count":                 events,
+				"requires_typed_confirmation": true,
+				"expected_confirmation":       expectedConfirmation,
+			})
+			return
+		}
+		if strings.TrimSpace(in.Confirmation) != expectedConfirmation {
+			writeError(w, 400, "Type the exact confirmation phrase to delete this calendar and all of its events")
+			return
+		}
+	}
+
+	tx, err := s.db.Begin(r.Context())
+	if err != nil {
+		writeError(w, 500, "Could not delete calendar")
 		return
 	}
-	tag, err := s.db.Exec(r.Context(), "DELETE FROM calendars WHERE id=$1", id)
+	defer tx.Rollback(r.Context())
+	tag, err := tx.Exec(r.Context(), "DELETE FROM calendars WHERE id=$1", id)
 	if err != nil {
 		writeError(w, 500, "Could not delete calendar")
 		return
@@ -261,6 +296,13 @@ func (s *server) deleteCalendar(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 404, "Calendar not found")
 		return
 	}
-	s.audit(r, "delete", "calendar", &id, "Deleted calendar", nil)
+	if err = tx.Commit(r.Context()); err != nil {
+		writeError(w, 500, "Could not delete calendar")
+		return
+	}
+	s.audit(r, "delete", "calendar", &id, "Deleted calendar "+name, map[string]any{
+		"event_count": events,
+		"forced":      events > 0,
+	})
 	w.WriteHeader(http.StatusNoContent)
 }

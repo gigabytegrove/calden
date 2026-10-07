@@ -530,6 +530,27 @@
   </div>
 </dialog>
 
+<dialog id="calendar-delete-dialog" class="scope-dialog">
+  <form id="calendar-delete-form" class="scope-dialog-body destructive-confirmation">
+    <p class="eyebrow">Permanent deletion</p>
+    <h2>Delete calendar and all events?</h2>
+    <p id="calendar-delete-copy">This calendar contains events. Deleting it will permanently delete every event in the calendar, including recurring events and imported events.</p>
+    <div class="delete-warning">
+      <strong id="calendar-delete-name"></strong>
+      <span id="calendar-delete-event-count"></span>
+    </div>
+    <label>Type <code id="calendar-delete-phrase"></code> to confirm
+      <input id="calendar-delete-confirmation" type="text" autocomplete="off" spellcheck="false">
+    </label>
+    <p id="calendar-delete-error" class="error"></p>
+    <div class="scope-dialog-actions">
+      <button id="calendar-delete-cancel" type="button" class="button secondary">Cancel</button>
+      <span class="grow"></span>
+      <button id="calendar-delete-confirm" type="submit" class="button danger" disabled>Delete calendar and events</button>
+    </div>
+  </form>
+</dialog>
+
 <script src="/app.js" defer></script>
 </body>
 </html>
