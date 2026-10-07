@@ -203,7 +203,7 @@ function renderDayGrid(days){
 function calendarEventBlock(e,compact=false){
   const time=e.all_day?"All day":formatTime(new Date(e.starts_at));
   return `<button class="calendar-event ${compact?"compact":""}" data-event-id="${e.id}" style="--cal:${safeColor(e.color)}">
-    <span class="event-color"></span><span class="calendar-event-copy"><strong>${escapeHTML(e.title)}</strong><small>${escapeHTML(time)}</small></span>${avatarMini(e)}
+    <span class="event-color"></span><span class="calendar-event-copy"><strong>${e.is_recurring?'<span class="repeat-mark" title="Repeating event">↻</span> ':""}${escapeHTML(e.title)}</strong><small>${escapeHTML(time)}</small></span>${avatarMini(e)}
   </button>`;
 }
 function avatarMini(e){
@@ -233,7 +233,7 @@ function eventCard(e){
   const start=new Date(e.starts_at),end=new Date(e.ends_at);
   return `<button class="agenda-event" data-event-id="${e.id}" style="--cal:${safeColor(e.color)}">
     <span class="agenda-color"></span><span class="agenda-date"><strong>${formatDate(start,{month:"short",day:"numeric"})}</strong><small>${e.all_day?"All day":formatTime(start)}</small></span>
-    <span class="agenda-main"><strong>${escapeHTML(e.title)}</strong><small>${escapeHTML(e.calendar_name)}${e.location?" · "+escapeHTML(e.location):""}${e.all_day?"":` · ends ${escapeHTML(formatTime(end))}`}</small></span>
+    <span class="agenda-main"><strong>${e.is_recurring?'<span class="repeat-mark" title="Repeating event">↻</span> ':""}${escapeHTML(e.title)}</strong><small>${escapeHTML(e.calendar_name)}${e.location?" · "+escapeHTML(e.location):""}${e.all_day?"":` · ends ${escapeHTML(formatTime(end))}`}</small></span>
     ${avatarMini(e)}
   </button>`;
 }
@@ -318,6 +318,42 @@ function renderSettings(){
   }
 }
 
+function updateRepeatUI(){
+  const form=$("#event-form"),frequency=form.repeat_frequency.value,endType=form.repeat_end_type.value;
+  $("#repeat-options").classList.toggle("hidden",!frequency);
+  $("#repeat-weekdays").classList.toggle("hidden",frequency!=="weekly");
+  $("#repeat-until-row").classList.toggle("hidden",!frequency||endType!=="date");
+  $("#repeat-count-row").classList.toggle("hidden",!frequency||endType!=="count");
+  const interval=Math.max(1,Number(form.repeat_interval.value)||1);
+  const units={daily:"day",weekly:"week",monthly:"month",yearly:"year"};
+  const unit=units[frequency]||"";
+  $("#repeat-unit").textContent=unit+(interval===1?"":"s");
+  if(frequency==="weekly"&&![...form.querySelectorAll('input[name="repeat_weekday"]')].some(i=>i.checked)){
+    const start=form.starts_at.value?new Date(form.starts_at.value):new Date();
+    const weekday=form.querySelector(`input[name="repeat_weekday"][value="${start.getDay()}"]`);
+    if(weekday)weekday.checked=true;
+  }
+}
+
+function recurrencePayload(form){
+  const frequency=form.repeat_frequency.value;
+  if(!frequency)return null;
+  const rule={
+    frequency,
+    interval:Math.max(1,Number(form.repeat_interval.value)||1),
+    weekdays:frequency==="weekly"?[...form.querySelectorAll('input[name="repeat_weekday"]:checked')].map(i=>Number(i.value)):[],
+    until:null,
+    occurrence_count:null
+  };
+  if(form.repeat_end_type.value==="date"&&form.repeat_until.value){
+    rule.until=new Date(form.repeat_until.value+"T23:59:59").toISOString();
+  }
+  if(form.repeat_end_type.value==="count"){
+    rule.occurrence_count=Math.max(1,Number(form.repeat_count.value)||1);
+  }
+  return rule;
+}
+
 function openEvent(existing=null,dateHint=null){
   if(!state.calendars.some(c=>c.can_edit)){
     if(state.me.role==="admin"){navigate("calendars");return}
@@ -327,8 +363,22 @@ function openEvent(existing=null,dateHint=null){
   $("#event-dialog-title").textContent=existing?"Edit event":"Add event";$("#delete-event").classList.toggle("hidden",!existing);
   if(existing){
     form.event_id.value=existing.id;form.title.value=existing.title;form.calendar_id.value=existing.calendar_id;
-    form.starts_at.value=localInput(new Date(existing.starts_at));form.ends_at.value=localInput(new Date(existing.ends_at));
+    form.starts_at.value=localInput(new Date(existing.series_starts_at||existing.starts_at));
+    form.ends_at.value=localInput(new Date(existing.series_ends_at||existing.ends_at));
     form.all_day.checked=!!existing.all_day;form.location.value=existing.location||"";form.notes.value=existing.notes||"";
+    const recurrence=existing.recurrence||null;
+    form.repeat_frequency.value=recurrence?.frequency||"";
+    form.repeat_interval.value=String(recurrence?.interval||1);
+    [...form.querySelectorAll('input[name="repeat_weekday"]')].forEach(i=>i.checked=(recurrence?.weekdays||[]).includes(Number(i.value)));
+    if(recurrence?.until){
+      form.repeat_end_type.value="date";
+      const untilDate=new Date(recurrence.until);
+      form.repeat_until.value=`${untilDate.getFullYear()}-${String(untilDate.getMonth()+1).padStart(2,"0")}-${String(untilDate.getDate()).padStart(2,"0")}`;
+    }else if(recurrence?.occurrence_count){
+      form.repeat_end_type.value="count";form.repeat_count.value=String(recurrence.occurrence_count);
+    }else{
+      form.repeat_end_type.value="never";
+    }
     const personal=(existing.reminders||[]).find(r=>r.kind==="personal"&&r.provider==="android");
     const system=(existing.reminders||[]).find(r=>r.kind==="system"&&r.provider==="monita");
     form.personal_reminder.value=personal?String(personal.minutes_before):"";
@@ -339,7 +389,10 @@ function openEvent(existing=null,dateHint=null){
     if(dateHint&&start.getHours()===0)start.setHours(9);
     const end=new Date(start.getTime()+3600000);
     form.starts_at.value=localInput(start);form.ends_at.value=localInput(end);form.system_reminder.value="1440";
+    form.repeat_frequency.value="";form.repeat_interval.value="1";form.repeat_end_type.value="never";form.repeat_count.value="10";
+    [...form.querySelectorAll('input[name="repeat_weekday"]')].forEach(i=>i.checked=false);
   }
+  updateRepeatUI();
   $("#system-reminder-time").classList.toggle("hidden",!form.system_reminder_enabled.checked);
   $("#event-error").textContent="";$("#event-dialog").showModal();
 }
@@ -457,6 +510,10 @@ $("#calendar-view").addEventListener("dblclick",e=>{
 $("#agenda-search").addEventListener("input",renderAgenda);
 $$("#event-dialog [data-close-event]").forEach(b=>b.addEventListener("click",()=>$("#event-dialog").close()));
 $("#event-form").system_reminder_enabled.addEventListener("change",e=>$("#system-reminder-time").classList.toggle("hidden",!e.target.checked));
+$("#event-form").repeat_frequency.addEventListener("change",updateRepeatUI);
+$("#event-form").repeat_interval.addEventListener("input",updateRepeatUI);
+$("#event-form").repeat_end_type.addEventListener("change",updateRepeatUI);
+$("#event-form").starts_at.addEventListener("change",()=>{if($("#event-form").repeat_frequency.value==="weekly")updateRepeatUI()});
 $("#delete-event").addEventListener("click",async()=>{
   if(!state.editingEvent||!confirm("Delete this event?"))return;
   try{await api("/api/events/"+state.editingEvent.id,{method:"DELETE"});$("#event-dialog").close();state.editingEvent=null;await loadEvents();renderCalendar();renderAgenda()}
@@ -467,7 +524,7 @@ $("#event-form").addEventListener("submit",async e=>{
   const reminders=[],personal=fd.get("personal_reminder");
   if(personal)reminders.push({kind:"personal",provider:"android",minutes_before:Number(personal),destination:""});
   if(form.system_reminder_enabled.checked)reminders.push({kind:"system",provider:"monita",minutes_before:Number(fd.get("system_reminder")||1440),destination:""});
-  const payload={title:fd.get("title"),calendar_id:fd.get("calendar_id"),starts_at:new Date(fd.get("starts_at")).toISOString(),ends_at:new Date(fd.get("ends_at")).toISOString(),all_day:form.all_day.checked,location:fd.get("location"),notes:fd.get("notes"),assignee_ids:fd.getAll("assignee"),reminders};
+  const payload={title:fd.get("title"),calendar_id:fd.get("calendar_id"),starts_at:new Date(fd.get("starts_at")).toISOString(),ends_at:new Date(fd.get("ends_at")).toISOString(),all_day:form.all_day.checked,location:fd.get("location"),notes:fd.get("notes"),assignee_ids:fd.getAll("assignee"),reminders,recurrence:recurrencePayload(form)};
   const target=state.editingEvent?"/api/events/"+state.editingEvent.id:"/api/events",method=state.editingEvent?"PUT":"POST";
   try{await api(target,{method,body:JSON.stringify(payload)});$("#event-dialog").close();state.editingEvent=null;await loadEvents();renderCalendar();renderAgenda()}
   catch(err){$("#event-error").textContent=err.message}
