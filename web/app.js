@@ -362,6 +362,7 @@ function renderBills(){
     summary.innerHTML="";
     $("#bill-by-person").innerHTML='<div class="bill-empty-small">No bill pay calendars are visible to you.</div>';
     $("#bill-by-calendar").innerHTML='<div class="bill-empty-small">No bill pay calendars are visible to you.</div>';
+    $("#bill-paid-by-person").innerHTML='<div class="bill-empty-small">No bill pay calendars are visible to you.</div>';
     host.innerHTML='<div class="empty-state"><strong>No Bill Pay calendar</strong><span>An administrator can create a Bill Pay calendar and give you access.</span></div>';
     $("#bill-count").textContent="";
     return;
@@ -375,38 +376,66 @@ function renderBills(){
   });
   const events=(state.currentPage==="bills"?state.billEvents:fallback).slice().sort((a,b)=>new Date(a.starts_at)-new Date(b.starts_at));
 
-  let known=0,estimated=0,unpriced=0;
+  let known=0,estimated=0,unpriced=0,paidTotal=0,paidUnknown=0,outstanding=0;
   events.forEach(event=>{
-    if(event.bill_amount===null||event.bill_amount===undefined){unpriced++;return}
-    if(event.bill_amount_is_estimate)estimated+=Number(event.bill_amount)||0;
-    else known+=Number(event.bill_amount)||0;
+    const dueAmount=event.bill_amount===null||event.bill_amount===undefined?null:Number(event.bill_amount)||0;
+    if(dueAmount===null)unpriced++;
+    else if(event.bill_amount_is_estimate)estimated+=dueAmount;
+    else known+=dueAmount;
+
+    if(event.bill_paid){
+      const paidAmount=billPaidAmount(event);
+      if(paidAmount===null)paidUnknown++;else paidTotal+=paidAmount;
+    }else if(dueAmount!==null){
+      outstanding+=dueAmount;
+    }
   });
   const total=known+estimated;
+  const paidCount=events.filter(event=>event.bill_paid).length;
+  const unpaidCount=events.length-paidCount;
   summary.innerHTML=`
     <article class="bill-stat"><span>Expected this month</span><strong>${money(total)}</strong><small>known + estimated bills</small></article>
     <article class="bill-stat"><span>Known amounts</span><strong>${money(known)}</strong><small>fixed or confirmed amounts</small></article>
     <article class="bill-stat"><span>Estimated</span><strong>${money(estimated)}</strong><small>variable bills marked as estimates</small></article>
-    <article class="bill-stat"><span>Due</span><strong>${events.length}</strong><small>${unpriced?unpriced+" without an amount":"all amounts entered"}</small></article>`;
+    <article class="bill-stat paid-stat"><span>Paid so far</span><strong>${money(paidTotal)}</strong><small>${paidCount} of ${events.length} bills${paidUnknown?" · "+paidUnknown+" without amount":""}</small></article>
+    <article class="bill-stat outstanding-stat"><span>Outstanding</span><strong>${money(outstanding)}</strong><small>${unpaidCount} bill${unpaidCount===1?"":"s"} not marked paid${unpriced?" · "+unpriced+" without amount":""}</small></article>`;
 
   const byPerson=billGroupRows(events,event=>event.bill_payer?.id||"__unassigned__",event=>event.bill_payer?.display_name||"Unassigned");
   const byCalendar=billGroupRows(events,event=>event.calendar_id,event=>event.calendar_name||"Bill calendar");
+  const paidByPerson=billPaidRows(events);
   $("#bill-by-person").innerHTML=billBreakdownMarkup(byPerson);
   $("#bill-by-calendar").innerHTML=billBreakdownMarkup(byCalendar);
-  $("#bill-count").textContent=events.length+" bill"+(events.length===1?"":"s");
+  $("#bill-paid-by-person").innerHTML=billPaidBreakdownMarkup(paidByPerson);
+  $("#bill-count").textContent=`${paidCount} paid · ${unpaidCount} outstanding`;
 
   host.innerHTML=events.length?events.map(event=>{
     const due=new Date(event.starts_at),amount=billAmountLabel(event);
     const payer=event.bill_payer?.display_name||"Not assigned";
-    return `<button type="button" class="bill-row" data-event-key="${escapeAttr(eventKey(event))}">
-      <span class="bill-due"><strong>${formatDate(due,{month:"short",day:"numeric"})}</strong><small>${event.all_day?"Due date":formatTime(due)}</small></span>
-      <span class="bill-row-main"><strong>${escapeHTML(event.title)}</strong><small>${escapeHTML(event.calendar_name||"Bills")} · ${escapeHTML(payer)}</small></span>
-      <span class="bill-row-amount ${event.bill_amount_is_estimate?"estimated":""}"><strong>${amount?escapeHTML(amount):"Amount not set"}</strong><small>${event.bill_amount_is_estimate?"Estimated":"Amount due"}</small></span>
-    </button>`;
+    const actualPayer=event.bill_paid_by?.display_name||"Unknown payer";
+    const paidAmount=billPaidAmount(event);
+    const paidAt=event.bill_paid_at?new Date(event.bill_paid_at):null;
+    const canUpdate=canUpdateBill(event);
+    const paymentState=event.bill_paid
+      ?`<span class="bill-paid-status"><span class="bill-status-pill paid">Paid</span><strong>${paidAmount===null?"Amount not recorded":escapeHTML(money(paidAmount))}</strong><small>by ${escapeHTML(actualPayer)}${paidAt?" · "+escapeHTML(formatDate(paidAt,{month:"short",day:"numeric"})):""}</small></span>`
+      :`<span class="bill-paid-status"><span class="bill-status-pill due">Due</span><strong>Not paid yet</strong><small>Assigned to ${escapeHTML(payer)}</small></span>`;
+    return `<article class="bill-row ${event.bill_paid?"is-paid":""}">
+      <button type="button" class="bill-row-edit" data-event-key="${escapeAttr(eventKey(event))}" aria-label="Edit ${escapeAttr(event.title)}">
+        <span class="bill-due"><strong>${formatDate(due,{month:"short",day:"numeric"})}</strong><small>${event.all_day?"Due date":formatTime(due)}</small></span>
+        <span class="bill-row-main"><strong>${escapeHTML(event.title)}</strong><small>${escapeHTML(event.calendar_name||"Bills")} · assigned ${escapeHTML(payer)}</small></span>
+        <span class="bill-row-amount ${event.bill_amount_is_estimate?"estimated":""}"><strong>${amount?escapeHTML(amount):"Amount not set"}</strong><small>${event.bill_amount_is_estimate?"Estimated":"Amount due"}</small></span>
+      </button>
+      <span class="bill-row-payment">${paymentState}${canUpdate?`<button type="button" class="button ${event.bill_paid?"secondary":""} compact bill-payment-action" data-event-key="${escapeAttr(eventKey(event))}">${event.bill_paid?"Change payment":"Mark paid"}</button>`:""}</span>
+    </article>`;
   }).join(""):'<div class="empty-state"><strong>Nothing due this month</strong><span>Add a bill or move to another month.</span></div>';
-  host.querySelectorAll("[data-event-key]").forEach(button=>button.addEventListener("click",()=>{
+  host.querySelectorAll(".bill-row-edit[data-event-key]").forEach(button=>button.addEventListener("click",()=>{
     const key=button.dataset.eventKey;
     const event=events.find(item=>eventKey(item)===key);
     if(event)requestEventEdit(event);
+  }));
+  host.querySelectorAll(".bill-payment-action[data-event-key]").forEach(button=>button.addEventListener("click",event=>{
+    event.stopPropagation();
+    const item=events.find(entry=>eventKey(entry)===button.dataset.eventKey);
+    if(item)openBillPayment(item);
   }));
 }
 
