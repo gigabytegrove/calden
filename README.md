@@ -131,7 +131,7 @@ For Docker platforms that only accept pasted Compose and do **not** clone the re
 docker-compose.dokploy.yml
 ```
 
-That version uses the published CalDen container image instead of trying to build from a Dockerfile that is not present.
+That version builds CalDen directly from the public GitHub repository. Dokploy does not need a local checkout, a GitHub Container Registry login, or a manually configured database password.
 
 ## Dokploy
 
@@ -157,13 +157,13 @@ Use:
 docker-compose.dokploy.yml
 ```
 
-It uses:
+It builds directly from:
 
 ```text
-ghcr.io/gigabytegrove/calden:latest
+https://github.com/gigabytegrove/calden.git#main
 ```
 
-and does not require a local Dockerfile.
+The Dockerfile comes from that public Git repository, so no GHCR credentials are required.
 
 No environment variables are required for a new Dokploy installation. The database password is generated automatically and persisted in the `calden-secrets` volume.
 
@@ -186,16 +186,11 @@ docker compose up -d --build
 
 CalDen runs database migrations automatically when the updated container starts.
 
-### Prebuilt image deployment
+### Docker Raw / Dokploy deployment
 
-Pull and recreate the service:
+Redeploy the application. Docker rebuilds CalDen from the current public `main` branch and reuses the existing data volumes.
 
-```bash
-docker compose pull
-docker compose up -d
-```
-
-For Dokploy, a normal redeploy performs the same job when the Compose file uses the published image.
+No registry login is required.
 
 ## Backups
 
@@ -351,11 +346,17 @@ If `CALDEN_DATABASE_URL` is supplied, it takes priority over the individual data
 
 ### "failed to read dockerfile: open Dockerfile: no such file or directory"
 
-The Compose file was started somewhere that does not contain the CalDen repository.
+The local-source Compose file was started somewhere that does not contain the CalDen repository.
 
-This commonly happens with Dokploy **Docker Raw** deployments.
+This commonly happens when `compose.yaml` is pasted into a Dokploy **Docker Raw** application.
 
-Use `docker-compose.dokploy.yml`, or change the Dokploy application to a Git-source deployment.
+Use `docker-compose.dokploy.yml`. It fetches the public CalDen repository as the Docker build context and does not depend on a local Dockerfile.
+
+### "unauthorized" when pulling ghcr.io/gigabytegrove/calden
+
+Older Docker Raw examples used the GitHub Container Registry image. GHCR package visibility can require authentication even when the source repository itself is public.
+
+Current CalDen Docker Raw deployments do not use GHCR. Replace the old Compose with `docker-compose.dokploy.yml` and redeploy.
 
 ### Database password
 
