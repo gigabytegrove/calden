@@ -186,6 +186,9 @@ jobs:
           names={c["name"] for c in calendars}
           assert names == {"Family","Bills","Appointments"}, calendars
           assert all(c["can_edit"] for c in calendars), calendars
+          bills=next(c for c in calendars if c["name"]=="Bills")
+          assert bills["calendar_type"] == "bill_pay", calendars
+          assert all(c["calendar_type"]=="standard" for c in calendars if c["name"]!="Bills"), calendars
           print(json.dumps({"settings":settings,"calendars":calendars},indent=2))
           PY
 
@@ -279,6 +282,21 @@ jobs:
             if (!avatarPreviewLoaded) throw new Error('Profile image preview did not load');
             await form.locator('button[type="submit"]').click();
             await page.locator('#people-list').getByText('Second User').waitFor({ state: 'visible' });
+
+            await page.locator('.nav-item[data-page="bills"]').click();
+            await page.locator('#page-bills').waitFor({ state: 'visible' });
+            await page.locator('#add-bill').click();
+            await page.locator('#bill-event-details').waitFor({ state: 'visible' });
+            await eventForm.locator('input[name="title"]').fill('Electric CI Bill');
+            await eventForm.locator('input[name="bill_amount"]').fill('137.42');
+            await eventForm.locator('input[name="bill_amount_is_estimate"]').check();
+            await eventForm.locator('select[name="bill_payer_user_id"]').selectOption({ label: 'Second User' });
+            await eventForm.locator('button[type="submit"]').click();
+            await page.locator('#event-dialog').waitFor({ state: 'hidden' });
+            await page.locator('#bill-list').getByText('Electric CI Bill', { exact: true }).waitFor({ state: 'visible' });
+            await page.locator('#bill-list').getByText('Second User', { exact: false }).waitFor({ state: 'visible' });
+            const billRowText = await page.locator('#bill-list .bill-row').filter({ hasText: 'Electric CI Bill' }).innerText();
+            if (!billRowText.includes('137.42')) throw new Error('Bill amount was not shown in Bill Pay.');
 
             await page.locator('.nav-item[data-page="categories"]').click();
             await page.locator('#page-categories').waitFor({ state: 'visible' });
