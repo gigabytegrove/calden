@@ -29,7 +29,7 @@ services:
             head -c 48 /dev/urandom | base64 | tr -d '\n' > /run/calden-secrets/db-password
           fi
         fi
-        chmod 600 /run/calden-secrets/db-password
+        chmod 0444 /run/calden-secrets/db-password
     volumes:
       - calden-secrets:/run/calden-secrets
 
