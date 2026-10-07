@@ -60,6 +60,10 @@ func New(cfg Config) http.Handler {
 	mux.Handle("DELETE /api/users/{id}", s.auth(s.admin(http.HandlerFunc(s.deactivateUser))))
 	mux.Handle("GET /api/calendars", s.auth(http.HandlerFunc(s.listCalendars)))
 	mux.Handle("POST /api/calendars", s.auth(s.admin(http.HandlerFunc(s.createCalendar))))
+	mux.Handle("GET /api/categories", s.auth(http.HandlerFunc(s.listCategories)))
+	mux.Handle("POST /api/categories", s.auth(s.admin(http.HandlerFunc(s.createCategory))))
+	mux.Handle("PUT /api/categories/{id}", s.auth(s.admin(http.HandlerFunc(s.updateCategory))))
+	mux.Handle("DELETE /api/categories/{id}", s.auth(s.admin(http.HandlerFunc(s.deleteCategory))))
 	mux.Handle("GET /api/calendars/{id}/permissions", s.auth(s.admin(http.HandlerFunc(s.calendarPermissions))))
 	mux.Handle("PUT /api/calendars/{id}/permissions", s.auth(s.admin(http.HandlerFunc(s.setCalendarPermissions))))
 	mux.Handle("GET /api/events", s.auth(http.HandlerFunc(s.listEvents)))
@@ -267,6 +271,26 @@ func (s *server) setup(w http.ResponseWriter, r *http.Request) {
 		if _, err = tx.Exec(r.Context(), `INSERT INTO calendar_permissions(calendar_id,user_id,can_view,can_edit,can_delete)
 			VALUES($1,$2,true,true,true)`, calendarID, id); err != nil {
 			writeError(w, 500, "Could not finish starter calendar access")
+			return
+		}
+	}
+
+	defaultCategories := []struct {
+		Name  string
+		Color string
+		Icon  string
+	}{
+		{Name: "General", Color: "#64748B", Icon: "tag"},
+		{Name: "Medical", Color: "#DC2626", Icon: "medical"},
+		{Name: "Bills", Color: "#16A34A", Icon: "receipt"},
+		{Name: "Birthday", Color: "#EC4899", Icon: "cake"},
+		{Name: "School", Color: "#EAB308", Icon: "school"},
+		{Name: "Work", Color: "#2563EB", Icon: "briefcase"},
+	}
+	for _, category := range defaultCategories {
+		if _, err = tx.Exec(r.Context(), `INSERT INTO categories(name,color,icon,created_by)
+			VALUES($1,$2,$3,$4)`, category.Name, category.Color, category.Icon, id); err != nil {
+			writeError(w, 500, "Could not create starter categories")
 			return
 		}
 	}
