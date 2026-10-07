@@ -107,7 +107,7 @@ func (s *server) setupStatus(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "Could not check setup status")
 		return
 	}
-	writeJSON(w, 200, map[string]bool{"needs_setup": count == 0})
+	writeJSON(w, 200, map[string]any{"needs_setup": count == 0, "setup_version": 1})
 }
 
 type credentials struct {
@@ -116,32 +116,151 @@ type credentials struct {
 	DisplayName string `json:"display_name"`
 }
 
+type setupRequest struct {
+	HouseholdName    string   `json:"household_name"`
+	Timezone         string   `json:"timezone"`
+	DisplayName      string   `json:"display_name"`
+	Username         string   `json:"username"`
+	Password         string   `json:"password"`
+	StarterCalendars []string `json:"starter_calendars"`
+}
+
+type starterCalendar struct {
+	Key         string
+	Name        string
+	Color       string
+	Icon        string
+	Description string
+}
+
+var starterCalendars = []starterCalendar{
+	{Key: "family", Name: "Family", Color: "#2563EB", Icon: "home", Description: "Plans and events for the whole family"},
+	{Key: "bills", Name: "Bills", Color: "#16A34A", Icon: "receipt", Description: "Bills, payments, and household due dates"},
+	{Key: "appointments", Name: "Appointments", Color: "#7C3AED", Icon: "calendar", Description: "Appointments and scheduled visits"},
+	{Key: "school", Name: "School", Color: "#EAB308", Icon: "school", Description: "School events, activities, and deadlines"},
+	{Key: "birthdays", Name: "Birthdays", Color: "#EC4899", Icon: "cake", Description: "Birthdays and celebrations"},
+	{Key: "work", Name: "Work", Color: "#64748B", Icon: "briefcase", Description: "Work schedules and commitments"},
+}
+
 func (s *server) setup(w http.ResponseWriter, r *http.Request) {
 	var count int
-	if err := s.db.QueryRow(r.Context(), "SELECT count(*) FROM users").Scan(&count); err != nil || count != 0 {
-		writeError(w, http.StatusConflict, "Calden is already set up")
+	if err := s.db.QueryRow(r.Context(), "SELECT count(*) FROM users").Scan(&count); err != nil {
+		writeError(w, 500, "Could not check setup status")
 		return
 	}
-	var in credentials
-	if err := decode(r, &in); err != nil || strings.TrimSpace(in.DisplayName) == "" {
-		writeError(w, 400, "Name, username and password are required")
+	if count != 0 {
+		writeError(w, http.StatusConflict, "CalDen is already set up")
+		return
+	}
+
+	var in setupRequest
+	if err := decode(r, &in); err != nil {
+		writeError(w, 400, "Check the setup details")
+		return
+	}
+
+	in.HouseholdName = strings.TrimSpace(in.HouseholdName)
+	in.DisplayName = strings.TrimSpace(in.DisplayName)
+	in.Username = strings.TrimSpace(in.Username)
+	in.Timezone = strings.TrimSpace(in.Timezone)
+
+	if in.HouseholdName == "" {
+		writeError(w, 400, "Give your family calendar a name")
+		return
+	}
+	if len(in.HouseholdName) > 100 {
+		writeError(w, 400, "Family name must be 100 characters or fewer")
+		return
+	}
+	if in.DisplayName == "" {
+		writeError(w, 400, "Enter your name")
+		return
+	}
+	if in.Timezone == "" {
+		in.Timezone = "UTC"
+	}
+	if _, err := time.LoadLocation(in.Timezone); err != nil {
+		writeError(w, 400, "Choose a valid time zone")
 		return
 	}
 	if err := validateLogin(in.Username, in.Password); err != nil {
 		writeError(w, 400, err.Error())
 		return
 	}
-	hash, _ := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
-	var id uuid.UUID
-	err := s.db.QueryRow(r.Context(), `INSERT INTO users(username,display_name,password_hash,role,initials)
-		VALUES(lower($1),$2,$3,'admin',$4) RETURNING id`,
-		strings.TrimSpace(in.Username), strings.TrimSpace(in.DisplayName), string(hash), initials(in.DisplayName)).Scan(&id)
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(in.Password), bcrypt.DefaultCost)
 	if err != nil {
-		writeError(w, 500, "Could not create administrator")
+		writeError(w, 500, "Could not secure the administrator account")
 		return
 	}
-	token, _ := s.token(id, "admin")
-	writeJSON(w, 201, map[string]any{"token": token})
+
+	tx, err := s.db.Begin(r.Context())
+	if err != nil {
+		writeError(w, 500, "Could not begin setup")
+		return
+	}
+	defer tx.Rollback(r.Context())
+
+	var id uuid.UUID
+	err = tx.QueryRow(r.Context(), `INSERT INTO users(username,display_name,password_hash,role,initials)
+		VALUES(lower($1),$2,$3,'admin',$4) RETURNING id`,
+		in.Username, in.DisplayName, string(hash), initials(in.DisplayName)).Scan(&id)
+	if err != nil {
+		writeError(w, 500, "Could not create the administrator")
+		return
+	}
+
+	settings := map[string]string{
+		"household_name": in.HouseholdName,
+		"timezone": in.Timezone,
+		"setup_completed": "true",
+		"setup_version": "1",
+	}
+	for key, value := range settings {
+		if _, err = tx.Exec(r.Context(), `INSERT INTO app_settings(key,value) VALUES($1,$2)
+			ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value,updated_at=now()`, key, value); err != nil {
+			writeError(w, 500, "Could not save family settings")
+			return
+		}
+	}
+
+	selected := map[string]bool{}
+	for _, key := range in.StarterCalendars {
+		selected[strings.ToLower(strings.TrimSpace(key))] = true
+	}
+	if len(selected) == 0 {
+		selected["family"] = true
+	}
+
+	for _, calendar := range starterCalendars {
+		if !selected[calendar.Key] {
+			continue
+		}
+		var calendarID uuid.UUID
+		if err = tx.QueryRow(r.Context(), `INSERT INTO calendars(name,color,icon,description,created_by)
+			VALUES($1,$2,$3,$4,$5) RETURNING id`,
+			calendar.Name, calendar.Color, calendar.Icon, calendar.Description, id).Scan(&calendarID); err != nil {
+			writeError(w, 500, "Could not create starter calendars")
+			return
+		}
+		if _, err = tx.Exec(r.Context(), `INSERT INTO calendar_permissions(calendar_id,user_id,can_view,can_edit,can_delete)
+			VALUES($1,$2,true,true,true)`, calendarID, id); err != nil {
+			writeError(w, 500, "Could not finish starter calendar access")
+			return
+		}
+	}
+
+	if err = tx.Commit(r.Context()); err != nil {
+		writeError(w, 500, "Could not finish setup")
+		return
+	}
+
+	token, err := s.token(id, "admin")
+	if err != nil {
+		writeError(w, 500, "Setup finished, but CalDen could not sign you in")
+		return
+	}
+	writeJSON(w, 201, map[string]any{"token": token, "household_name": in.HouseholdName})
 }
 
 func (s *server) login(w http.ResponseWriter, r *http.Request) {
