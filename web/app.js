@@ -223,7 +223,7 @@ function renderCalendarFilters(){
 
 function renderCalendar(){
   const label=$("#calendar-range-label");
-  $$$(".view-switcher button").forEach(b=>b.classList.toggle("active",Number(b.dataset.days)===state.viewDays));
+  $$(".view-switcher button").forEach(b=>b.classList.toggle("active",Number(b.dataset.days)===state.viewDays));
   $("#calendar-strip").innerHTML=state.calendars.map(cal=>{
     const hidden=state.hiddenCalendars.has(cal.id);
     return `<button class="calendar-pill ${hidden?"calendar-hidden":""}" data-calendar-id="${cal.id}" aria-pressed="${!hidden}">
@@ -547,7 +547,7 @@ function beginCategoryEdit(id){
 function activateSettingsTab(tab){
   if(tab==="general"&&state.me?.role!=="admin")tab="calendar";
   state.settingsTab=tab;
-  $$$(".settings-nav-item").forEach(button=>button.classList.toggle("active",button.dataset.settingsTab===tab));
+  $$(".settings-nav-item").forEach(button=>button.classList.toggle("active",button.dataset.settingsTab===tab));
   $$("[data-settings-pane]").forEach(pane=>pane.classList.toggle("hidden",pane.dataset.settingsPane!==tab));
 }
 function renderSettings(){
