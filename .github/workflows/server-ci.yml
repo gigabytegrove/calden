@@ -310,7 +310,7 @@ jobs:
             await eventForm.locator('button[type="submit"]').click();
             await page.locator('#event-dialog').waitFor({ state: 'hidden' });
             await page.locator('#bill-list').getByText('Electric CI Bill', { exact: true }).waitFor({ state: 'visible' });
-            await page.locator('#bill-list').getByText('Second User', { exact: false }).waitFor({ state: 'visible' });
+            await page.locator('#bill-list').getByText('Second User', { exact: false }).first().waitFor({ state: 'visible' });
             let billRow = page.locator('#bill-list .bill-row').filter({ hasText: 'Electric CI Bill' });
             let billRowText = await billRow.innerText();
             if (!billRowText.includes('137.42')) throw new Error('Bill amount was not shown in Bill Pay.');
