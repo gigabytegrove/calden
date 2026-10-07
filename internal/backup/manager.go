@@ -169,7 +169,7 @@ func (m *Manager) ValidateAndStage(source io.Reader, maxBytes int64) (Manifest, 
 	if err != nil {
 		return Manifest{}, err
 	}
-	defer os.Remove(dumpPath)
+	defer os.RemoveAll(filepath.Dir(dumpPath))
 	if err := validateDump(dumpPath); err != nil {
 		return Manifest{}, fmt.Errorf("database backup is invalid: %w", err)
 	}
@@ -208,6 +208,34 @@ func (m *Manager) Status() RestoreStatus {
 		}
 	}
 	return status
+}
+
+
+func (m *Manager) SavedPath(name string) (string, error) {
+	name = filepath.Base(strings.TrimSpace(name))
+	if name == "" || name == "." || name == ".." {
+		return "", errors.New("invalid backup name")
+	}
+	if !strings.HasSuffix(name, ".tar.gz") && !strings.HasSuffix(name, ".dump") {
+		return "", errors.New("invalid backup name")
+	}
+	path := filepath.Join(m.DataDir, "backups", name)
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", err
+	}
+	if !info.Mode().IsRegular() {
+		return "", errors.New("backup is not a file")
+	}
+	return path, nil
+}
+
+func (m *Manager) DeleteSaved(name string) error {
+	path, err := m.SavedPath(name)
+	if err != nil {
+		return err
+	}
+	return os.Remove(path)
 }
 
 func validateBundle(path, dataDir string) (Manifest, string, error) {
