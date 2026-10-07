@@ -10,7 +10,7 @@ CalDen is a self-hosted family calendar built for normal people, not calendar ad
 
 A calendar has its own color. A person has their own identity. The two never compete with each other.
 
-CalDen is currently in active development. The current development build is **0.1.0-alpha10.1**.
+CalDen is currently in active development. The current development build is **0.1.0-alpha11**.
 
 ## What CalDen does
 
@@ -25,10 +25,10 @@ You can use it to:
 - tell who is responsible for an event by looking at the person's icon
 - tell which calendar an event belongs to by looking at the event color
 - give people their own sign-in
-- use normal Android reminders for personal reminders
+- use reminder records for personal-device notifications
 - send household-wide reminders through Monita
 - use CalDen from a browser on desktop, tablet, or phone
-- connect the native CalDen Android app to the same server
+- use the same CalDen server/API as the foundation for the upcoming mobile app
 
 ## How CalDen is organized
 
@@ -46,7 +46,7 @@ The assigned person's icon or initials appear with the event.
 
 Personal reminders can stay on the person's phone. Household reminders can be sent through Monita.
 
-For example, a green **Bills** calendar can contain an Internet Bill assigned to Brad and an Electric Bill assigned to Jen. Both events stay green because they belong to Bills, while the person icon shows who is responsible for each one. When a bill is paid, CalDen records that specific occurrence as paid and records who actually paid it, even when that person is different from the assigned payer.
+For example, a green **Bills** calendar can contain an Internet Bill assigned to Brad and an Electric Bill assigned to Jen. Both events stay green because they belong to Bills, while the person icon shows who is responsible for each one. Bill activity is tracked per occurrence: a month can have no balance, one payment, or several split/partial payments, each with its actual payer, payment date, and optional cleared date.
 
 ## Current features
 
@@ -59,7 +59,7 @@ The current development build includes:
 - multiple user accounts
 - administrator, family member, and restricted member account types
 - multiple calendars
-- Bill Pay calendars with amount, estimate, assigned payer, per-month paid status, actual payer, actual amount paid, and household breakdowns
+- Bill Pay calendars with expected amount, assigned payer, no-balance months, partial/split payments, actual payer, payment date, optional cleared date, and household breakdowns
 - calendar colors
 - calendar visibility controls
 - calendar editing permissions
@@ -75,16 +75,15 @@ The current development build includes:
 - real 1 Day, 7 Day, 14 Day, and 30 Day calendar views
 - recurring events with single-occurrence changes
 - standard iCalendar import/export
-- Google Calendar ZIP migration with preview, explicit calendar mapping, safe duplicate-calendar cleanup, and revision-aware duplicate-event suppression/repair
+- Google Calendar ZIP migration with preview and explicit mapping, plus an in-place repair tool for duplicate Google-imported event rows already stored in CalDen
 - profile images for family members
-- personal Android reminder records
+- personal-device reminder records
 - Monita household reminder records
 - Monita connection settings
 - Monita test notifications
 - background Monita reminder delivery
 - reminder delivery retry tracking
 - Tailwind CSS v4-backed responsive web interface with a polished application shell
-- native Android client foundation with real server login and event data
 - PostgreSQL storage
 - automatic database migrations
 - Docker deployment
@@ -266,30 +265,13 @@ These are separate on purpose. The person responsible for an event can get a pri
 
 If Monita is unavailable when a system reminder is due, CalDen records the failed delivery and retries it instead of taking the calendar offline.
 
-## Android app
+## Mobile app
 
-The native Android application lives in:
+The mobile app is the next major client-side development phase after the Alpha11 server/web cleanup is locked in.
 
-```text
-gigabytegrove/calden-android
-```
+The mobile client will use the existing CalDen server and API rather than duplicating scheduling logic. The server already owns the household data model, permissions, calendars, event assignments, recurring events, Bill Pay state, notifications, and integrations.
 
-The Android app connects directly to your CalDen server and uses the same users, calendars, events, people assignments, and reminder information as the web interface.
-
-Current Android development includes:
-
-- CalDen server connection
-- CalDen login
-- upcoming events
-- calendar colors
-- assigned-person badges
-- event creation
-- person assignment
-- Android notification permission
-- local Android reminder scheduling
-- CalDen branding
-
-Android development is moving alongside the server so the two stay compatible.
+The mobile repository and feature list will be documented here once that client is ready for active testing. Until then, the responsive web app remains the supported phone/tablet interface.
 
 ## Ports and storage
 
@@ -414,7 +396,7 @@ The current version is intended for active testing and development. Database mig
 Current version:
 
 ```text
-0.1.0-alpha10.1
+0.1.0-alpha11
 ```
 
 ## Project layout
@@ -428,14 +410,6 @@ calden/
 ├── compose.yaml
 ├── docker-compose.example.yml
 └── docker-compose.dokploy.yml
-```
-
-## Related repository
-
-CalDen for Android:
-
-```text
-https://github.com/gigabytegrove/calden-android
 ```
 
 ## License
