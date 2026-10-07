@@ -13,6 +13,7 @@ import (
 
 type eventInput struct {
 	CalendarID  uuid.UUID   `json:"calendar_id"`
+	CategoryID  *uuid.UUID  `json:"category_id,omitempty"`
 	Title       string      `json:"title"`
 	Notes       string      `json:"notes"`
 	Location    string      `json:"location"`
@@ -105,8 +106,8 @@ func (s *server) updateEvent(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(r.Context())
 
-	_, err = tx.Exec(r.Context(), `UPDATE events SET calendar_id=$2,title=$3,notes=$4,location=$5,starts_at=$6,ends_at=$7,all_day=$8,updated_at=now() WHERE id=$1`,
-		id, in.CalendarID, cleanText(in.Title, 200), cleanText(in.Notes, 5000), cleanText(in.Location, 500), in.StartsAt, in.EndsAt, in.AllDay)
+	_, err = tx.Exec(r.Context(), `UPDATE events SET calendar_id=$2,category_id=$3,title=$4,notes=$5,location=$6,starts_at=$7,ends_at=$8,all_day=$9,updated_at=now() WHERE id=$1`,
+		id, in.CalendarID, in.CategoryID, cleanText(in.Title, 200), cleanText(in.Notes, 5000), cleanText(in.Location, 500), in.StartsAt, in.EndsAt, in.AllDay)
 	if err != nil {
 		writeError(w, 400, "Could not update event")
 		return
