@@ -138,6 +138,7 @@ function renderApp(){
   renderPeople();
   renderCalendars();
   renderCategories();
+  renderNotifications();
   renderSettings();
 }
 
@@ -152,6 +153,7 @@ function navigate(page,load=true){
   $("#new-event").classList.toggle("hidden",!["calendar","agenda"].includes(page));
   $("#sidebar").classList.remove("open");
   if(!load)return;
+  if(page==="notifications")renderNotifications();
   if(page==="integrations")loadMonita();
   if(page==="updates")loadUpdater();
   if(page==="backups")loadBackups();
@@ -386,6 +388,57 @@ function eventCard(e){
     <span class="agenda-main"><strong>${e.is_recurring?'<span class="repeat-mark" title="Repeating event">↻</span> ':""}${escapeHTML(e.title)}</strong><small>${escapeHTML(e.calendar_name)}${e.location?" · "+escapeHTML(e.location):""}${e.all_day?"":` · ends ${escapeHTML(formatTime(end))}`}</small></span>
     ${avatarMini(e)}
   </button>`;
+}
+
+function reminderLabel(minutes){
+  const n=Number(minutes)||0;
+  if(n<60)return n+" min before";
+  if(n%10080===0)return (n/10080)+" week"+(n===10080?"":"s")+" before";
+  if(n%1440===0)return (n/1440)+" day"+(n===1440?"":"s")+" before";
+  if(n%60===0)return (n/60)+" hour"+(n===60?"":"s")+" before";
+  return n+" min before";
+}
+
+function notificationRows(){
+  const now=Date.now();
+  const rows=[];
+  visibleEvents().forEach(event=>{
+    const start=new Date(event.starts_at);
+    (event.reminders||[]).forEach(reminder=>{
+      const fireAt=new Date(start.getTime()-Number(reminder.minutes_before||0)*60000);
+      if(fireAt.getTime()<now-60*60*1000)return;
+      rows.push({event,reminder,fireAt});
+    });
+  });
+  return rows.sort((a,b)=>a.fireAt-b.fireAt);
+}
+
+function renderNotifications(){
+  const host=$("#scheduled-reminders"),summary=$("#notification-summary");
+  if(!host||!summary)return;
+  const filter=$("#notification-kind-filter")?.value||"";
+  const all=notificationRows();
+  const rows=filter?all.filter(row=>row.reminder.kind===filter):all;
+  const personal=all.filter(row=>row.reminder.kind==="personal").length;
+  const household=all.filter(row=>row.reminder.kind==="system").length;
+  summary.innerHTML=`<article class="notification-stat"><span>Upcoming</span><strong>${all.length}</strong><small>scheduled reminders</small></article>
+    <article class="notification-stat"><span>Personal</span><strong>${personal}</strong><small>phone reminders</small></article>
+    <article class="notification-stat"><span>Household</span><strong>${household}</strong><small>Monita reminders</small></article>`;
+  $("#notification-count").textContent=rows.length+" reminder"+(rows.length===1?"":"s");
+  host.innerHTML=rows.length?rows.slice(0,200).map(({event,reminder,fireAt})=>{
+    const system=reminder.kind==="system";
+    const people=(event.assignees||[]).map(person=>person.display_name).join(", ");
+    return `<button type="button" class="scheduled-reminder" data-event-key="${escapeAttr(eventKey(event))}">
+      <span class="scheduled-reminder-icon ${system?"system":"personal"}">${system?"M":"P"}</span>
+      <span class="scheduled-reminder-when"><strong>${escapeHTML(formatDate(fireAt,{weekday:"short",month:"short",day:"numeric"}))}</strong><small>${escapeHTML(formatTime(fireAt))}</small></span>
+      <span class="scheduled-reminder-main"><strong>${escapeHTML(event.title)}</strong><small>${escapeHTML(reminderLabel(reminder.minutes_before))} · ${system?"Household via Monita":"Personal phone reminder"}${people?" · "+escapeHTML(people):""}</small></span>
+      <span class="scheduled-reminder-calendar"><i style="--cal:${safeColor(event.calendar_color||event.color)}"></i>${escapeHTML(event.calendar_name||"Calendar")}</span>
+    </button>`;
+  }).join(""):'<div class="empty-state"><strong>No scheduled reminders</strong><span>Add a reminder to an event and it will appear here.</span></div>';
+  host.querySelectorAll("[data-event-key]").forEach(button=>button.addEventListener("click",()=>{
+    const event=findEventByKey(button.dataset.eventKey);
+    if(event)requestEventEdit(event);
+  }));
 }
 
 function renderPeople(){
@@ -905,6 +958,8 @@ $("#clear-calendar-filters").addEventListener("click",()=>{
   state.filters={category:"",person:"",query:""};renderCalendar();renderAgenda();
 });
 $("#agenda-search").addEventListener("input",renderAgenda);
+$("#notification-kind-filter").addEventListener("change",renderNotifications);
+$("#refresh-notifications").addEventListener("click",async()=>{await loadEvents();renderNotifications()});
 $("#event-dialog [data-close-event]").forEach(b=>b.addEventListener("click",()=>$("#event-dialog").close()));
 $("#add-personal-reminder").addEventListener("click",()=>addReminderRow("personal"));
 $("#add-system-reminder").addEventListener("click",()=>addReminderRow("system"));
