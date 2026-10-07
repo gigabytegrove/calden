@@ -51,7 +51,10 @@ func (s *server) saveBillDetails(ctx context.Context, tx pgx.Tx, eventID, calend
 		return err
 	}
 	if calendarType != "bill_pay" {
-		_, err = tx.Exec(ctx, `DELETE FROM bill_event_details WHERE event_id=$1`, eventID)
+		if _, err = tx.Exec(ctx, `DELETE FROM bill_event_details WHERE event_id=$1`, eventID); err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, `DELETE FROM bill_payments WHERE event_id=$1`, eventID)
 		return err
 	}
 
@@ -163,10 +166,27 @@ func (s *server) setBillPayment(w http.ResponseWriter, r *http.Request) {
 
 	var effectiveEventID, calendarID uuid.UUID
 	var title, calendarType string
-	if err = s.db.QueryRow(r.Context(), `SELECT e.id,e.calendar_id,e.title,c.calendar_type
+	var seriesStart time.Time
+	var recurring bool
+	if err = s.db.QueryRow(r.Context(), `SELECT e.id,e.calendar_id,e.title,c.calendar_type,e.starts_at,
+		EXISTS(SELECT 1 FROM event_recurrence er WHERE er.event_id=e.id)
 		FROM events e JOIN calendars c ON c.id=e.calendar_id
-		WHERE e.id=$1`, eventID).Scan(&effectiveEventID, &calendarID, &title, &calendarType); err != nil {
+		WHERE e.id=$1`, eventID).Scan(&effectiveEventID, &calendarID, &title, &calendarType, &seriesStart, &recurring); err != nil {
 		writeError(w, 404, "Bill not found")
+		return
+	}
+	if recurring {
+		_, exists, checkErr := s.validSeriesOccurrence(r.Context(), eventID, in.OccurrenceStart)
+		if checkErr != nil {
+			writeError(w, 500, "Could not validate this bill occurrence")
+			return
+		}
+		if !exists {
+			writeError(w, 404, "That bill occurrence is not part of this recurring bill")
+			return
+		}
+	} else if !seriesStart.Equal(in.OccurrenceStart) {
+		writeError(w, 400, "That bill occurrence does not match this bill")
 		return
 	}
 
