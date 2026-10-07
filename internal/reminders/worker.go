@@ -130,7 +130,7 @@ func run(ctx context.Context, db *pgxpool.Pool) {
 func loadReminderSources(ctx context.Context, db *pgxpool.Pool) ([]reminderSource, error) {
 	rows, err := db.Query(ctx, `
 		SELECT r.id,e.id,r.minutes_before,e.title,e.location,e.starts_at,e.ends_at,r.destination,
-		       er.frequency,er.interval_value,er.weekdays,er.until_at,er.occurrence_count
+		       er.frequency,er.interval_value,er.weekdays,er.until_at,er.occurrence_count,COALESCE(er.raw_rule,'')
 		FROM reminders r
 		JOIN events e ON e.id=r.event_id
 		LEFT JOIN event_recurrence er ON er.event_id=e.id
@@ -155,10 +155,11 @@ func loadReminderSources(ctx context.Context, db *pgxpool.Pool) ([]reminderSourc
 		var weekdaysRaw []byte
 		var until *time.Time
 		var count *int
+		var rawRule string
 		if err := rows.Scan(
 			&source.ReminderID, &source.EventID, &source.MinutesBefore, &source.Title, &source.Location,
 			&source.SeriesStart, &source.SeriesEnd, &source.Destination,
-			&frequency, &interval, &weekdaysRaw, &until, &count,
+			&frequency, &interval, &weekdaysRaw, &until, &count, &rawRule,
 		); err != nil {
 			continue
 		}
@@ -169,7 +170,7 @@ func loadReminderSources(ctx context.Context, db *pgxpool.Pool) ([]reminderSourc
 			}
 			source.Rule = recurrence.Normalize(&recurrence.Rule{
 				Frequency: *frequency, Interval: *interval, Weekdays: weekdays,
-				Until: until, OccurrenceCount: count,
+				Until: until, OccurrenceCount: count, Raw: rawRule,
 			}, source.SeriesStart)
 		}
 		out = append(out, source)

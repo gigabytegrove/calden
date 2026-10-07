@@ -255,7 +255,7 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := s.db.Query(r.Context(), `SELECT e.id,e.calendar_id,e.category_id,e.title,e.notes,e.location,e.starts_at,e.ends_at,e.all_day,e.status,
-		c.name,c.color,cat.name,cat.color,er.frequency,er.interval_value,er.weekdays,er.until_at,er.occurrence_count
+		c.name,c.color,cat.name,cat.color,er.frequency,er.interval_value,er.weekdays,er.until_at,er.occurrence_count,COALESCE(er.raw_rule,'')
 		FROM events e
 		JOIN calendars c ON c.id=e.calendar_id
 		LEFT JOIN categories cat ON cat.id=e.category_id
@@ -288,10 +288,11 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 		var weekdaysRaw []byte
 		var until *time.Time
 		var count *int
+		var rawRule string
 
 		if rows.Scan(&id, &calID, &categoryID, &title, &notes, &location, &startAt, &endAt, &allDay, &status,
 			&calName, &calendarColor, &categoryName, &categoryColor,
-			&frequency, &interval, &weekdaysRaw, &until, &count) != nil {
+			&frequency, &interval, &weekdaysRaw, &until, &count, &rawRule) != nil {
 			continue
 		}
 
@@ -306,7 +307,7 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 			}
 			rule = recurrence.Normalize(&recurrence.Rule{
 				Frequency: *frequency, Interval: *interval, Weekdays: weekdays,
-				Until: until, OccurrenceCount: count,
+				Until: until, OccurrenceCount: count, Raw: rawRule,
 			}, startAt)
 		}
 
@@ -352,7 +353,7 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 	overrideRows, err := s.db.Query(r.Context(), `SELECT
 		parent.id,parent.calendar_id,parent.category_id,parent.title,parent.notes,parent.location,parent.starts_at,parent.ends_at,parent.all_day,parent.status,
 		pc.name,pc.color,pcat.name,pcat.color,
-		er.frequency,er.interval_value,er.weekdays,er.until_at,er.occurrence_count,
+		er.frequency,er.interval_value,er.weekdays,er.until_at,er.occurrence_count,COALESCE(er.raw_rule,''),
 		replacement.id,replacement.calendar_id,replacement.category_id,replacement.title,replacement.notes,replacement.location,
 		replacement.starts_at,replacement.ends_at,replacement.all_day,replacement.status,
 		rc.name,rc.color,rcat.name,rcat.color,replacement.recurrence_original_start
@@ -389,11 +390,12 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 		var weekdaysRaw []byte
 		var until *time.Time
 		var count *int
+		var rawRule string
 
 		if overrideRows.Scan(
 			&parentID, &parentCalID, &parentCategoryID, &parentTitle, &parentNotes, &parentLocation, &parentStart, &parentEnd, &parentAllDay, &parentStatus,
 			&parentCalName, &parentCalendarColor, &parentCategoryName, &parentCategoryColor,
-			&frequency, &interval, &weekdaysRaw, &until, &count,
+			&frequency, &interval, &weekdaysRaw, &until, &count, &rawRule,
 			&replacementID, &replacementCalID, &replacementCategoryID, &replacementTitle, &replacementNotes, &replacementLocation,
 			&replacementStart, &replacementEnd, &replacementAllDay, &replacementStatus,
 			&replacementCalName, &replacementCalendarColor, &replacementCategoryName, &replacementCategoryColor, &originalStart,
@@ -407,7 +409,7 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 		}
 		rule := recurrence.Normalize(&recurrence.Rule{
 			Frequency: frequency, Interval: interval, Weekdays: weekdays,
-			Until: until, OccurrenceCount: count,
+			Until: until, OccurrenceCount: count, Raw: rawRule,
 		}, parentStart)
 
 		replacementDisplayColor := replacementCalendarColor
@@ -531,8 +533,8 @@ func (s *server) createEvent(w http.ResponseWriter, r *http.Request) {
 	if in.Recurrence != nil {
 		rule := recurrence.Normalize(in.Recurrence, in.StartsAt)
 		weekdays, _ := json.Marshal(rule.Weekdays)
-		if _, err = tx.Exec(r.Context(), `INSERT INTO event_recurrence(event_id,frequency,interval_value,weekdays,until_at,occurrence_count)
-			VALUES($1,$2,$3,$4,$5,$6)`, id, rule.Frequency, rule.Interval, weekdays, rule.Until, rule.OccurrenceCount); err != nil {
+		if _, err = tx.Exec(r.Context(), `INSERT INTO event_recurrence(event_id,frequency,interval_value,weekdays,until_at,occurrence_count,raw_rule)
+			VALUES($1,$2,$3,$4,$5,$6,$7)`, id, rule.Frequency, rule.Interval, weekdays, rule.Until, rule.OccurrenceCount, rule.Raw); err != nil {
 			writeError(w, 400, "Could not save repeat settings")
 			return
 		}

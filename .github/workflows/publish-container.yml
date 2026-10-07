@@ -12,6 +12,7 @@ on:
       - "go.mod"
       - "go.sum"
       - ".github/workflows/publish-container.yml"
+      - "VERSION"
   workflow_dispatch:
 
 concurrency:
@@ -29,6 +30,14 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+
+      - name: Read version
+        id: version
+        shell: bash
+        run: |
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          test -n "$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -76,7 +85,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: |
             ghcr.io/gigabytegrove/calden:latest
-            ghcr.io/gigabytegrove/calden:0.1.0-alpha1
+            ghcr.io/gigabytegrove/calden:${{ steps.version.outputs.version }}
             ghcr.io/gigabytegrove/calden:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
