@@ -211,6 +211,15 @@ jobs:
             await form.locator('button[type="submit"]').click();
             await page.locator('#people-list').getByText('Second User').waitFor({ state: 'visible' });
 
+            await page.locator('.nav-item[data-page="categories"]').click();
+            await page.locator('#page-categories').waitFor({ state: 'visible' });
+            const categoryForm = page.locator('#category-form');
+            await categoryForm.locator('input[name="name"]').fill('Travel');
+            await categoryForm.locator('input[name="color"]').fill('#0ea5e9');
+            await categoryForm.locator('textarea[name="description"]').fill('Trips and travel plans');
+            await categoryForm.locator('button[type="submit"]').click();
+            await page.locator('#category-list').getByText('Travel').waitFor({ state: 'visible' });
+
             await page.locator('.nav-item[data-page="settings"]').click();
             await page.locator('#page-settings').waitFor({ state: 'visible' });
             await page.locator('#general-settings-form input[name="household_name"]').fill('Updated Test Family');
