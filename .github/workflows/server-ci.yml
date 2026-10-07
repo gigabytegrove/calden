@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: calden-server-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -90,7 +94,22 @@ jobs:
             });
 
             await page.goto('http://127.0.0.1:8787', { waitUntil: 'networkidle' });
-            await page.locator('#setup-form').waitFor({ state: 'visible' });
+            await page.waitForTimeout(1500);
+            const setupStatus = await page.evaluate(async () => {
+              const response = await fetch('/api/setup/status', { cache: 'no-store' });
+              return { status: response.status, body: await response.json() };
+            });
+            const setupVisible = await page.locator('#setup-form').isVisible();
+            if (!setupVisible) {
+              const bootText = await page.locator('#boot-status').textContent();
+              const loginVisible = await page.locator('#login-form').isVisible();
+              throw new Error(
+                'Setup form stayed hidden. setupStatus=' + JSON.stringify(setupStatus) +
+                ' loginVisible=' + loginVisible +
+                ' bootStatus=' + JSON.stringify(bootText) +
+                (errors.length ? '\n' + errors.join('\n') : '')
+              );
+            }
 
             const heading = await page.locator('#setup-form h1').first().textContent();
             if (heading?.trim() !== 'Set up your family calendar') {
