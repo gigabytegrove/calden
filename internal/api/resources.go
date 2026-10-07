@@ -409,6 +409,7 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 			"series_calendar_id": parentCalID, "series_title": parentTitle, "series_notes": parentNotes,
 			"series_location": parentLocation, "series_all_day": parentAllDay, "series_status": parentStatus,
 			"series_calendar_name": parentCalName, "series_color": parentColor,
+			"series_assignees": s.eventAssignees(r, parentID), "series_reminders": s.eventReminders(r, parentID),
 		})
 	}
 	if err := overrideRows.Err(); err != nil {
