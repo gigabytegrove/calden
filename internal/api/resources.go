@@ -100,7 +100,8 @@ func hashPassword(password string) (string, error) { return bcryptHash(password)
 func (s *server) listCalendars(w http.ResponseWriter, r *http.Request) {
 	a := currentActor(r)
 	rows, err := s.db.Query(r.Context(), `SELECT c.id,c.name,c.color,c.icon,c.description,c.calendar_type,
-		COALESCE(p.can_edit,false),COALESCE(p.can_delete,false)
+		COALESCE(p.can_edit,false),COALESCE(p.can_delete,false),
+		(SELECT count(*) FROM events e WHERE e.calendar_id=c.id AND e.recurrence_parent_id IS NULL)
 		FROM calendars c
 		LEFT JOIN calendar_permissions p ON p.calendar_id=c.id AND p.user_id=$1
 		WHERE $2='admin' OR COALESCE(p.can_view,false)=true ORDER BY c.name`, a.ID, a.Role)
@@ -114,12 +115,13 @@ func (s *server) listCalendars(w http.ResponseWriter, r *http.Request) {
 		var id uuid.UUID
 		var name, color, icon, description, calendarType string
 		var canEdit, canDelete bool
-		if rows.Scan(&id, &name, &color, &icon, &description, &calendarType, &canEdit, &canDelete) == nil {
+		var eventCount int
+		if rows.Scan(&id, &name, &color, &icon, &description, &calendarType, &canEdit, &canDelete, &eventCount) == nil {
 			if a.Role == "admin" {
 				canEdit = true
 				canDelete = true
 			}
-			out = append(out, map[string]any{"id": id, "name": name, "color": color, "icon": icon, "description": description, "calendar_type": calendarType, "can_edit": canEdit, "can_delete": canDelete})
+			out = append(out, map[string]any{"id": id, "name": name, "color": color, "icon": icon, "description": description, "calendar_type": calendarType, "can_edit": canEdit, "can_delete": canDelete, "event_count": eventCount})
 		}
 	}
 	writeJSON(w, 200, out)
