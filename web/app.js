@@ -680,7 +680,7 @@ function eventCard(e){
   const start=new Date(e.starts_at),end=new Date(e.ends_at);
   return `<button class="agenda-event" data-event-key="${escapeAttr(eventKey(e))}" style="--cal:${safeColor(e.calendar_color||e.color)}">
     <span class="agenda-color"></span><span class="agenda-date"><strong>${formatDate(start,{month:"short",day:"numeric"})}</strong><small>${e.all_day?"All day":formatTime(start)}</small></span>
-    <span class="agenda-main"><strong>${e.is_recurring?'<span class="repeat-mark" title="Repeating event">↻</span> ':""}${escapeHTML(e.title)}${billAmountLabel(e)?` · ${escapeHTML(billAmountLabel(e))}`:""}</strong><small>${escapeHTML(e.calendar_name)}${e.bill_payer?.display_name?" · payer "+escapeHTML(e.bill_payer.display_name):""}${e.location?" · "+escapeHTML(e.location):""}${e.all_day?"":` · ends ${escapeHTML(formatTime(end))}`}</small></span>
+    <span class="agenda-main"><strong>${e.is_recurring?'<span class="repeat-mark" title="Repeating event">↻</span> ':""}${escapeHTML(e.title)}${billAmountLabel(e)?` · ${escapeHTML(billAmountLabel(e))}`:""}${billPaymentLabel(e)?` · ${escapeHTML(billPaymentLabel(e))}`:""}</strong><small>${escapeHTML(e.calendar_name)}${e.bill_payer?.display_name?" · assigned "+escapeHTML(e.bill_payer.display_name):""}${e.location?" · "+escapeHTML(e.location):""}${e.all_day?"":` · ends ${escapeHTML(formatTime(end))}`}</small></span>
     ${avatarMini(e)}
   </button>`;
 }
