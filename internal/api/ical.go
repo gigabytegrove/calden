@@ -418,13 +418,15 @@ func (s *server) resolveImportCategory(ctx context.Context, tx pgx.Tx, name stri
 	if actor.Role != "admin" {
 		return nil, nil
 	}
-	if err := tx.QueryRow(ctx, `INSERT INTO categories(name,color,icon,description,created_by)
-		VALUES($1,'#64748B','tag','Created from iCalendar import',$2) RETURNING id`,
-		name, actor.ID).Scan(&id); err != nil {
-		// A concurrent import may have created the category.
-		if err2 := tx.QueryRow(ctx, `SELECT id FROM categories WHERE active=true AND lower(name)=lower($1) LIMIT 1`, name).Scan(&id); err2 != nil {
+	err = tx.QueryRow(ctx, `INSERT INTO categories(name,color,icon,description,created_by)
+		VALUES($1,'#64748B','tag','Created from iCalendar import',$2)
+		ON CONFLICT DO NOTHING RETURNING id`, name, actor.ID).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		if err := tx.QueryRow(ctx, `SELECT id FROM categories WHERE active=true AND lower(name)=lower($1) LIMIT 1`, name).Scan(&id); err != nil {
 			return nil, err
 		}
+	} else if err != nil {
+		return nil, err
 	}
 	return &id, nil
 }
