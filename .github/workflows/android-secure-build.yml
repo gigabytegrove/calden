@@ -46,10 +46,141 @@ jobs:
           set -euo pipefail
           for i in $(seq 1 120); do
             git fetch origin main --quiet
-            if git cat-file -e origin/main:android-secure/source.enc 2>/dev/null &&
+            if git cat-file -e origin/main:android-secure/ready 2>/dev/null &&
                git cat-file -e origin/main:android-secure/key.enc 2>/dev/null; then
-              git show origin/main:android-secure/source.enc > /tmp/source.enc
               git show origin/main:android-secure/key.enc > /tmp/key.enc
+              mkdir -p /tmp/source-chunks
+              while read -r path; do
+                [ -n "$path" ] || continue
+                name="$(basename "$path")"
+                git show "origin/main:$path" > "/tmp/source-chunks/$name"
+              done <<EOF
+$(git ls-tree -r --name-only origin/main android-secure/ | grep '^android-secure/source-[0-9][0-9]\.enc
+          echo "Encrypted Android source was not delivered in time." >&2
+          exit 1
+
+      - name: Decrypt private Android source
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d /tmp/key.enc > /tmp/key.rsa
+          openssl pkeyutl -decrypt \
+            -inkey /tmp/calden-android-private.pem \
+            -in /tmp/key.rsa \
+            -pkeyopt rsa_padding_mode:pkcs1 \
+            -out /tmp/source.key
+
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          def rotl32(v, n):
+              return ((v << n) & 0xffffffff) | (v >> (32 - n))
+
+          def qr(s, a, b, c, d):
+              s[a] = (s[a] + s[b]) & 0xffffffff; s[d] ^= s[a]; s[d] = rotl32(s[d], 16)
+              s[c] = (s[c] + s[d]) & 0xffffffff; s[b] ^= s[c]; s[b] = rotl32(s[b], 12)
+              s[a] = (s[a] + s[b]) & 0xffffffff; s[d] ^= s[a]; s[d] = rotl32(s[d], 8)
+              s[c] = (s[c] + s[d]) & 0xffffffff; s[b] ^= s[c]; s[b] = rotl32(s[b], 7)
+
+          def block(key, counter, nonce):
+              constants = b"expand 32-byte k"
+              words = [
+                  int.from_bytes(constants[i:i+4], "little") for i in range(0,16,4)
+              ] + [
+                  int.from_bytes(key[i:i+4], "little") for i in range(0,32,4)
+              ] + [counter] + [
+                  int.from_bytes(nonce[i:i+4], "little") for i in range(0,12,4)
+              ]
+              s = words[:]
+              for _ in range(10):
+                  qr(s,0,4,8,12); qr(s,1,5,9,13); qr(s,2,6,10,14); qr(s,3,7,11,15)
+                  qr(s,0,5,10,15); qr(s,1,6,11,12); qr(s,2,7,8,13); qr(s,3,4,9,14)
+              out = bytearray()
+              for a,b in zip(s,words):
+                  out += ((a+b)&0xffffffff).to_bytes(4,"little")
+              return bytes(out)
+
+          import base64
+
+          key = Path("/tmp/source.key").read_bytes()
+          if len(key) != 32:
+              raise SystemExit("source key is invalid")
+
+          root = Path("/tmp/calden-android")
+          restored = 0
+          for encrypted_path in sorted(Path("/tmp/source-chunks").glob("source-*.enc")):
+              payload = base64.b64decode(encrypted_path.read_text().strip())
+              if len(payload) < 13:
+                  raise SystemExit(f"encrypted source payload is invalid: {encrypted_path.name}")
+              nonce, ciphertext = payload[:12], payload[12:]
+              plain = bytearray(len(ciphertext))
+              for offset in range(0, len(ciphertext), 64):
+                  stream = block(key, 1 + offset//64, nonce)
+                  chunk = ciphertext[offset:offset+64]
+                  for i,b in enumerate(chunk):
+                      plain[offset+i] = b ^ stream[i]
+              bundle = json.loads(plain.decode("utf-8"))
+              for rel, content in bundle["files"].items():
+                  target = root / rel
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  target.write_text(content, encoding="utf-8")
+                  restored += 1
+
+          logo = Path("web/calden-logo-official.webp")
+          target = root / "app/src/main/res/drawable-nodpi/calden_mark_official.webp"
+          target.parent.mkdir(parents=True, exist_ok=True)
+          target.write_bytes(logo.read_bytes())
+
+          print(f"Restored {restored} encrypted Android source files.")
+          PY
+
+          rm -f /tmp/source.key /tmp/key.rsa /tmp/calden-android-private.pem /tmp/calden-android-public.pem /tmp/key.enc
+          rm -rf /tmp/source-chunks
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 36
+        shell: bash
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.7.1"
+
+      - name: Build debug APK
+        working-directory: /tmp/calden-android
+        run: gradle --no-daemon --stacktrace assembleDebug
+
+      - name: Verify APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK=/tmp/calden-android/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          sha256sum "$APK"
+          mkdir -p /tmp/calden-apk
+          cp "$APK" /tmp/calden-apk/CalDen-android-debug.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: CalDen-Android-APK
+          path: /tmp/calden-apk/CalDen-android-debug.apk
+          if-no-files-found: error
+          retention-days: 7
+ | sort)
+EOF
+              test "$(find /tmp/source-chunks -type f | wc -l)" -gt 0
               exit 0
             fi
             sleep 5
