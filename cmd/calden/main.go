@@ -21,7 +21,7 @@ import (
 	"github.com/gigabytegrove/calden/internal/store"
 )
 
-var version = "0.1.0-alpha7"
+var version = "0.1.0-alpha8"
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "version" {
