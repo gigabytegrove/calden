@@ -151,10 +151,11 @@ func (s *server) ensureBillReviewNotifications(ctx context.Context, userID uuid.
 			occurrenceLocal := occurrence.Start.In(loc)
 			promptAt := occurrenceLocal
 			if allDay {
-				promptAt = time.Date(
-					occurrenceLocal.Year(), occurrenceLocal.Month(), occurrenceLocal.Day(),
-					20, 0, 0, 0, loc,
-				)
+				// All-day values represent calendar dates, not UTC instants. Rebuild
+				// the stored date in the household timezone so midnight UTC does not
+				// move the review prompt to the previous local day.
+				year, month, day := occurrence.Start.Date()
+				promptAt = time.Date(year, month, day, 20, 0, 0, 0, loc)
 			}
 			if now.Before(promptAt) {
 				continue
