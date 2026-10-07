@@ -403,14 +403,16 @@ function notificationRows(){
   const now=Date.now();
   const rows=[];
   visibleEvents().forEach(event=>{
-    const start=new Date(event.starts_at);
+    const start=new Date(event.starts_at),end=new Date(event.ends_at);
+    if(end.getTime()<now)return;
     (event.reminders||[]).forEach(reminder=>{
       const fireAt=new Date(start.getTime()-Number(reminder.minutes_before||0)*60000);
-      if(fireAt.getTime()<now-60*60*1000)return;
-      rows.push({event,reminder,fireAt});
+      const dueNow=fireAt.getTime()<=now&&start.getTime()>now;
+      if(fireAt.getTime()<now&&!dueNow)return;
+      rows.push({event,reminder,fireAt,dueNow,sortAt:dueNow?now:fireAt.getTime()});
     });
   });
-  return rows.sort((a,b)=>a.fireAt-b.fireAt);
+  return rows.sort((a,b)=>a.sortAt-b.sortAt);
 }
 
 function renderNotifications(){
@@ -425,12 +427,12 @@ function renderNotifications(){
     <article class="notification-stat"><span>Personal</span><strong>${personal}</strong><small>phone reminders</small></article>
     <article class="notification-stat"><span>Household</span><strong>${household}</strong><small>Monita reminders</small></article>`;
   $("#notification-count").textContent=rows.length+" reminder"+(rows.length===1?"":"s");
-  host.innerHTML=rows.length?rows.slice(0,200).map(({event,reminder,fireAt})=>{
+  host.innerHTML=rows.length?rows.slice(0,200).map(({event,reminder,fireAt,dueNow})=>{
     const system=reminder.kind==="system";
     const people=(event.assignees||[]).map(person=>person.display_name).join(", ");
     return `<button type="button" class="scheduled-reminder" data-event-key="${escapeAttr(eventKey(event))}">
       <span class="scheduled-reminder-icon ${system?"system":"personal"}">${system?"M":"P"}</span>
-      <span class="scheduled-reminder-when"><strong>${escapeHTML(formatDate(fireAt,{weekday:"short",month:"short",day:"numeric"}))}</strong><small>${escapeHTML(formatTime(fireAt))}</small></span>
+      <span class="scheduled-reminder-when"><strong>${dueNow?"Due now":escapeHTML(formatDate(fireAt,{weekday:"short",month:"short",day:"numeric"}))}</strong><small>${dueNow?"Event "+escapeHTML(formatTime(new Date(event.starts_at))):escapeHTML(formatTime(fireAt))}</small></span>
       <span class="scheduled-reminder-main"><strong>${escapeHTML(event.title)}</strong><small>${escapeHTML(reminderLabel(reminder.minutes_before))} · ${system?"Household via Monita":"Personal phone reminder"}${people?" · "+escapeHTML(people):""}</small></span>
       <span class="scheduled-reminder-calendar"><i style="--cal:${safeColor(event.calendar_color||event.color)}"></i>${escapeHTML(event.calendar_name||"Calendar")}</span>
     </button>`;
