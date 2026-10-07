@@ -10,7 +10,7 @@ CalDen is a self-hosted family calendar built for normal people, not calendar ad
 
 A calendar has its own color. A person has their own identity. The two never compete with each other.
 
-CalDen is currently in active development. The current development build is **0.1.0-alpha10**.
+CalDen is currently in active development. The current development build is **0.1.0-alpha10.1**.
 
 ## What CalDen does
 
@@ -414,7 +414,7 @@ The current version is intended for active testing and development. Database mig
 Current version:
 
 ```text
-0.1.0-alpha10
+0.1.0-alpha10.1
 ```
 
 ## Project layout
