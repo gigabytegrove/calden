@@ -10,7 +10,7 @@ CalDen is a self-hosted family calendar built for normal people, not calendar ad
 
 A calendar has its own color. A person has their own identity. The two never compete with each other.
 
-CalDen is currently in active development. The current development build is **0.1.0-alpha8**.
+CalDen is currently in active development. The current development build is **0.1.0-alpha9**.
 
 ## What CalDen does
 
@@ -64,7 +64,10 @@ The current development build includes:
 - calendar visibility controls
 - calendar editing permissions
 - typed destructive deletion of calendars that still contain events
+- permanent category deletion; events using a deleted category become uncategorized
 - multi-person event assignment
+- persistent assignment notifications and whole-family event alerts
+- optional live browser notifications with unread inbox badges
 - event creation
 - event editing
 - event deletion
@@ -80,7 +83,7 @@ The current development build includes:
 - Monita test notifications
 - background Monita reminder delivery
 - reminder delivery retry tracking
-- responsive web interface
+- Tailwind CSS v4-backed responsive web interface with a polished application shell
 - native Android client foundation with real server login and event data
 - PostgreSQL storage
 - automatic database migrations
@@ -88,6 +91,13 @@ The current development build includes:
 - health checks
 
 CalDen is being developed as a rolling product. Features are being added to the working application rather than held for a future rewrite.
+
+The production web bundle is built with Tailwind CSS v4. Docker and release builds compile it automatically. For direct source development outside Docker, run:
+
+```bash
+npm install
+npm run build:css
+```
 
 ## Quick install with Docker Compose
 
@@ -404,7 +414,7 @@ The current version is intended for active testing and development. Database mig
 Current version:
 
 ```text
-0.1.0-alpha8
+0.1.0-alpha9
 ```
 
 ## Project layout
