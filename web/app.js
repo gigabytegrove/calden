@@ -270,6 +270,104 @@ function renderCalendarFilters(){
   $("#clear-calendar-filters")?.classList.toggle("hidden",!state.filters.category&&!state.filters.person&&!state.filters.query);
 }
 
+function renderBillNavigation(){
+  const visible=state.calendars.some(cal=>cal.calendar_type==="bill_pay");
+  $(".bill-nav").forEach(el=>el.classList.toggle("hidden",!visible));
+  if(!visible&&state.currentPage==="bills")navigate("calendar",false);
+}
+
+async function loadBillMonth(){
+  const start=new Date(state.billMonth.getFullYear(),state.billMonth.getMonth(),1);
+  const end=new Date(state.billMonth.getFullYear(),state.billMonth.getMonth()+1,1);
+  try{
+    const events=await api(`/api/events?from=${encodeURIComponent(start.toISOString())}&to=${encodeURIComponent(end.toISOString())}`);
+    state.billEvents=events.filter(event=>isBillCalendar(event.calendar_id));
+    renderBills();
+  }catch(err){
+    const host=$("#bill-list");
+    if(host)host.innerHTML=`<div class="empty-state"><strong>Could not load bills</strong><span>${escapeHTML(err.message)}</span></div>`;
+  }
+}
+
+function billGroupRows(events,keyFn,labelFn){
+  const groups=new Map();
+  events.forEach(event=>{
+    const key=keyFn(event),label=labelFn(event);
+    if(!groups.has(key))groups.set(key,{label,total:0,known:0,estimated:0,count:0,unpriced:0});
+    const group=groups.get(key);group.count++;
+    if(event.bill_amount===null||event.bill_amount===undefined){group.unpriced++;return}
+    const amount=Number(event.bill_amount)||0;group.total+=amount;
+    if(event.bill_amount_is_estimate)group.estimated+=amount;else group.known+=amount;
+  });
+  return [...groups.values()].sort((a,b)=>b.total-a.total||a.label.localeCompare(b.label));
+}
+
+function billBreakdownMarkup(rows){
+  if(!rows.length)return '<div class="bill-empty-small">No bills in this month.</div>';
+  return rows.map(row=>`<div class="bill-breakdown-row">
+    <div><strong>${escapeHTML(row.label)}</strong><small>${row.count} bill${row.count===1?"":"s"}${row.unpriced?" · "+row.unpriced+" without amount":""}</small></div>
+    <div><strong>${money(row.total)}</strong>${row.estimated?`<small>${money(row.estimated)} estimated</small>`:""}</div>
+  </div>`).join("");
+}
+
+function renderBills(){
+  const host=$("#bill-list"),summary=$("#bill-summary");
+  if(!host||!summary)return;
+  const billCalendars=state.calendars.filter(cal=>cal.calendar_type==="bill_pay");
+  renderBillNavigation();
+  if(!billCalendars.length){
+    $("#bill-month-label").textContent="";
+    summary.innerHTML="";
+    $("#bill-by-person").innerHTML='<div class="bill-empty-small">No bill pay calendars are visible to you.</div>';
+    $("#bill-by-calendar").innerHTML='<div class="bill-empty-small">No bill pay calendars are visible to you.</div>';
+    host.innerHTML='<div class="empty-state"><strong>No Bill Pay calendar</strong><span>An administrator can create a Bill Pay calendar and give you access.</span></div>';
+    $("#bill-count").textContent="";
+    return;
+  }
+
+  const start=new Date(state.billMonth.getFullYear(),state.billMonth.getMonth(),1);
+  $("#bill-month-label").textContent=formatDate(start,{month:"long",year:"numeric"});
+  const fallback=state.events.filter(event=>{
+    const d=new Date(event.starts_at);
+    return isBillCalendar(event.calendar_id)&&d.getFullYear()===start.getFullYear()&&d.getMonth()===start.getMonth();
+  });
+  const events=(state.currentPage==="bills"?state.billEvents:fallback).slice().sort((a,b)=>new Date(a.starts_at)-new Date(b.starts_at));
+
+  let known=0,estimated=0,unpriced=0;
+  events.forEach(event=>{
+    if(event.bill_amount===null||event.bill_amount===undefined){unpriced++;return}
+    if(event.bill_amount_is_estimate)estimated+=Number(event.bill_amount)||0;
+    else known+=Number(event.bill_amount)||0;
+  });
+  const total=known+estimated;
+  summary.innerHTML=`
+    <article class="bill-stat"><span>Expected this month</span><strong>${money(total)}</strong><small>known + estimated bills</small></article>
+    <article class="bill-stat"><span>Known amounts</span><strong>${money(known)}</strong><small>fixed or confirmed amounts</small></article>
+    <article class="bill-stat"><span>Estimated</span><strong>${money(estimated)}</strong><small>variable bills marked as estimates</small></article>
+    <article class="bill-stat"><span>Due</span><strong>${events.length}</strong><small>${unpriced?unpriced+" without an amount":"all amounts entered"}</small></article>`;
+
+  const byPerson=billGroupRows(events,event=>event.bill_payer?.id||"__unassigned__",event=>event.bill_payer?.display_name||"Unassigned");
+  const byCalendar=billGroupRows(events,event=>event.calendar_id,event=>event.calendar_name||"Bill calendar");
+  $("#bill-by-person").innerHTML=billBreakdownMarkup(byPerson);
+  $("#bill-by-calendar").innerHTML=billBreakdownMarkup(byCalendar);
+  $("#bill-count").textContent=events.length+" bill"+(events.length===1?"":"s");
+
+  host.innerHTML=events.length?events.map(event=>{
+    const due=new Date(event.starts_at),amount=billAmountLabel(event);
+    const payer=event.bill_payer?.display_name||"Not assigned";
+    return `<button type="button" class="bill-row" data-event-key="${escapeAttr(eventKey(event))}">
+      <span class="bill-due"><strong>${formatDate(due,{month:"short",day:"numeric"})}</strong><small>${event.all_day?"Due date":formatTime(due)}</small></span>
+      <span class="bill-row-main"><strong>${escapeHTML(event.title)}</strong><small>${escapeHTML(event.calendar_name||"Bills")} · ${escapeHTML(payer)}</small></span>
+      <span class="bill-row-amount ${event.bill_amount_is_estimate?"estimated":""}"><strong>${amount?escapeHTML(amount):"Amount not set"}</strong><small>${event.bill_amount_is_estimate?"Estimated":"Amount due"}</small></span>
+    </button>`;
+  }).join(""):'<div class="empty-state"><strong>Nothing due this month</strong><span>Add a bill or move to another month.</span></div>';
+  host.querySelectorAll("[data-event-key]").forEach(button=>button.addEventListener("click",()=>{
+    const key=button.dataset.eventKey;
+    const event=events.find(item=>eventKey(item)===key);
+    if(event)requestEventEdit(event);
+  }));
+}
+
 function renderCalendar(){
   const label=$("#calendar-range-label");
   $$(".view-switcher button").forEach(b=>b.classList.toggle("active",Number(b.dataset.days)===state.viewDays));
