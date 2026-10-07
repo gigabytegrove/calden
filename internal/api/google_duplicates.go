@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"sort"
 	"strings"
@@ -33,13 +32,29 @@ func (s *server) googleDuplicateGroups(ctx context.Context, tx pgx.Tx) ([]google
 		FROM events e
 		JOIN calendars c ON c.id=e.calendar_id
 		JOIN (
-			SELECT external_uid
-			FROM events
-			WHERE external_uid IS NOT NULL AND recurrence_parent_id IS NULL
-			GROUP BY external_uid
+			SELECT de.external_uid
+			FROM events de
+			JOIN calendars dc ON dc.id=de.calendar_id
+			WHERE de.external_uid IS NOT NULL
+			  AND de.recurrence_parent_id IS NULL
+			  AND (
+				dc.description='Imported from Google Calendar'
+				OR EXISTS (
+					SELECT 1 FROM calendar_import_sources cis
+					WHERE cis.provider='google' AND cis.calendar_id=de.calendar_id
+				)
+			  )
+			GROUP BY de.external_uid
 			HAVING count(*) > 1
 		) d ON d.external_uid=e.external_uid
 		WHERE e.recurrence_parent_id IS NULL
+		  AND (
+			c.description='Imported from Google Calendar'
+			OR EXISTS (
+				SELECT 1 FROM calendar_import_sources cis
+				WHERE cis.provider='google' AND cis.calendar_id=e.calendar_id
+			)
+		  )
 		ORDER BY e.external_uid,lower(c.name),e.id`)
 	if err != nil {
 		return nil, err
@@ -306,9 +321,7 @@ func (s *server) exportRepairableGoogleDuplicates(
 		}
 		sourceCalendars[source] = calendarID
 	}
-	if err := rows.Close(); err != nil {
-		return 0, 0, err
-	}
+	rows.Close()
 
 	repairable := 0
 	removed := 0
