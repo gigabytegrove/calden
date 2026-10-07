@@ -140,6 +140,19 @@ function billPaymentLabel(event){
   const who=event.bill_paid_by?.display_name;
   return who?`Paid by ${who}`:"Paid";
 }
+function billCalendarStatusMarker(event){
+  if(!isBillCalendar(event?.calendar_id))return "";
+  const status=billPaymentStatus(event);
+  const marker=status==="allocated"
+    ?{icon:"$",label:"Funds allocated"}
+    :status==="paid"
+      ?{icon:"✓",label:"Paid"}
+      :status==="cleared"
+        ?{icon:"✓✓",label:"Cleared"}
+        :null;
+  if(!marker)return "";
+  return `<span class="bill-calendar-status ${status}" title="${escapeAttr(marker.label)}" aria-label="${escapeAttr(marker.label)}">${marker.icon}</span>`;
+}
 function dateInputValue(value=new Date()){
   const d=new Date(value),p=n=>String(n).padStart(2,"0");
   return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
@@ -772,7 +785,7 @@ function renderTimeline(days){
       const left=item.column/item.columns*100,width=100/item.columns;
       const e=item.event;
       return `<button class="timed-event" data-event-key="${escapeAttr(eventKey(e))}" style="--cal:${safeColor(e.calendar_color||e.color)};--top:${top}%;--height:${height}%;--left:${left}%;--width:${width}%">
-        <strong>${escapeHTML(e.title)}</strong><span>${formatTime(new Date(e.starts_at))}${billAmountLabel(e)?" · "+escapeHTML(billAmountLabel(e)):""}${billPaymentLabel(e)?" · "+escapeHTML(billPaymentLabel(e)):""}${e.bill_payer?.display_name?" · "+escapeHTML(e.bill_payer.display_name):""}${e.category_name?" · "+escapeHTML(e.category_name):""}</span>${avatarMini(e)}
+        <strong>${billCalendarStatusMarker(e)}${escapeHTML(e.title)}</strong><span>${formatTime(new Date(e.starts_at))}${billAmountLabel(e)?" · "+escapeHTML(billAmountLabel(e)):""}${billPaymentLabel(e)?" · "+escapeHTML(billPaymentLabel(e)):""}${e.bill_payer?.display_name?" · "+escapeHTML(e.bill_payer.display_name):""}${e.category_name?" · "+escapeHTML(e.category_name):""}</span>${avatarMini(e)}
       </button>`;
     }).join("");
     const now=new Date(),nowMinutes=now.getHours()*60+now.getMinutes();
@@ -806,7 +819,7 @@ function calendarEventBlock(e,compact=false){
   const time=e.all_day?"All day":formatTime(new Date(e.starts_at));
   const meta=[time,billAmountLabel(e),billPaymentLabel(e),e.bill_payer?.display_name,e.category_name].filter(Boolean).join(" · ");
   return `<button class="calendar-event ${compact?"compact":""}" data-event-key="${escapeAttr(eventKey(e))}" style="--cal:${safeColor(e.calendar_color||e.color)}">
-    <span class="event-color"></span><span class="calendar-event-copy"><strong>${e.is_recurring?'<span class="repeat-mark" title="Repeating event">↻</span> ':""}${escapeHTML(e.title)}</strong><small>${escapeHTML(meta)}</small></span>${avatarMini(e)}
+    <span class="event-color"></span><span class="calendar-event-copy"><strong>${e.is_recurring?'<span class="repeat-mark" title="Repeating event">↻</span> ':""}${billCalendarStatusMarker(e)}${escapeHTML(e.title)}</strong><small>${escapeHTML(meta)}</small></span>${avatarMini(e)}
   </button>`;
 }
 function avatarMini(e){
