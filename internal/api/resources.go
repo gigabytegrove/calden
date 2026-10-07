@@ -395,7 +395,7 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 		if overrideRows.Scan(
 			&parentID, &parentCalID, &parentCategoryID, &parentTitle, &parentNotes, &parentLocation, &parentStart, &parentEnd, &parentAllDay, &parentStatus,
 			&parentCalName, &parentCalendarColor, &parentCategoryName, &parentCategoryColor,
-			&frequency, &interval, &weekdaysRaw, &until, &count,
+			&frequency, &interval, &weekdaysRaw, &until, &count, &rawRule,
 			&replacementID, &replacementCalID, &replacementCategoryID, &replacementTitle, &replacementNotes, &replacementLocation,
 			&replacementStart, &replacementEnd, &replacementAllDay, &replacementStatus,
 			&replacementCalName, &replacementCalendarColor, &replacementCategoryName, &replacementCategoryColor, &originalStart,
