@@ -9,7 +9,7 @@
 </head>
 <body class="bg-slate-50 text-slate-900">
 <div id="auth" class="auth-shell">
-  <main id="auth-card" class="auth-card">
+  <main id="auth-card" class="auth-card shadow-xl shadow-slate-900/5">
     <div class="auth-brand-panel">
       <img class="brand-logo" src="/calden-logo-official.webp" alt="CalDen">
       <div class="auth-brand-fallback"><strong>CalDen</strong><span>Your family calendar.</span></div>
@@ -76,7 +76,7 @@
 </div>
 
 <div id="app" class="app-shell hidden">
-  <aside class="sidebar" id="sidebar">
+  <aside class="sidebar bg-slate-950 text-slate-100 shadow-xl shadow-slate-950/10" id="sidebar">
     <div class="sidebar-brand">
       <div class="sidebar-logo-surface"><img src="/calden-logo-official.webp" alt="CalDen"></div>
       <div class="sidebar-brand-copy"><strong>CalDen</strong><span>Family workspace</span></div>
@@ -103,10 +103,10 @@
   </aside>
 
   <main class="workspace">
-    <header class="workspace-topbar">
+    <header class="workspace-topbar backdrop-blur-xl">
       <button id="mobile-menu" class="icon-button mobile-only" type="button" aria-label="Open menu">☰</button>
       <div><p class="workspace-household" id="household-label"></p><h1 id="page-title">Calendar</h1></div>
-      <button id="new-event" class="button">+ Add event</button>
+      <button id="new-event" class="button bg-blue-600 border-blue-600 hover:bg-blue-700 shadow-sm">+ Add event</button>
     </header>
 
     <section id="page-calendar" class="app-page">
