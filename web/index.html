@@ -85,6 +85,7 @@
       <button class="nav-item" data-page="notifications">Notifications</button>
       <button class="nav-item admin-only" data-page="integrations">Integrations</button>
       <button class="nav-item admin-only" data-page="updates">Updates</button>
+      <button class="nav-item admin-only" data-page="activity">Activity</button>
       <button class="nav-item" data-page="settings">Settings</button>
     </nav>
     <div class="sidebar-account">
@@ -219,6 +220,17 @@
           <div class="safety-note"><strong>Update safety</strong><span>CalDen creates a PostgreSQL safety dump before installing, verifies SHA-256 checksums, verifies the new binary, and retains rollback metadata.</span></div>
         </aside>
       </div>
+    </section>
+
+    <section id="page-activity" class="app-page hidden admin-only">
+      <div class="page-header">
+        <div><p class="eyebrow">Change history</p><h2>Activity</h2><p class="muted">A persistent record of schedule, account, integration, and system changes.</p></div>
+        <div class="agenda-tools">
+          <select id="activity-filter" aria-label="Filter activity"><option value="">All activity</option><option value="event">Events</option><option value="calendar">Calendars</option><option value="category">Categories</option><option value="user">People</option><option value="settings">Settings</option><option value="integration">Integrations</option><option value="update">Updates</option></select>
+          <button id="refresh-activity" class="button secondary compact" type="button">Refresh</button>
+        </div>
+      </div>
+      <div id="activity-list" class="activity-timeline"></div>
     </section>
 
     <section id="page-settings" class="app-page hidden">
