@@ -833,6 +833,22 @@ function collectReminders(){
   return reminders;
 }
 
+function updateBillEventUI(){
+  const form=$("#event-form"),bill=isBillCalendar(form.calendar_id.value);
+  $("#bill-event-details")?.classList.toggle("hidden",!bill);
+  if(!bill){
+    form.bill_amount.value="";
+    form.bill_amount_is_estimate.checked=false;
+    form.bill_payer_user_id.value="";
+  }
+}
+function openBillEvent(){
+  const cal=state.calendars.find(item=>item.calendar_type==="bill_pay"&&item.can_edit);
+  if(!cal){alert("You do not have a Bill Pay calendar you can edit.");return}
+  openEvent();
+  const form=$("#event-form");form.calendar_id.value=cal.id;updateBillEventUI();
+}
+
 function openEvent(existing=null,dateHint=null,scope="series"){
   if(!state.calendars.some(c=>c.can_edit)){
     if(state.me.role==="admin"){navigate("calendars");return}
@@ -863,6 +879,12 @@ function openEvent(existing=null,dateHint=null,scope="series"){
     form.starts_at.value=localInput(new Date(occurrenceScope?existing.starts_at:(existing.series_starts_at||existing.starts_at)));
     form.ends_at.value=localInput(new Date(occurrenceScope?existing.ends_at:(existing.series_ends_at||existing.ends_at)));
     form.all_day.checked=!!sourceAllDay;form.location.value=sourceLocation||"";form.notes.value=sourceNotes||"";
+    const sourceBillAmount=occurrenceScope?existing.bill_amount:seriesValue(existing,"bill_amount",existing.bill_amount);
+    const sourceBillEstimate=occurrenceScope?existing.bill_amount_is_estimate:seriesValue(existing,"bill_amount_is_estimate",existing.bill_amount_is_estimate);
+    const sourceBillPayer=occurrenceScope?existing.bill_payer:seriesValue(existing,"bill_payer",existing.bill_payer);
+    form.bill_amount.value=sourceBillAmount===null||sourceBillAmount===undefined?"":String(sourceBillAmount);
+    form.bill_amount_is_estimate.checked=!!sourceBillEstimate;
+    form.bill_payer_user_id.value=sourceBillPayer?.id||"";
     const recurrence=occurrenceScope?null:(existing.recurrence||null);
     state.preserveRawRecurrence=!!recurrence?.raw;
     $("#advanced-recurrence-note")?.classList.toggle("hidden",!state.preserveRawRecurrence);
@@ -891,9 +913,11 @@ function openEvent(existing=null,dateHint=null,scope="series"){
     const preferred=editable.find(cal=>cal.id===state.defaultCalendar)||editable[0];
     if(preferred)form.calendar_id.value=preferred.id;
     form.repeat_frequency.value="";form.repeat_interval.value="1";form.repeat_end_type.value="never";form.repeat_count.value="10";
+    form.bill_amount.value="";form.bill_amount_is_estimate.checked=false;form.bill_payer_user_id.value="";
     [...form.querySelectorAll('input[name="repeat_weekday"]')].forEach(i=>i.checked=false);
     renderReminderEditor([]);
   }
+  updateBillEventUI();
   updateRepeatUI();
   $("#event-error").textContent="";$("#event-dialog").showModal();
 }
@@ -1192,7 +1216,9 @@ $("#delete-event").addEventListener("click",async()=>{
 $("#event-form").addEventListener("submit",async e=>{
   e.preventDefault();const form=e.currentTarget,fd=new FormData(form);$("#event-error").textContent="";
   const reminders=collectReminders();
-  const payload={title:fd.get("title"),calendar_id:fd.get("calendar_id"),category_id:fd.get("category_id")||null,starts_at:new Date(fd.get("starts_at")).toISOString(),ends_at:new Date(fd.get("ends_at")).toISOString(),all_day:form.all_day.checked,location:fd.get("location"),notes:fd.get("notes"),assignee_ids:fd.getAll("assignee"),reminders,recurrence:recurrencePayload(form)};
+  const billActive=isBillCalendar(fd.get("calendar_id"));
+  const billRaw=String(fd.get("bill_amount")||"").trim();
+  const payload={title:fd.get("title"),calendar_id:fd.get("calendar_id"),category_id:fd.get("category_id")||null,starts_at:new Date(fd.get("starts_at")).toISOString(),ends_at:new Date(fd.get("ends_at")).toISOString(),all_day:form.all_day.checked,location:fd.get("location"),notes:fd.get("notes"),assignee_ids:fd.getAll("assignee"),reminders,recurrence:recurrencePayload(form),bill_amount:billActive&&billRaw!==""?Number(billRaw):null,bill_amount_is_estimate:billActive&&form.bill_amount_is_estimate.checked,bill_payer_user_id:billActive&&form.bill_payer_user_id.value?form.bill_payer_user_id.value:null};
   let target="/api/events",method="POST",body=payload;
   if(state.editingEvent){
     if(state.editingEvent.is_recurring&&state.editingScope==="occurrence"){
@@ -1206,7 +1232,8 @@ $("#event-form").addEventListener("submit",async e=>{
   try{
     await api(target,{method,body:JSON.stringify(body)});
     $("#event-dialog").close();state.editingEvent=null;state.editingScope="series";state.preserveRawRecurrence=false;
-    await loadEvents();renderCalendar();renderAgenda();
+    await loadEvents();renderCalendar();renderAgenda();renderNotifications();
+    if(state.currentPage==="bills")await loadBillMonth();else renderBills();
   }
   catch(err){$("#event-error").textContent=err.message}
 });
