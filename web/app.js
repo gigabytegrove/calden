@@ -1942,16 +1942,10 @@ $("#remove-settings-avatar").addEventListener("click",async()=>{
   }catch(err){$("#settings-avatar-status").textContent=err.message}
 });
 
-const googleRepairInput=$("#google-repair-export");
-googleRepairInput?.addEventListener("change",()=>{state.googleRepairFile=googleRepairInput.files?.[0]||null;state.googleRepairPreview=null;$("#google-repair-confirm-wrap")?.classList.add("hidden");$("#repair-google-duplicates").disabled=true});
 $("#scan-google-duplicates")?.addEventListener("click",scanGoogleDuplicateData);
-$("#preview-google-repair")?.addEventListener("click",previewGoogleDuplicateRepair);
+$("#select-google-newest")?.addEventListener("click",selectNewestGoogleDuplicateCopies);
 $("#repair-google-duplicates")?.addEventListener("click",repairGoogleDuplicateData);
-$("#google-repair-confirmation")?.addEventListener("input",()=>{
-  const body=state.googleRepairPreview;if(!body)return;
-  const phrase=`REPAIR ${Number(body.export_repairable_groups)||0}`;
-  $("#repair-google-duplicates").disabled=$("#google-repair-confirmation").value!==phrase;
-});
+$("#google-repair-confirmation")?.addEventListener("input",updateGoogleRepairConfirmation);
 
 const googleImportInput=$("#google-calendar-export");
 const googleImportDrop=$("#google-import-drop");
@@ -1982,83 +1976,119 @@ $("#review-google-calendar")?.addEventListener("click",async()=>{
     button.disabled=false;button.textContent="Review calendars";
   }
 });
-function renderGoogleDuplicateSummary(body){
-  const host=$("#google-duplicate-summary"),workflow=$("#google-repair-workflow"),examples=$("#google-duplicate-examples");
-  const groups=Number(body?.duplicate_groups)||0,copies=Number(body?.extra_copies)||0;
-  const replacements=Number(body?.replacement_repairable_groups)||0;
-  host.classList.remove("hidden");
-  host.innerHTML=`
-    <div><strong>${groups}</strong><span>same-UID duplicate group${groups===1?"":"s"}</span></div>
-    <div><strong>${copies}</strong><span>same-UID redundant cop${copies===1?"y":"ies"}</span></div>
-    <div><strong>${replacements}</strong><span>stale replacement${replacements===1?"":"s"} with changed UID</span></div>`;
-  workflow.classList.remove("hidden");
-  const uidExamples=(body?.examples||[]).map(item=>`<div class="google-duplicate-example"><strong>${escapeHTML(item.title||"Untitled event")}</strong><span>${Number(item.copies)||0} stored copies · same Google UID</span></div>`);
-  const replacementExamples=(body?.replacement_examples||[]).map(item=>{
-    const oldDate=item.stale_start?formatDate(new Date(item.stale_start),{month:"short",day:"numeric",year:"numeric"}):"old date";
-    const newDate=item.current_start?formatDate(new Date(item.current_start),{month:"short",day:"numeric",year:"numeric"}):"current date";
-    return `<div class="google-duplicate-example"><strong>${escapeHTML(item.title||"Untitled event")}</strong><span>stale ${escapeHTML(oldDate)} → current ${escapeHTML(newDate)} · changed Google UID</span></div>`;
+function duplicateCandidateDate(item){
+  if(!item?.starts_at)return "Unknown date";
+  if(item.all_day){
+    const day=String(item.starts_at).slice(0,10);
+    return formatDate(new Date(day+"T12:00:00"),{month:"short",day:"numeric",year:"numeric"});
+  }
+  return formatDate(new Date(item.starts_at),{month:"short",day:"numeric",year:"numeric"})+" "+formatTime(new Date(item.starts_at));
+}
+
+function renderGoogleDuplicateCandidates(body){
+  const summary=$("#google-duplicate-summary"),workflow=$("#google-repair-workflow"),host=$("#google-duplicate-candidates");
+  const groups=Array.isArray(body?.groups)?body.groups:[];
+  const extras=Number(body?.extra_copies)||0;
+  summary.classList.remove("hidden");
+  summary.innerHTML=`
+    <div><strong>${groups.length}</strong><span>possible duplicate group${groups.length===1?"":"s"}</span></div>
+    <div><strong>${extras}</strong><span>extra stored event cop${extras===1?"y":"ies"}</span></div>
+    <div><strong>Manual</strong><span>you choose what survives</span></div>`;
+  workflow.classList.toggle("hidden",groups.length===0);
+  host.innerHTML=groups.map((group,index)=>{
+    const frequency=group.frequency?escapeHTML(group.frequency+(Number(group.interval)>1?" every "+group.interval:"")):"single event";
+    const options=(group.events||[]).map(item=>`<label class="google-duplicate-choice">
+      <input type="radio" name="google-duplicate-${index}" value="${item.id}">
+      <span class="google-duplicate-choice-main">
+        <strong>${escapeHTML(duplicateCandidateDate(item))}</strong>
+        <small>${escapeHTML(item.calendar_name||group.calendar_name||"Calendar")} · ${frequency}${item.recommended?" · newest CalDen copy":""}</small>
+      </span>
+      <span class="google-duplicate-uid">UID ${escapeHTML(String(item.external_uid||"").slice(-18))}</span>
+    </label>`).join("");
+    return `<article class="google-duplicate-group" data-duplicate-index="${index}">
+      <div class="google-duplicate-group-head"><div><strong>${escapeHTML(group.title||"Untitled event")}</strong><span>${(group.events||[]).length} stored copies</span></div><button type="button" class="text-button clear-google-duplicate" data-index="${index}">Skip</button></div>
+      <div class="google-duplicate-choices">${options}</div>
+    </article>`;
+  }).join("");
+  host.querySelectorAll('input[type="radio"]').forEach(input=>input.addEventListener("change",updateGoogleRepairConfirmation));
+  host.querySelectorAll(".clear-google-duplicate").forEach(button=>button.addEventListener("click",()=>{
+    host.querySelectorAll(`input[name="google-duplicate-${button.dataset.index}"]`).forEach(input=>input.checked=false);
+    updateGoogleRepairConfirmation();
+  }));
+  $("#google-repair-confirm-wrap").classList.add("hidden");
+  $("#google-repair-confirmation").value="";
+  $("#repair-google-duplicates").disabled=true;
+}
+
+function selectedGoogleDuplicateResolutions(){
+  const groups=state.googleRepairPreview?.groups||[];
+  const resolutions=[];
+  groups.forEach((group,index)=>{
+    const selected=document.querySelector(`input[name="google-duplicate-${index}"]:checked`);
+    if(!selected)return;
+    const keep=selected.value;
+    const remove=(group.events||[]).map(item=>item.id).filter(id=>id!==keep);
+    if(remove.length)resolutions.push({keep_event_id:keep,remove_event_ids:remove});
   });
-  examples.innerHTML=[...uidExamples,...replacementExamples].join("");
+  return resolutions;
+}
+
+function updateGoogleRepairConfirmation(){
+  const resolutions=selectedGoogleDuplicateResolutions();
+  const count=resolutions.reduce((sum,item)=>sum+item.remove_event_ids.length,0);
+  const wrap=$("#google-repair-confirm-wrap"),button=$("#repair-google-duplicates");
+  if(!count){
+    wrap.classList.add("hidden");
+    button.disabled=true;
+    return;
+  }
+  const phrase=`REMOVE ${count}`;
+  $("#google-repair-phrase").textContent=phrase;
+  wrap.classList.remove("hidden");
+  button.disabled=$("#google-repair-confirmation").value!==phrase;
+}
+
+function selectNewestGoogleDuplicateCopies(){
+  const groups=state.googleRepairPreview?.groups||[];
+  groups.forEach((group,index)=>{
+    const id=group.recommended_keep_event_id;
+    const input=id?document.querySelector(`input[name="google-duplicate-${index}"][value="${CSS.escape(String(id))}"]`):null;
+    if(input)input.checked=true;
+  });
+  $("#google-repair-confirmation").value="";
+  updateGoogleRepairConfirmation();
 }
 
 async function scanGoogleDuplicateData(){
   const button=$("#scan-google-duplicates"),status=$("#google-repair-status");
-  button.disabled=true;button.textContent="Scanning…";
+  button.disabled=true;button.textContent="Scanning…";status.textContent="Scanning imported events already stored in CalDen…";
   try{
-    const body=await api("/api/integrations/google/duplicates");
-    state.googleRepairPreview=null;
-    renderGoogleDuplicateSummary(body);
-    status.textContent=Number(body.duplicate_groups)
-      ?"Same-UID duplicates found. Choose the original Google export to also check for stale older copies whose Google UID changed."
-      :"No same-UID duplicates were found. Choose the original Google export anyway if CalDen shows an old and current copy on different dates; those can have different Google UIDs.";
-    $("#google-repair-confirm-wrap").classList.add("hidden");
-    $("#repair-google-duplicates").disabled=true;
+    const body=await api("/api/integrations/google/duplicates/candidates");
+    state.googleRepairPreview=body;
+    renderGoogleDuplicateCandidates(body);
+    status.textContent=Number(body.group_count)
+      ?`Found ${body.group_count} possible duplicate group${Number(body.group_count)===1?"":"s"}. Select exactly which copy to keep in each group you want repaired.`
+      :"No duplicate candidates were found in the imported CalDen events.";
   }catch(err){status.textContent=err.message}
   finally{button.disabled=false;button.textContent="Scan CalDen"}
 }
 
-async function previewGoogleDuplicateRepair(){
-  const file=state.googleRepairFile||$("#google-repair-export")?.files?.[0]||state.googleImportFile;
-  const status=$("#google-repair-status"),button=$("#preview-google-repair");
-  if(!file){status.textContent="Choose the original Google Calendar export first.";return}
-  button.disabled=true;button.textContent="Checking…";status.textContent="Comparing the existing CalDen duplicates with the original Google export…";
-  try{
-    const form=new FormData();form.append("archive",file,file.name);
-    const res=await fetch("/api/integrations/google/duplicates/preview",{method:"POST",headers:{Authorization:"Bearer "+state.token},body:form});
-    const body=await res.json().catch(()=>null);if(!res.ok)throw new Error(body?.error||"Could not preview duplicate repair");
-    state.googleRepairPreview=body;renderGoogleDuplicateSummary(body);
-    const repairable=Number(body.export_repairable_groups)||0;
-    if(!repairable){status.textContent="CalDen did not find a stored duplicate it can safely tie to the current export. Nothing has been changed.";return}
-    const phrase=`REPAIR ${repairable}`;
-    $("#google-repair-phrase").textContent=phrase;
-    $("#google-repair-confirmation").value="";
-    $("#google-repair-confirm-wrap").classList.remove("hidden");
-    $("#repair-google-duplicates").disabled=true;
-    const changed=Number(body.replacement_repairable_groups)||0;
-    const sameUID=Number(body.same_uid_repairable_groups)||0;
-    status.textContent=`${repairable} stored duplicate group${repairable===1?" is":"s are"} safely repairable in place (${sameUID} same UID, ${changed} changed UID/stale replacement). No calendars will be deleted and no events will be imported.`;
-  }catch(err){status.textContent=err.message}
-  finally{button.disabled=false;button.textContent="Preview repair"}
-}
-
 async function repairGoogleDuplicateData(){
-  const body=state.googleRepairPreview,file=state.googleRepairFile||$("#google-repair-export")?.files?.[0]||state.googleImportFile;
-  if(!body||!file)return;
-  const phrase=`REPAIR ${Number(body.export_repairable_groups)||0}`;
-  if($("#google-repair-confirmation").value!==phrase)return;
+  const resolutions=selectedGoogleDuplicateResolutions();
+  const count=resolutions.reduce((sum,item)=>sum+item.remove_event_ids.length,0);
+  const phrase=`REMOVE ${count}`;
+  if(!count||$("#google-repair-confirmation").value!==phrase)return;
   const button=$("#repair-google-duplicates"),status=$("#google-repair-status");
-  button.disabled=true;button.textContent="Repairing…";
+  button.disabled=true;button.textContent="Removing…";status.textContent="Merging CalDen-side data and removing only the copies you selected…";
   try{
-    const form=new FormData();form.append("archive",file,file.name);
-    const res=await fetch("/api/integrations/google/duplicates/repair",{method:"POST",headers:{Authorization:"Bearer "+state.token},body:form});
-    const result=await res.json().catch(()=>null);if(!res.ok)throw new Error(result?.error||"Could not repair duplicate events");
+    const result=await api("/api/integrations/google/duplicates/resolve",{method:"POST",body:JSON.stringify({resolutions})});
     await reloadSharedData();renderCalendar();renderAgenda();renderBills();
-    renderGoogleDuplicateSummary(result);
-    $("#google-repair-confirm-wrap").classList.add("hidden");
-    const total=Number(result.removed_copies)||0;
-    status.textContent=`Removed ${total} redundant CalDen event cop${total===1?"y":"ies"} (${Number(result.same_uid_removed)||0} same UID, ${Number(result.replacement_removed)||0} stale changed-UID replacement). Calendars and nonduplicate events were left in place.`;
+    status.textContent=`Removed ${Number(result.removed_copies)||0} duplicate event cop${Number(result.removed_copies)===1?"y":"ies"}. No calendars were deleted.`;
+    const fresh=await api("/api/integrations/google/duplicates/candidates");
+    state.googleRepairPreview=fresh;
+    renderGoogleDuplicateCandidates(fresh);
   }catch(err){status.textContent=err.message}
-  finally{button.textContent="Repair duplicates"}
+  finally{button.textContent="Remove selected duplicates";updateGoogleRepairConfirmation()}
 }
 
 $("#import-google-calendar")?.addEventListener("click",async()=>{
