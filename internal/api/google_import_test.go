@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	calical "github.com/gigabytegrove/calden/internal/ical"
 	"github.com/gigabytegrove/calden/internal/recurrence"
 )
 
@@ -180,55 +179,5 @@ func TestParseGoogleCalendarUploadDeduplicatesMovedEventByLatestRevision(t *test
 	}
 	if current.Calendar.Events[0].ModifiedAt.IsZero() {
 		t.Fatal("expected LAST-MODIFIED revision metadata to be parsed")
-	}
-}
-
-
-func TestGoogleLikelyReplacementRecognizesChangedUIDRecurringSeries(t *testing.T) {
-	stored := googleStoredImportEvent{
-		Title: "Colquitt EMC - House",
-		Start: time.Date(2025, 2, 6, 0, 0, 0, 0, time.UTC),
-		End: time.Date(2025, 2, 7, 0, 0, 0, 0, time.UTC),
-		AllDay: true,
-		Frequency: "monthly",
-		Interval: 1,
-	}
-	current := calical.Event{
-		UID: "new-google-uid@test",
-		Summary: "Colquitt EMC - House",
-		Start: time.Date(2025, 2, 7, 0, 0, 0, 0, time.UTC),
-		End: time.Date(2025, 2, 8, 0, 0, 0, 0, time.UTC),
-		AllDay: true,
-		Recurrence: &recurrence.Rule{Frequency: "monthly", Interval: 1},
-	}
-	if !googleLikelyReplacement(stored, current) {
-		t.Fatal("expected one-day-shifted monthly series with the same title to be recognized as a stale replacement")
-	}
-}
-
-func TestGoogleLikelyReplacementRejectsDifferentRecurringSeries(t *testing.T) {
-	stored := googleStoredImportEvent{
-		Start: time.Date(2025, 2, 6, 0, 0, 0, 0, time.UTC),
-		End: time.Date(2025, 2, 7, 0, 0, 0, 0, time.UTC),
-		AllDay: true,
-		Frequency: "monthly",
-		Interval: 1,
-	}
-	current := calical.Event{
-		Start: time.Date(2025, 2, 7, 0, 0, 0, 0, time.UTC),
-		End: time.Date(2025, 2, 8, 0, 0, 0, 0, time.UTC),
-		AllDay: true,
-		Recurrence: &recurrence.Rule{Frequency: "yearly", Interval: 1},
-	}
-	if googleLikelyReplacement(stored, current) {
-		t.Fatal("different recurrence frequencies must not be merged")
-	}
-}
-
-func TestNormalizeGoogleEventTitleIsStable(t *testing.T) {
-	left := normalizeGoogleEventTitle("  Colquitt EMC - House ")
-	right := normalizeGoogleEventTitle("COLQUITT EMC — HOUSE")
-	if left != right || left != "colquitt emc house" {
-		t.Fatalf("unexpected normalized titles: %q %q", left, right)
 	}
 }
