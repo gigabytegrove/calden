@@ -306,14 +306,14 @@
           </div>
           <section id="google-duplicate-repair" class="google-repair-panel">
             <div class="google-repair-head">
-              <div><p class="eyebrow">Existing CalDen data</p><h4>Repair duplicate Google events</h4><p>Scan the events already stored in CalDen. This does not delete calendars and does not re-import your calendar. Your original Google export is used only to identify which existing CalDen copy is the current one.</p></div>
+              <div><p class="eyebrow">Existing CalDen data</p><h4>Repair duplicate Google events</h4><p>Scan the events already stored in CalDen. This does not delete calendars and does not re-import your calendar. Your current Google export is used only to identify which existing CalDen copy is the current one.</p></div>
               <button id="scan-google-duplicates" type="button" class="button secondary">Scan CalDen</button>
             </div>
             <div id="google-duplicate-summary" class="google-duplicate-summary hidden"></div>
             <div id="google-repair-workflow" class="google-repair-workflow hidden">
               <label>Original Google Calendar export
                 <input id="google-repair-export" type="file" accept=".zip,.ics,application/zip,text/calendar">
-                <span class="field-help">Use the same export the events came from. CalDen reads it as a reference only; it will not import events from this action.</span>
+                <span class="field-help">Use the fresh export from Google Calendar that reflects the dates you want CalDen to keep. CalDen reads it as a reference only; it will not import events from this action.</span>
               </label>
               <div class="form-actions">
                 <button id="preview-google-repair" type="button" class="button secondary">Preview repair</button>
