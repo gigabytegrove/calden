@@ -81,6 +81,7 @@
       <button class="nav-item" data-page="agenda">Agenda</button>
       <button class="nav-item admin-only" data-page="people">People</button>
       <button class="nav-item admin-only" data-page="calendars">Calendars</button>
+      <button class="nav-item admin-only" data-page="categories">Categories</button>
       <button class="nav-item" data-page="notifications">Notifications</button>
       <button class="nav-item admin-only" data-page="integrations">Integrations</button>
       <button class="nav-item admin-only" data-page="updates">Updates</button>
@@ -155,6 +156,22 @@
           <fieldset><legend>Who can make changes?</legend><div id="calendar-editors" class="check-list"></div></fieldset>
           <div class="form-actions"><button id="delete-calendar" type="button" class="button danger hidden">Delete</button><span class="grow"></span><button id="cancel-calendar-edit" type="button" class="button secondary hidden">Cancel</button><button type="submit" class="button">Save calendar</button></div>
           <p id="calendar-error" class="error"></p><p id="calendar-status" class="success"></p>
+        </form>
+      </div>
+    </section>
+
+    <section id="page-categories" class="app-page hidden admin-only">
+      <div class="page-header"><div><p class="eyebrow">Event types</p><h2>Categories</h2><p class="muted">Categories describe what an event is. Their color is used on the calendar regardless of which calendar the event belongs to.</p></div></div>
+      <div class="management-layout">
+        <div id="category-list" class="card-list"></div>
+        <form id="category-form" class="panel stack">
+          <input type="hidden" name="category_id">
+          <div><p class="eyebrow" id="category-form-eyebrow">New category</p><h3 id="category-form-title">Create a category</h3></div>
+          <label>Name<input name="name" required maxlength="100" placeholder="Medical"></label>
+          <label>Color<input name="color" type="color" value="#dc2626" required></label>
+          <label>Description<textarea name="description" rows="3" maxlength="500" placeholder="Optional"></textarea></label>
+          <div class="form-actions"><button id="delete-category" type="button" class="button danger hidden">Archive</button><span class="grow"></span><button id="cancel-category-edit" type="button" class="button secondary hidden">Cancel</button><button type="submit" class="button">Save category</button></div>
+          <p id="category-error" class="error"></p><p id="category-status" class="success"></p>
         </form>
       </div>
     </section>
@@ -234,7 +251,10 @@
     <div class="event-editor-grid">
       <div class="stack">
         <label>Event name<input name="title" required maxlength="200" placeholder="Electric bill"></label>
-        <label>Calendar<select name="calendar_id" id="calendar-select" required></select></label>
+        <div class="two">
+          <label>Calendar<select name="calendar_id" id="calendar-select" required></select></label>
+          <label>Category<select name="category_id" id="category-select"><option value="">No category</option></select></label>
+        </div>
         <div class="two"><label>Starts<input name="starts_at" type="datetime-local" required></label><label>Ends<input name="ends_at" type="datetime-local" required></label></div>
         <label class="toggle-row"><input name="all_day" type="checkbox"><span>All-day event</span></label>
 
