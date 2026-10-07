@@ -25,7 +25,10 @@ const version = "0.1.0-alpha1"
 
 func main() {
 	port := env("CALDEN_PORT", "8787")
-	databaseURL := databaseURLFromEnv()
+	databaseURL, err := databaseURLFromEnv()
+	if err != nil {
+		log.Fatalf("database configuration: %v", err)
+	}
 	dataDir := env("CALDEN_DATA_DIR", "./data")
 	webDir := env("CALDEN_WEB_DIR", "./web")
 
@@ -89,16 +92,26 @@ func main() {
 	}
 }
 
-func databaseURLFromEnv() string {
+func databaseURLFromEnv() (string, error) {
 	if explicit := strings.TrimSpace(os.Getenv("CALDEN_DATABASE_URL")); explicit != "" {
-		return explicit
+		return explicit, nil
 	}
 
 	host := env("CALDEN_DB_HOST", "localhost")
 	port := env("CALDEN_DB_PORT", "5432")
 	name := env("CALDEN_DB_NAME", "calden")
 	user := env("CALDEN_DB_USER", "calden")
-	password := env("CALDEN_DB_PASSWORD", "calden")
+	password := strings.TrimSpace(os.Getenv("CALDEN_DB_PASSWORD"))
+	if passwordFile := strings.TrimSpace(os.Getenv("CALDEN_DB_PASSWORD_FILE")); passwordFile != "" {
+		b, err := os.ReadFile(passwordFile)
+		if err != nil {
+			return "", fmt.Errorf("read CALDEN_DB_PASSWORD_FILE: %w", err)
+		}
+		password = strings.TrimSpace(string(b))
+	}
+	if password == "" {
+		password = "calden"
+	}
 
 	u := &url.URL{
 		Scheme: "postgres",
@@ -109,7 +122,7 @@ func databaseURLFromEnv() string {
 	q := u.Query()
 	q.Set("sslmode", env("CALDEN_DB_SSLMODE", "disable"))
 	u.RawQuery = q.Encode()
-	return u.String()
+	return u.String(), nil
 }
 
 func env(key, fallback string) string {
