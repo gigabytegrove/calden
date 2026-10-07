@@ -36,9 +36,11 @@ var googleCalendarPalette = []string{
 }
 
 type googleCalendarBundle struct {
-	ExternalID string
-	Name       string
-	Calendar   calical.Calendar
+	ExternalID                 string
+	Name                       string
+	Calendar                   calical.Calendar
+	SuppressedDuplicateUIDs    map[string]string
+	SuppressedDuplicateEvents  int
 }
 
 type googleCalendarImportItem struct {
@@ -61,6 +63,7 @@ type googleCalendarPreviewItem struct {
 	ExternalID            string     `json:"external_id"`
 	Name                  string     `json:"name"`
 	EventCount            int        `json:"event_count"`
+	DuplicateEventsSuppressed int     `json:"duplicate_events_suppressed"`
 	SuggestedCalendarID   *uuid.UUID `json:"suggested_calendar_id"`
 	SuggestedCalendarName string     `json:"suggested_calendar_name,omitempty"`
 	MatchScore            int        `json:"match_score"`
@@ -93,9 +96,14 @@ func (s *server) previewGoogleCalendarExport(w http.ResponseWriter, r *http.Requ
 		items = append(items, item)
 	}
 
+	duplicateSuppressed := 0
+	for _, bundle := range bundles {
+		duplicateSuppressed += bundle.SuppressedDuplicateEvents
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"calendars":      items,
-		"calendar_count": len(items),
+		"calendars":                   items,
+		"calendar_count":              len(items),
+		"duplicate_events_suppressed": duplicateSuppressed,
 	})
 }
 
@@ -128,7 +136,12 @@ func (s *server) importGoogleCalendarExport(w http.ResponseWriter, r *http.Reque
 	items := make([]googleCalendarImportItem, 0, len(bundles))
 	totalCreated, totalUpdated, totalExceptions, totalSkipped := 0, 0, 0, 0
 	createdCalendars, reusedCalendars, skippedCalendars, cleanedCalendars := 0, 0, 0, 0
+	duplicateEventsSuppressed, duplicateEventsReconciled := 0, 0
+	processedSources := map[string]bool{}
 	warnings := []string{}
+	for _, bundle := range bundles {
+		duplicateEventsSuppressed += bundle.SuppressedDuplicateEvents
+	}
 
 	for i, bundle := range bundles {
 		choice := ""
@@ -159,6 +172,7 @@ func (s *server) importGoogleCalendarExport(w http.ResponseWriter, r *http.Reque
 			writeError(w, 500, "Could not import "+bundle.Name+": "+err.Error())
 			return
 		}
+		processedSources[bundle.ExternalID] = true
 
 		if previousCalendarID != nil && *previousCalendarID != calendarID {
 			cleaned, reason, cleanupErr := s.cleanupOldGoogleCalendar(r.Context(), tx, *previousCalendarID)
@@ -189,6 +203,12 @@ func (s *server) importGoogleCalendarExport(w http.ResponseWriter, r *http.Reque
 		})
 	}
 
+	duplicateEventsReconciled, err = s.reconcileGoogleDuplicateImports(r.Context(), tx, bundles, processedSources)
+	if err != nil {
+		writeError(w, 500, "Could not reconcile duplicate Google events")
+		return
+	}
+
 	if err = tx.Commit(r.Context()); err != nil {
 		writeError(w, 500, "Could not finish Google Calendar import")
 		return
@@ -198,6 +218,7 @@ func (s *server) importGoogleCalendarExport(w http.ResponseWriter, r *http.Reque
 		"calendars": len(items), "created_calendars": createdCalendars, "reused_calendars": reusedCalendars,
 		"skipped_calendars": skippedCalendars, "cleaned_calendars": cleanedCalendars,
 		"events_created": totalCreated, "events_updated": totalUpdated, "exceptions": totalExceptions, "skipped": totalSkipped,
+		"duplicate_events_suppressed": duplicateEventsSuppressed, "duplicate_events_reconciled": duplicateEventsReconciled,
 	})
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -205,8 +226,122 @@ func (s *server) importGoogleCalendarExport(w http.ResponseWriter, r *http.Reque
 		"created_calendars": createdCalendars, "reused_calendars": reusedCalendars,
 		"skipped_calendars": skippedCalendars, "cleaned_calendars": cleanedCalendars,
 		"created": totalCreated, "updated": totalUpdated,
-		"exceptions": totalExceptions, "skipped": totalSkipped, "warnings": warnings,
+		"exceptions": totalExceptions, "skipped": totalSkipped,
+		"duplicate_events_suppressed": duplicateEventsSuppressed,
+		"duplicate_events_reconciled": duplicateEventsReconciled,
+		"warnings": warnings,
 	})
+}
+
+func (s *server) reconcileGoogleDuplicateImports(
+	ctx context.Context,
+	tx pgx.Tx,
+	bundles []googleCalendarBundle,
+	processedSources map[string]bool,
+) (int, error) {
+	reconciled := 0
+	calendarForSource := map[string]uuid.UUID{}
+	loadCalendar := func(source string) (uuid.UUID, error) {
+		if id, ok := calendarForSource[source]; ok {
+			return id, nil
+		}
+		var id uuid.UUID
+		if err := tx.QueryRow(ctx, `SELECT calendar_id FROM calendar_import_sources
+			WHERE provider='google' AND external_id=$1`, source).Scan(&id); err != nil {
+			return uuid.Nil, err
+		}
+		calendarForSource[source] = id
+		return id, nil
+	}
+
+	for _, loserBundle := range bundles {
+		if !processedSources[loserBundle.ExternalID] || len(loserBundle.SuppressedDuplicateUIDs) == 0 {
+			continue
+		}
+		loserCalendar, err := loadCalendar(loserBundle.ExternalID)
+		if err != nil {
+			return reconciled, err
+		}
+		for uid, ownerSource := range loserBundle.SuppressedDuplicateUIDs {
+			if !processedSources[ownerSource] {
+				continue
+			}
+			ownerCalendar, err := loadCalendar(ownerSource)
+			if err != nil {
+				return reconciled, err
+			}
+			if ownerCalendar == loserCalendar {
+				continue
+			}
+
+			var loserEvent, ownerEvent uuid.UUID
+			err = tx.QueryRow(ctx, `SELECT id FROM events
+				WHERE calendar_id=$1 AND external_uid=$2 AND recurrence_parent_id IS NULL`,
+				loserCalendar, uid).Scan(&loserEvent)
+			if errors.Is(err, pgx.ErrNoRows) {
+				continue
+			}
+			if err != nil {
+				return reconciled, err
+			}
+			err = tx.QueryRow(ctx, `SELECT id FROM events
+				WHERE calendar_id=$1 AND external_uid=$2 AND recurrence_parent_id IS NULL`,
+				ownerCalendar, uid).Scan(&ownerEvent)
+			if errors.Is(err, pgx.ErrNoRows) {
+				continue
+			}
+			if err != nil {
+				return reconciled, err
+			}
+
+			if _, err = tx.Exec(ctx, `INSERT INTO event_assignees(event_id,user_id)
+				SELECT $1,user_id FROM event_assignees WHERE event_id=$2
+				ON CONFLICT(event_id,user_id) DO NOTHING`, ownerEvent, loserEvent); err != nil {
+				return reconciled, err
+			}
+			if _, err = tx.Exec(ctx, `INSERT INTO reminders(event_id,kind,provider,minutes_before,destination,enabled)
+				SELECT $1,r.kind,r.provider,r.minutes_before,r.destination,r.enabled
+				FROM reminders r
+				WHERE r.event_id=$2
+				  AND NOT EXISTS (
+					SELECT 1 FROM reminders existing
+					WHERE existing.event_id=$1
+					  AND existing.kind=r.kind
+					  AND existing.provider=r.provider
+					  AND existing.minutes_before=r.minutes_before
+					  AND COALESCE(existing.destination,'')=COALESCE(r.destination,'')
+					  AND existing.enabled=r.enabled
+				  )`, ownerEvent, loserEvent); err != nil {
+				return reconciled, err
+			}
+			var ownerCalendarType string
+			if err = tx.QueryRow(ctx, `SELECT calendar_type FROM calendars WHERE id=$1`, ownerCalendar).Scan(&ownerCalendarType); err != nil {
+				return reconciled, err
+			}
+			if ownerCalendarType == "bill_pay" {
+				if _, err = tx.Exec(ctx, `INSERT INTO bill_event_details(event_id,amount_due,amount_is_estimate,payer_user_id,updated_at)
+					SELECT $1,amount_due,amount_is_estimate,payer_user_id,updated_at
+					FROM bill_event_details WHERE event_id=$2
+					ON CONFLICT(event_id) DO NOTHING`, ownerEvent, loserEvent); err != nil {
+					return reconciled, err
+				}
+				if _, err = tx.Exec(ctx, `INSERT INTO bill_payments(event_id,occurrence_start,paid_by_user_id,amount_paid,paid_at,updated_at)
+					SELECT $1,occurrence_start,paid_by_user_id,amount_paid,paid_at,updated_at
+					FROM bill_payments WHERE event_id=$2
+					ON CONFLICT(event_id,occurrence_start) DO NOTHING`, ownerEvent, loserEvent); err != nil {
+					return reconciled, err
+				}
+			}
+			if _, err = tx.Exec(ctx, `UPDATE notifications SET event_id=$1 WHERE event_id=$2`, ownerEvent, loserEvent); err != nil {
+				return reconciled, err
+			}
+			if _, err = tx.Exec(ctx, `DELETE FROM events WHERE id=$1`, loserEvent); err != nil {
+				return reconciled, err
+			}
+			reconciled++
+		}
+	}
+	return reconciled, nil
 }
 
 func (s *server) googleBundlesFromRequest(w http.ResponseWriter, r *http.Request) ([]googleCalendarBundle, error) {
@@ -281,7 +416,7 @@ func parseGoogleCalendarUpload(filename string, raw []byte, loc *time.Location) 
 		if len(bundles) == 0 {
 			return nil, errors.New("The ZIP does not contain any .ics calendars")
 		}
-		return bundles, nil
+		return dedupeGoogleCalendarBundles(bundles), nil
 	}
 
 	if !strings.EqualFold(filepath.Ext(filename), ".ics") && !bytes.Contains(raw, []byte("BEGIN:VCALENDAR")) {
@@ -296,6 +431,121 @@ func parseGoogleCalendarUpload(filename string, raw []byte, loc *time.Location) 
 		Name:       googleCalendarDisplayName(parsed.Name, filename),
 		Calendar:   parsed,
 	}}, nil
+}
+
+type googleEventRevision struct {
+	Modified time.Time
+	Stamp    time.Time
+	Created  time.Time
+	Sequence int
+}
+
+func googleRevisionForEvent(event calical.Event) googleEventRevision {
+	return googleEventRevision{
+		Modified: event.ModifiedAt,
+		Stamp:    event.StampAt,
+		Created:  event.CreatedAt,
+		Sequence: event.Sequence,
+	}
+}
+
+func compareGoogleEventRevision(left, right googleEventRevision) int {
+	compareTime := func(a, b time.Time) int {
+		if a.After(b) {
+			return 1
+		}
+		if a.Before(b) {
+			return -1
+		}
+		return 0
+	}
+	if result := compareTime(left.Modified, right.Modified); result != 0 {
+		return result
+	}
+	if left.Sequence > right.Sequence {
+		return 1
+	}
+	if left.Sequence < right.Sequence {
+		return -1
+	}
+	if result := compareTime(left.Stamp, right.Stamp); result != 0 {
+		return result
+	}
+	return compareTime(left.Created, right.Created)
+}
+
+func dedupeGoogleCalendarBundles(bundles []googleCalendarBundle) []googleCalendarBundle {
+	type owner struct {
+		bundle   int
+		revision googleEventRevision
+	}
+	uidBundles := map[string]map[int]googleEventRevision{}
+
+	for bundleIndex := range bundles {
+		perBundle := map[string]googleEventRevision{}
+		for _, event := range bundles[bundleIndex].Calendar.Events {
+			uid := strings.TrimSpace(event.UID)
+			if uid == "" {
+				continue
+			}
+			revision := googleRevisionForEvent(event)
+			if current, ok := perBundle[uid]; !ok || compareGoogleEventRevision(revision, current) > 0 {
+				perBundle[uid] = revision
+			}
+		}
+		for uid, revision := range perBundle {
+			if uidBundles[uid] == nil {
+				uidBundles[uid] = map[int]googleEventRevision{}
+			}
+			uidBundles[uid][bundleIndex] = revision
+		}
+	}
+
+	owners := map[string]owner{}
+	for uid, revisions := range uidBundles {
+		if len(revisions) < 2 {
+			continue
+		}
+		best := owner{bundle: -1}
+		ambiguous := false
+		for bundleIndex, revision := range revisions {
+			if best.bundle < 0 {
+				best = owner{bundle: bundleIndex, revision: revision}
+				continue
+			}
+			switch compareGoogleEventRevision(revision, best.revision) {
+			case 1:
+				best = owner{bundle: bundleIndex, revision: revision}
+				ambiguous = false
+			case 0:
+				ambiguous = true
+			}
+		}
+		// If Google gives identical revision metadata in more than one calendar,
+		// keep both rather than guessing which calendar currently owns the event.
+		if !ambiguous && best.bundle >= 0 {
+			owners[uid] = best
+		}
+	}
+
+	for bundleIndex := range bundles {
+		filtered := make([]calical.Event, 0, len(bundles[bundleIndex].Calendar.Events))
+		for _, event := range bundles[bundleIndex].Calendar.Events {
+			uid := strings.TrimSpace(event.UID)
+			owner, duplicated := owners[uid]
+			if duplicated && owner.bundle != bundleIndex {
+				if bundles[bundleIndex].SuppressedDuplicateUIDs == nil {
+					bundles[bundleIndex].SuppressedDuplicateUIDs = map[string]string{}
+				}
+				bundles[bundleIndex].SuppressedDuplicateUIDs[uid] = bundles[owner.bundle].ExternalID
+				bundles[bundleIndex].SuppressedDuplicateEvents++
+				continue
+			}
+			filtered = append(filtered, event)
+		}
+		bundles[bundleIndex].Calendar.Events = filtered
+	}
+	return bundles
 }
 
 func googleCalendarDisplayName(calendarName, filename string) string {
@@ -471,10 +721,11 @@ func (s *server) previewGoogleCalendarBundle(
 	candidates []googleCalendarCandidate,
 ) (googleCalendarPreviewItem, error) {
 	item := googleCalendarPreviewItem{
-		ExternalID: bundle.ExternalID,
-		Name:       bundle.Name,
-		EventCount: len(bundle.Calendar.Events),
-		MatchReason: "No confident match. Review before creating a new calendar.",
+		ExternalID:                bundle.ExternalID,
+		Name:                      bundle.Name,
+		EventCount:                len(bundle.Calendar.Events),
+		DuplicateEventsSuppressed: bundle.SuppressedDuplicateEvents,
+		MatchReason:               "No confident match. Review before creating a new calendar.",
 	}
 
 	var previousID uuid.UUID
