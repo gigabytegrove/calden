@@ -159,18 +159,6 @@ func (s *server) googlePotentialDuplicateGroups(ctx context.Context, tx pgx.Tx) 
 		if !importedEventLooksRelated(events) {
 			continue
 		}
-		uidSet := map[string]bool{}
-		startSet := map[string]bool{}
-		for _, event := range events {
-			uidSet[event.ExternalUID] = true
-			startSet[event.Start.UTC().Format(time.RFC3339Nano)] = true
-		}
-		// If every row is literally the same UID/start, the exact-UID repair
-		// workflow already covers it. This screen is for cases where CalDen has
-		// multiple stored versions that the old UID-only repair could not see.
-		if len(uidSet) == 1 && len(startSet) == 1 {
-			continue
-		}
 		sort.Slice(events, func(i, j int) bool {
 			if events[i].Start.Equal(events[j].Start) {
 				return events[i].CreatedAt.Before(events[j].CreatedAt)
