@@ -201,10 +201,21 @@
     </section>
 
     <section id="page-notifications" class="app-page hidden">
-      <div class="page-header"><div><p class="eyebrow">Reminders and alerts</p><h2>Notifications</h2><p class="muted">Personal reminders and household reminders are separate on purpose.</p></div></div>
-      <div class="settings-grid">
-        <article class="panel"><h3>Personal phone reminders</h3><p>Phone reminders belong to the person using the Android app. Each event can have its own lead time.</p><div class="feature-row"><strong>Provider</strong><span>Android</span></div><div class="feature-row"><strong>Configured</strong><span>Per event</span></div></article>
-        <article class="panel"><h3>Household reminders</h3><p>Household reminders are sent by the CalDen server through Monita and continue even if a phone is offline.</p><div class="feature-row"><strong>Provider</strong><span>Monita</span></div><div class="feature-row"><strong>Delivery retry</strong><span>Automatic</span></div></article>
+      <div class="page-header">
+        <div><p class="eyebrow">Reminders and alerts</p><h2>Notifications</h2><p class="muted">See the reminders CalDen has scheduled from your events.</p></div>
+        <div class="notification-tools">
+          <select id="notification-kind-filter" aria-label="Reminder type">
+            <option value="">All reminders</option>
+            <option value="personal">Personal reminders</option>
+            <option value="system">Household reminders</option>
+          </select>
+          <button id="refresh-notifications" type="button" class="button secondary compact">Refresh</button>
+        </div>
+      </div>
+      <div id="notification-summary" class="notification-summary"></div>
+      <div class="panel notification-schedule">
+        <div class="notification-schedule-head"><div><h3>Scheduled reminders</h3><p class="muted">Upcoming reminder deliveries from the events currently on your calendars.</p></div><span id="notification-count"></span></div>
+        <div id="scheduled-reminders" class="scheduled-reminders"></div>
       </div>
     </section>
 
