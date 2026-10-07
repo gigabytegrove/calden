@@ -59,6 +59,11 @@ fieldset{border:0;padding:0;margin:0}legend{font-size:.88rem;font-weight:750;col
 /* 14 / 30 day grid */
 .day-grid{display:grid;grid-template-columns:repeat(7,minmax(135px,1fr));min-width:945px}.day-cell{min-height:170px;border-right:1px solid #e4e8ed;border-bottom:1px solid #e4e8ed;padding:8px;background:#fff}.day-cell:nth-child(7n){border-right:0}.day-cell.today{background:#f6f8fb}.day-cell>header{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;color:#7a8493;font-size:.73rem;text-transform:uppercase;letter-spacing:.05em}.day-cell>header strong{font-size:.95rem;color:#344156}.day-cell.today>header strong{background:#253147;color:#fff;width:25px;height:25px;border-radius:50%;display:grid;place-items:center}.day-events{display:grid;gap:4px}.more-events{font-size:.7rem;color:#687486;padding:3px 4px}
 .calendar-event{width:100%;min-width:0;border:1px solid #e1e5ea;background:#fff;color:#273349;display:grid;grid-template-columns:4px minmax(0,1fr) auto;gap:5px;align-items:center;text-align:left;padding:3px 4px;border-radius:4px}.calendar-event:hover{border-color:#aeb7c4}.calendar-event .event-color{width:4px;align-self:stretch;background:var(--cal);border-radius:2px}.calendar-event-copy{display:grid;min-width:0}.calendar-event-copy strong{font-size:.69rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.calendar-event-copy small{font-size:.62rem;color:#707b8b}.calendar-event.compact{background:color-mix(in srgb,var(--cal) 9%,white)}
+.bill-calendar-status{display:inline-grid;place-items:center;min-width:16px;height:16px;padding:0 3px;margin-right:4px;border-radius:999px;font-size:.57rem;font-weight:900;line-height:1;vertical-align:1px}
+.bill-calendar-status.allocated{background:#e0e7ff;color:#3730a3;border:1px solid #c7d2fe}
+.bill-calendar-status.paid{background:#dcfce7;color:#166534;border:1px solid #86efac}
+.bill-calendar-status.cleared{background:#d1fae5;color:#065f46;border:1px solid #6ee7b7}
+.timed-event .bill-calendar-status{display:inline-grid;margin-right:4px}
 
 /* People badges */
 .mini-avatars{display:flex;align-items:center}.mini-avatars i{width:21px;height:21px;border-radius:50%;background:#e5eaf0;border:1px solid #fff;display:grid;place-items:center;font-style:normal;font-size:.56rem;font-weight:850;margin-left:-4px}.mini-avatars i:first-child{margin-left:0}
