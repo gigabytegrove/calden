@@ -69,6 +69,8 @@ func New(cfg Config) http.Handler {
 	mux.Handle("PUT /api/categories/{id}", s.auth(s.admin(http.HandlerFunc(s.updateCategory))))
 	mux.Handle("DELETE /api/categories/{id}", s.auth(s.admin(http.HandlerFunc(s.deleteCategory))))
 	mux.Handle("GET /api/calendars/{id}/permissions", s.auth(s.admin(http.HandlerFunc(s.calendarPermissions))))
+	mux.Handle("GET /api/calendars/{id}/export.ics", s.auth(http.HandlerFunc(s.exportCalendarICS)))
+	mux.Handle("POST /api/calendars/{id}/import.ics", s.auth(http.HandlerFunc(s.importCalendarICS)))
 	mux.Handle("PUT /api/calendars/{id}/permissions", s.auth(s.admin(http.HandlerFunc(s.setCalendarPermissions))))
 	mux.Handle("GET /api/events", s.auth(http.HandlerFunc(s.listEvents)))
 	mux.Handle("POST /api/events", s.auth(http.HandlerFunc(s.createEvent)))
