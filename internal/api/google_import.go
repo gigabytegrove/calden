@@ -36,9 +36,11 @@ var googleCalendarPalette = []string{
 }
 
 type googleCalendarBundle struct {
-	ExternalID string
-	Name       string
-	Calendar   calical.Calendar
+	ExternalID                 string
+	Name                       string
+	Calendar                   calical.Calendar
+	SuppressedDuplicateUIDs    map[string]string
+	SuppressedDuplicateEvents  int
 }
 
 type googleCalendarImportItem struct {
@@ -61,6 +63,7 @@ type googleCalendarPreviewItem struct {
 	ExternalID            string     `json:"external_id"`
 	Name                  string     `json:"name"`
 	EventCount            int        `json:"event_count"`
+	DuplicateEventsSuppressed int     `json:"duplicate_events_suppressed"`
 	SuggestedCalendarID   *uuid.UUID `json:"suggested_calendar_id"`
 	SuggestedCalendarName string     `json:"suggested_calendar_name,omitempty"`
 	MatchScore            int        `json:"match_score"`
@@ -93,9 +96,14 @@ func (s *server) previewGoogleCalendarExport(w http.ResponseWriter, r *http.Requ
 		items = append(items, item)
 	}
 
+	duplicateSuppressed := 0
+	for _, bundle := range bundles {
+		duplicateSuppressed += bundle.SuppressedDuplicateEvents
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"calendars":      items,
-		"calendar_count": len(items),
+		"calendars":                   items,
+		"calendar_count":              len(items),
+		"duplicate_events_suppressed": duplicateSuppressed,
 	})
 }
 
@@ -281,7 +289,7 @@ func parseGoogleCalendarUpload(filename string, raw []byte, loc *time.Location) 
 		if len(bundles) == 0 {
 			return nil, errors.New("The ZIP does not contain any .ics calendars")
 		}
-		return bundles, nil
+		return dedupeGoogleCalendarBundles(bundles), nil
 	}
 
 	if !strings.EqualFold(filepath.Ext(filename), ".ics") && !bytes.Contains(raw, []byte("BEGIN:VCALENDAR")) {
@@ -471,10 +479,11 @@ func (s *server) previewGoogleCalendarBundle(
 	candidates []googleCalendarCandidate,
 ) (googleCalendarPreviewItem, error) {
 	item := googleCalendarPreviewItem{
-		ExternalID: bundle.ExternalID,
-		Name:       bundle.Name,
-		EventCount: len(bundle.Calendar.Events),
-		MatchReason: "No confident match. Review before creating a new calendar.",
+		ExternalID:                bundle.ExternalID,
+		Name:                      bundle.Name,
+		EventCount:                len(bundle.Calendar.Events),
+		DuplicateEventsSuppressed: bundle.SuppressedDuplicateEvents,
+		MatchReason:               "No confident match. Review before creating a new calendar.",
 	}
 
 	var previousID uuid.UUID
