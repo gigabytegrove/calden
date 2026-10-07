@@ -1,5 +1,13 @@
 # syntax=docker/dockerfile:1.7
 
+FROM --platform=$BUILDPLATFORM node:22-alpine AS webbuild
+
+WORKDIR /src
+COPY package.json ./
+RUN npm install --no-audit --no-fund
+COPY web ./web
+RUN npm run build:css
+
 FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS build
 
 ARG TARGETOS=linux
@@ -30,7 +38,7 @@ RUN apk add --no-cache ca-certificates postgresql-client tzdata \
 WORKDIR /app
 
 COPY --from=build /out/calden /app/calden
-COPY web /app/web
+COPY --from=webbuild /src/web /app/web
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 
 USER root
