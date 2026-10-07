@@ -9,7 +9,7 @@ const savedHidden=JSON.parse(localStorage.getItem("calden_hidden_calendars")||"[
 const state={
   token:localStorage.getItem("calden_token")||"",
   me:null,settings:null,users:[],calendars:[],events:[],
-  editingEvent:null,editingCalendar:null,editingUser:null,
+  editingEvent:null,editingScope:"series",editingCalendar:null,editingUser:null,
   setupStep:0,currentPage:"calendar",
   viewDays:[1,7,14,30].includes(savedDays)?savedDays:7,
   anchorDate:startOfDay(new Date()),
@@ -38,6 +38,8 @@ function roleLabel(role){return role==="admin"?"Administrator":role==="restricte
 function formatDate(d,opts={month:"short",day:"numeric"}){return new Intl.DateTimeFormat(undefined,opts).format(d)}
 function formatTime(d){return new Intl.DateTimeFormat(undefined,{hour:"numeric",minute:"2-digit"}).format(d)}
 function clamp(n,min,max){return Math.min(max,Math.max(min,n))}
+function eventKey(e){return `${e.id}|${e.occurrence_start||e.starts_at}`}
+function findEventByKey(key){return state.events.find(e=>eventKey(e)===key)}
 
 function showBootFailure(){
   const el=$("#boot-status");if(!el)return;
@@ -173,7 +175,7 @@ function renderTimeline(days){
       const endMin=Math.max(startMin+20,(end.getHours()*60+end.getMinutes())-hourStart*60);
       const top=clamp(startMin/totalMinutes*100,0,100);
       const height=clamp((endMin-startMin)/totalMinutes*100,1.4,100-top);
-      return `<button class="timed-event" data-event-id="${e.id}" style="--cal:${safeColor(e.color)};--top:${top}%;--height:${height}%">
+      return `<button class="timed-event" data-event-key="${escapeAttr(eventKey(e))}" style="--cal:${safeColor(e.color)};--top:${top}%;--height:${height}%">
         <strong>${escapeHTML(e.title)}</strong><span>${formatTime(new Date(e.starts_at))}</span>${avatarMini(e)}
       </button>`;
     }).join("");
@@ -202,7 +204,7 @@ function renderDayGrid(days){
 
 function calendarEventBlock(e,compact=false){
   const time=e.all_day?"All day":formatTime(new Date(e.starts_at));
-  return `<button class="calendar-event ${compact?"compact":""}" data-event-id="${e.id}" style="--cal:${safeColor(e.color)}">
+  return `<button class="calendar-event ${compact?"compact":""}" data-event-key="${escapeAttr(eventKey(e))}" style="--cal:${safeColor(e.color)}">
     <span class="event-color"></span><span class="calendar-event-copy"><strong>${e.is_recurring?'<span class="repeat-mark" title="Repeating event">↻</span> ':""}${escapeHTML(e.title)}</strong><small>${escapeHTML(time)}</small></span>${avatarMini(e)}
   </button>`;
 }
@@ -212,8 +214,8 @@ function avatarMini(e){
   return `<span class="mini-avatars">${people.slice(0,3).map(p=>`<i title="${escapeAttr(p.display_name)}">${escapeHTML(p.initials)}</i>`).join("")}${people.length>3?`<i>+${people.length-3}</i>`:""}</span>`;
 }
 function bindCalendarEvents(){
-  $("#calendar-view").querySelectorAll("[data-event-id]").forEach(el=>el.addEventListener("click",()=>{
-    const ev=state.events.find(x=>x.id===el.dataset.eventId);if(ev)openEvent(ev);
+  $("#calendar-view").querySelectorAll("[data-event-key]").forEach(el=>el.addEventListener("click",()=>{
+    const ev=findEventByKey(el.dataset.eventKey);if(ev)requestEventEdit(ev);
   }));
 }
 
@@ -225,13 +227,13 @@ function renderAgenda(){
   }).sort((a,b)=>new Date(a.starts_at)-new Date(b.starts_at));
   $("#event-count").textContent=`${events.length} event${events.length===1?"":"s"}`;
   $("#events").innerHTML=events.length?events.map(eventCard).join(""):'<div class="empty-state"><strong>No matching events</strong><span>Add an event or change your filters.</span></div>';
-  $("#events").querySelectorAll("[data-event-id]").forEach(el=>el.addEventListener("click",()=>{
-    const ev=state.events.find(x=>x.id===el.dataset.eventId);if(ev)openEvent(ev);
+  $("#events").querySelectorAll("[data-event-key]").forEach(el=>el.addEventListener("click",()=>{
+    const ev=findEventByKey(el.dataset.eventKey);if(ev)requestEventEdit(ev);
   }));
 }
 function eventCard(e){
   const start=new Date(e.starts_at),end=new Date(e.ends_at);
-  return `<button class="agenda-event" data-event-id="${e.id}" style="--cal:${safeColor(e.color)}">
+  return `<button class="agenda-event" data-event-key="${escapeAttr(eventKey(e))}" style="--cal:${safeColor(e.color)}">
     <span class="agenda-color"></span><span class="agenda-date"><strong>${formatDate(start,{month:"short",day:"numeric"})}</strong><small>${e.all_day?"All day":formatTime(start)}</small></span>
     <span class="agenda-main"><strong>${e.is_recurring?'<span class="repeat-mark" title="Repeating event">↻</span> ':""}${escapeHTML(e.title)}</strong><small>${escapeHTML(e.calendar_name)}${e.location?" · "+escapeHTML(e.location):""}${e.all_day?"":` · ends ${escapeHTML(formatTime(end))}`}</small></span>
     ${avatarMini(e)}
@@ -354,19 +356,65 @@ function recurrencePayload(form){
   return rule;
 }
 
-function openEvent(existing=null,dateHint=null){
+function chooseRecurringScope(action){
+  return new Promise(resolve=>{
+    const dialog=$("#recurrence-scope-dialog");
+    $("#scope-dialog-title").textContent=action==="delete"?"Delete repeating event":"Edit repeating event";
+    $("#scope-dialog-copy").textContent=action==="delete"
+      ?"Do you want to delete just this occurrence, or the entire series?"
+      :"Do you want to change just this occurrence, or the entire series?";
+    $("#scope-occurrence").textContent=action==="delete"?"Delete this occurrence":"This occurrence";
+    $("#scope-series").textContent=action==="delete"?"Delete entire series":"Entire series";
+    const finish=value=>{dialog.close();resolve(value)};
+    $("#scope-cancel").onclick=()=>finish(null);
+    $("#scope-occurrence").onclick=()=>finish("occurrence");
+    $("#scope-series").onclick=()=>finish("series");
+    dialog.oncancel=event=>{event.preventDefault();finish(null)};
+    dialog.showModal();
+  });
+}
+
+async function requestEventEdit(event){
+  if(!event.is_recurring){openEvent(event,null,"series");return}
+  const scope=await chooseRecurringScope("edit");
+  if(scope)openEvent(event,null,scope);
+}
+
+function seriesValue(event,key,fallback){
+  const seriesKey="series_"+key;
+  return event[seriesKey]!==undefined&&event[seriesKey]!==null?event[seriesKey]:fallback;
+}
+
+function openEvent(existing=null,dateHint=null,scope="series"){
   if(!state.calendars.some(c=>c.can_edit)){
     if(state.me.role==="admin"){navigate("calendars");return}
     alert("You do not have a calendar you can add events to yet.");return;
   }
-  const form=$("#event-form");form.reset();state.editingEvent=existing;
-  $("#event-dialog-title").textContent=existing?"Edit event":"Add event";$("#delete-event").classList.toggle("hidden",!existing);
+  const form=$("#event-form");form.reset();state.editingEvent=existing;state.editingScope=scope;
+  $("#event-dialog-title").textContent=existing?(scope==="occurrence"?"Edit occurrence":"Edit series"):"Add event";
+  $("#delete-event").classList.toggle("hidden",!existing);
+  $("#repeat-editor").classList.toggle("hidden",!!existing&&scope==="occurrence");
+  const scopeNote=$("#series-scope-note");
+  scopeNote.classList.toggle("hidden",!existing||!existing.is_recurring);
+  if(existing&&existing.is_recurring){
+    scopeNote.textContent=scope==="occurrence"
+      ?"You are changing only this occurrence. The rest of the series will stay unchanged."
+      :"You are changing the entire repeating series.";
+  }
   if(existing){
-    form.event_id.value=existing.id;form.title.value=existing.title;form.calendar_id.value=existing.calendar_id;
-    form.starts_at.value=localInput(new Date(existing.series_starts_at||existing.starts_at));
-    form.ends_at.value=localInput(new Date(existing.series_ends_at||existing.ends_at));
-    form.all_day.checked=!!existing.all_day;form.location.value=existing.location||"";form.notes.value=existing.notes||"";
-    const recurrence=existing.recurrence||null;
+    const occurrenceScope=scope==="occurrence";
+    const sourceTitle=occurrenceScope?existing.title:seriesValue(existing,"title",existing.title);
+    const sourceCalendar=occurrenceScope?existing.calendar_id:seriesValue(existing,"calendar_id",existing.calendar_id);
+    const sourceLocation=occurrenceScope?existing.location:seriesValue(existing,"location",existing.location);
+    const sourceNotes=occurrenceScope?existing.notes:seriesValue(existing,"notes",existing.notes);
+    const sourceAllDay=occurrenceScope?existing.all_day:seriesValue(existing,"all_day",existing.all_day);
+    const sourceAssignees=occurrenceScope?(existing.assignees||[]):(existing.series_assignees||existing.assignees||[]);
+    const sourceReminders=occurrenceScope?(existing.reminders||[]):(existing.series_reminders||existing.reminders||[]);
+    form.event_id.value=existing.id;form.title.value=sourceTitle||"";form.calendar_id.value=sourceCalendar||"";
+    form.starts_at.value=localInput(new Date(occurrenceScope?existing.starts_at:(existing.series_starts_at||existing.starts_at)));
+    form.ends_at.value=localInput(new Date(occurrenceScope?existing.ends_at:(existing.series_ends_at||existing.ends_at)));
+    form.all_day.checked=!!sourceAllDay;form.location.value=sourceLocation||"";form.notes.value=sourceNotes||"";
+    const recurrence=occurrenceScope?null:(existing.recurrence||null);
     form.repeat_frequency.value=recurrence?.frequency||"";
     form.repeat_interval.value=String(recurrence?.interval||1);
     [...form.querySelectorAll('input[name="repeat_weekday"]')].forEach(i=>i.checked=(recurrence?.weekdays||[]).includes(Number(i.value)));
@@ -379,12 +427,13 @@ function openEvent(existing=null,dateHint=null){
     }else{
       form.repeat_end_type.value="never";
     }
-    const personal=(existing.reminders||[]).find(r=>r.kind==="personal"&&r.provider==="android");
-    const system=(existing.reminders||[]).find(r=>r.kind==="system"&&r.provider==="monita");
+    const personal=sourceReminders.find(r=>r.kind==="personal"&&r.provider==="android");
+    const system=sourceReminders.find(r=>r.kind==="system"&&r.provider==="monita");
     form.personal_reminder.value=personal?String(personal.minutes_before):"";
     form.system_reminder_enabled.checked=!!system;form.system_reminder.value=system?String(system.minutes_before):"1440";
-    [...form.querySelectorAll('input[name="assignee"]')].forEach(i=>i.checked=(existing.assignees||[]).some(a=>a.id===i.value));
+    [...form.querySelectorAll('input[name="assignee"]')].forEach(i=>i.checked=sourceAssignees.some(a=>a.id===i.value));
   }else{
+    $("#repeat-editor").classList.remove("hidden");$("#series-scope-note").classList.add("hidden");
     const start=dateHint?new Date(dateHint):new Date(Date.now()+3600000);start.setMinutes(0,0,0);
     if(dateHint&&start.getHours()===0)start.setHours(9);
     const end=new Date(start.getTime()+3600000);
@@ -515,9 +564,29 @@ $("#event-form").repeat_interval.addEventListener("input",updateRepeatUI);
 $("#event-form").repeat_end_type.addEventListener("change",updateRepeatUI);
 $("#event-form").starts_at.addEventListener("change",()=>{if($("#event-form").repeat_frequency.value==="weekly")updateRepeatUI()});
 $("#delete-event").addEventListener("click",async()=>{
-  if(!state.editingEvent||!confirm("Delete this event?"))return;
-  try{await api("/api/events/"+state.editingEvent.id,{method:"DELETE"});$("#event-dialog").close();state.editingEvent=null;await loadEvents();renderCalendar();renderAgenda()}
-  catch(err){$("#event-error").textContent=err.message}
+  if(!state.editingEvent)return;
+  let scope=state.editingScope;
+  if(state.editingEvent.is_recurring&&scope!=="occurrence"){
+    $("#event-dialog").close();
+    scope=await chooseRecurringScope("delete");
+    if(!scope){$("#event-dialog").showModal();return}
+  }else if(!confirm("Delete this event?"))return;
+  try{
+    if(state.editingEvent.is_recurring&&scope==="occurrence"){
+      await api("/api/events/"+state.editingEvent.id+"/occurrences",{
+        method:"DELETE",
+        body:JSON.stringify({original_start:state.editingEvent.occurrence_start||state.editingEvent.starts_at})
+      });
+    }else{
+      await api("/api/events/"+state.editingEvent.id,{method:"DELETE"});
+    }
+    if($("#event-dialog").open)$("#event-dialog").close();
+    state.editingEvent=null;state.editingScope="series";
+    await loadEvents();renderCalendar();renderAgenda();
+  }catch(err){
+    if(!$("#event-dialog").open)$("#event-dialog").showModal();
+    $("#event-error").textContent=err.message;
+  }
 });
 $("#event-form").addEventListener("submit",async e=>{
   e.preventDefault();const form=e.currentTarget,fd=new FormData(form);$("#event-error").textContent="";
@@ -525,8 +594,21 @@ $("#event-form").addEventListener("submit",async e=>{
   if(personal)reminders.push({kind:"personal",provider:"android",minutes_before:Number(personal),destination:""});
   if(form.system_reminder_enabled.checked)reminders.push({kind:"system",provider:"monita",minutes_before:Number(fd.get("system_reminder")||1440),destination:""});
   const payload={title:fd.get("title"),calendar_id:fd.get("calendar_id"),starts_at:new Date(fd.get("starts_at")).toISOString(),ends_at:new Date(fd.get("ends_at")).toISOString(),all_day:form.all_day.checked,location:fd.get("location"),notes:fd.get("notes"),assignee_ids:fd.getAll("assignee"),reminders,recurrence:recurrencePayload(form)};
-  const target=state.editingEvent?"/api/events/"+state.editingEvent.id:"/api/events",method=state.editingEvent?"PUT":"POST";
-  try{await api(target,{method,body:JSON.stringify(payload)});$("#event-dialog").close();state.editingEvent=null;await loadEvents();renderCalendar();renderAgenda()}
+  let target="/api/events",method="POST",body=payload;
+  if(state.editingEvent){
+    if(state.editingEvent.is_recurring&&state.editingScope==="occurrence"){
+      payload.recurrence=null;
+      target="/api/events/"+state.editingEvent.id+"/occurrences";method="PUT";
+      body={original_start:state.editingEvent.occurrence_start||state.editingEvent.starts_at,event:payload};
+    }else{
+      target="/api/events/"+state.editingEvent.id;method="PUT";
+    }
+  }
+  try{
+    await api(target,{method,body:JSON.stringify(body)});
+    $("#event-dialog").close();state.editingEvent=null;state.editingScope="series";
+    await loadEvents();renderCalendar();renderAgenda();
+  }
   catch(err){$("#event-error").textContent=err.message}
 });
 
