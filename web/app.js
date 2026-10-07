@@ -632,7 +632,7 @@ function renderCalendars(){
   if(state.me.role!=="admin")return;
   $("#calendar-list").innerHTML=state.calendars.map(c=>`<article class="management-card">
     <span class="calendar-swatch" style="--cal:${safeColor(c.color)}"></span>
-    <div class="management-copy"><strong>${escapeHTML(c.name)}</strong><span>${escapeHTML(c.description||"No description")}</span><small>${c.calendar_type==="bill_pay"?"Bill Pay · ":""}${c.can_edit?"Editable":"View only"}</small></div>
+    <div class="management-copy"><strong>${escapeHTML(c.name)}</strong><span>${escapeHTML(c.description||"No description")}</span><small>${c.calendar_type==="bill_pay"?"Bill Pay · ":""}${c.can_edit?"Editable":"View only"} · ${Number(c.event_count)||0} event${Number(c.event_count)===1?"":"s"}</small></div>
     <button class="button secondary compact edit-calendar" type="button" data-calendar-id="${c.id}">Edit</button>
   </article>`).join("")||'<div class="empty-state"><strong>No calendars</strong><span>Create your first calendar.</span></div>';
   $("#calendar-list").querySelectorAll(".edit-calendar").forEach(b=>b.addEventListener("click",()=>beginCalendarEdit(b.dataset.calendarId)));
