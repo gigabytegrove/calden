@@ -170,6 +170,59 @@ jobs:
           print(json.dumps({"settings":settings,"calendars":calendars},indent=2))
           PY
 
+      - name: Exercise the signed-in product in Chromium
+        run: |
+          node <<'NODE'
+          const { chromium } = require('playwright');
+
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+            const errors = [];
+
+            page.on('pageerror', err => errors.push('PAGE ERROR: ' + err.message));
+            page.on('console', msg => {
+              if (msg.type() === 'error') errors.push('CONSOLE ERROR: ' + msg.text());
+            });
+
+            await page.goto('http://127.0.0.1:8787', { waitUntil: 'networkidle' });
+            await page.locator('#login-form').waitFor({ state: 'visible' });
+            await page.locator('#login-form input[name="username"]').fill('testadmin');
+            await page.locator('#login-form input[name="password"]').fill('test-password-123');
+            await page.locator('#login-form button[type="submit"]').click();
+            await page.locator('#page-calendar').waitFor({ state: 'visible' });
+
+            for (const days of ['1', '7', '14', '30']) {
+              await page.locator('.view-switcher button[data-days="' + days + '"]').click();
+              if (days === '1' || days === '7') {
+                await page.locator('.timeline-wrap').waitFor({ state: 'visible' });
+              } else {
+                await page.locator('.day-grid').waitFor({ state: 'visible' });
+              }
+            }
+
+            await page.locator('.nav-item[data-page="people"]').click();
+            await page.locator('#page-people').waitFor({ state: 'visible' });
+            const form = page.locator('#person-form');
+            await form.locator('input[name="display_name"]').fill('Second User');
+            await form.locator('input[name="username"]').fill('seconduser');
+            await form.locator('input[name="password"]').fill('another-password-123');
+            await form.locator('select[name="role"]').selectOption('member');
+            await form.locator('button[type="submit"]').click();
+            await page.locator('#people-list').getByText('Second User').waitFor({ state: 'visible' });
+
+            await page.locator('.nav-item[data-page="settings"]').click();
+            await page.locator('#page-settings').waitFor({ state: 'visible' });
+            await page.locator('#general-settings-form input[name="household_name"]').fill('Updated Test Family');
+            await page.locator('#general-settings-form button[type="submit"]').click();
+            await page.locator('#general-settings-status').getByText('Household settings saved.').waitFor({ state: 'visible' });
+
+            if (errors.length) throw new Error(errors.join('\n'));
+            console.log('Signed-in CalDen product smoke test passed.');
+            await browser.close();
+          })();
+          NODE
+
       - name: Stop source-build test stack
         run: docker compose down -v
 
