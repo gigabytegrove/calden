@@ -5,12 +5,9 @@ import (
 	"net/http"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-
-	calical "github.com/gigabytegrove/calden/internal/ical"
 )
 
 type googleDuplicateEventRow struct {
@@ -365,237 +362,6 @@ func (s *server) exportRepairableGoogleDuplicates(
 	return repairable, removed, nil
 }
 
-type googleStaleReplacementCandidate struct {
-	OwnerEvent   uuid.UUID
-	StaleEvent   uuid.UUID
-	CalendarID   uuid.UUID
-	Title        string
-	StaleUID     string
-	CurrentUID   string
-	StaleStart   time.Time
-	CurrentStart time.Time
-}
-
-type googleStoredImportEvent struct {
-	ID         uuid.UUID
-	CalendarID uuid.UUID
-	UID        string
-	Title      string
-	Start      time.Time
-	End        time.Time
-	AllDay     bool
-	Frequency  string
-	Interval   int
-}
-
-func normalizeGoogleEventTitle(value string) string {
-	value = strings.ToLower(strings.TrimSpace(value))
-	var out strings.Builder
-	space := false
-	for _, r := range value {
-		switch {
-		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
-			out.WriteRune(r)
-			space = false
-		case !space:
-			out.WriteByte(' ')
-			space = true
-		}
-	}
-	return strings.Join(strings.Fields(out.String()), " ")
-}
-
-func googleExportEventFrequency(event calical.Event) string {
-	if event.Recurrence == nil {
-		return ""
-	}
-	return strings.ToLower(strings.TrimSpace(event.Recurrence.Frequency))
-}
-
-func googleExportEventInterval(event calical.Event) int {
-	if event.Recurrence == nil {
-		return 0
-	}
-	if event.Recurrence.Interval < 1 {
-		return 1
-	}
-	return event.Recurrence.Interval
-}
-
-func googleEventDurationClose(aStart, aEnd, bStart, bEnd time.Time) bool {
-	left := aEnd.Sub(aStart)
-	right := bEnd.Sub(bStart)
-	diff := left - right
-	if diff < 0 {
-		diff = -diff
-	}
-	return diff <= time.Minute
-}
-
-func googleLikelyReplacement(stored googleStoredImportEvent, current calical.Event) bool {
-	if stored.AllDay != current.AllDay {
-		return false
-	}
-	currentFrequency := googleExportEventFrequency(current)
-	storedRecurring := stored.Frequency != ""
-	currentRecurring := currentFrequency != ""
-	if storedRecurring != currentRecurring {
-		return false
-	}
-	if storedRecurring {
-		return stored.Frequency == currentFrequency && stored.Interval == googleExportEventInterval(current)
-	}
-	if !googleEventDurationClose(stored.Start, stored.End, current.Start, current.End) {
-		return false
-	}
-	diff := stored.Start.Sub(current.Start)
-	if diff < 0 {
-		diff = -diff
-	}
-	return diff <= 14*24*time.Hour
-}
-
-func (s *server) googleStaleReplacementCandidates(
-	ctx context.Context,
-	tx pgx.Tx,
-	bundles []googleCalendarBundle,
-) ([]googleStaleReplacementCandidate, error) {
-	sourceCalendars := map[string]uuid.UUID{}
-	rows, err := tx.Query(ctx, `SELECT external_id,calendar_id
-		FROM calendar_import_sources WHERE provider='google'`)
-	if err != nil {
-		return nil, err
-	}
-	for rows.Next() {
-		var source string
-		var calendarID uuid.UUID
-		if err := rows.Scan(&source, &calendarID); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		sourceCalendars[source] = calendarID
-	}
-	rows.Close()
-
-	currentUIDs := map[uuid.UUID]map[string]bool{}
-	currentByTitle := map[uuid.UUID]map[string][]calical.Event{}
-	for _, bundle := range bundles {
-		calendarID := sourceCalendars[bundle.ExternalID]
-		if calendarID == uuid.Nil {
-			continue
-		}
-		if currentUIDs[calendarID] == nil {
-			currentUIDs[calendarID] = map[string]bool{}
-			currentByTitle[calendarID] = map[string][]calical.Event{}
-		}
-		for _, event := range bundle.Calendar.Events {
-			if event.RecurrenceID != nil || event.Cancelled {
-				continue
-			}
-			uid := strings.TrimSpace(event.UID)
-			if uid == "" {
-				continue
-			}
-			currentUIDs[calendarID][uid] = true
-			title := normalizeGoogleEventTitle(event.Summary)
-			if title != "" {
-				currentByTitle[calendarID][title] = append(currentByTitle[calendarID][title], event)
-			}
-		}
-	}
-
-	candidates := []googleStaleReplacementCandidate{}
-	for calendarID, uids := range currentUIDs {
-		rows, err := tx.Query(ctx, `SELECT e.id,e.external_uid,e.title,e.starts_at,e.ends_at,e.all_day,
-			COALESCE(er.frequency,''),COALESCE(er.interval_value,0)
-			FROM events e
-			LEFT JOIN event_recurrence er ON er.event_id=e.id
-			WHERE e.calendar_id=$1
-			  AND e.external_uid IS NOT NULL
-			  AND e.recurrence_parent_id IS NULL`, calendarID)
-		if err != nil {
-			return nil, err
-		}
-		stored := []googleStoredImportEvent{}
-		byUID := map[string]googleStoredImportEvent{}
-		for rows.Next() {
-			var event googleStoredImportEvent
-			event.CalendarID = calendarID
-			if err := rows.Scan(&event.ID, &event.UID, &event.Title, &event.Start, &event.End, &event.AllDay, &event.Frequency, &event.Interval); err != nil {
-				rows.Close()
-				return nil, err
-			}
-			event.Frequency = strings.ToLower(strings.TrimSpace(event.Frequency))
-			stored = append(stored, event)
-			byUID[event.UID] = event
-		}
-		rows.Close()
-
-		for _, stale := range stored {
-			if uids[stale.UID] {
-				continue
-			}
-			title := normalizeGoogleEventTitle(stale.Title)
-			matches := currentByTitle[calendarID][title]
-			if title == "" || len(matches) != 1 {
-				continue
-			}
-			current := matches[0]
-			currentUID := strings.TrimSpace(current.UID)
-			owner, exists := byUID[currentUID]
-			if !exists || owner.ID == stale.ID {
-				continue
-			}
-			if !googleLikelyReplacement(stale, current) {
-				continue
-			}
-			candidates = append(candidates, googleStaleReplacementCandidate{
-				OwnerEvent: owner.ID, StaleEvent: stale.ID, CalendarID: calendarID,
-				Title: stale.Title, StaleUID: stale.UID, CurrentUID: currentUID,
-				StaleStart: stale.Start, CurrentStart: current.Start,
-			})
-		}
-	}
-	return candidates, nil
-}
-
-func googleReplacementSummary(candidates []googleStaleReplacementCandidate) []map[string]any {
-	out := make([]map[string]any, 0, minInt(len(candidates), 8))
-	for i, item := range candidates {
-		if i >= 8 {
-			break
-		}
-		out = append(out, map[string]any{
-			"title": item.Title,
-			"stale_uid": item.StaleUID,
-			"current_uid": item.CurrentUID,
-			"stale_start": item.StaleStart,
-			"current_start": item.CurrentStart,
-		})
-	}
-	return out
-}
-
-func (s *server) applyGoogleStaleReplacementRepair(
-	ctx context.Context,
-	tx pgx.Tx,
-	candidates []googleStaleReplacementCandidate,
-) (int, error) {
-	removed := 0
-	seen := map[uuid.UUID]bool{}
-	for _, item := range candidates {
-		if seen[item.StaleEvent] {
-			continue
-		}
-		if err := s.mergeImportedEventRows(ctx, tx, item.OwnerEvent, item.StaleEvent, item.CalendarID); err != nil {
-			return removed, err
-		}
-		seen[item.StaleEvent] = true
-		removed++
-	}
-	return removed, nil
-}
-
 func (s *server) previewGoogleDuplicateRepair(w http.ResponseWriter, r *http.Request) {
 	bundles, err := s.googleBundlesFromRequest(w, r)
 	if err != nil {
@@ -613,21 +379,13 @@ func (s *server) previewGoogleDuplicateRepair(w http.ResponseWriter, r *http.Req
 		writeError(w, 500, "Could not scan imported events")
 		return
 	}
-	sameUIDRepairable, _, err := s.exportRepairableGoogleDuplicates(r.Context(), tx, bundles, groups, false)
+	repairable, _, err := s.exportRepairableGoogleDuplicates(r.Context(), tx, bundles, groups, false)
 	if err != nil {
 		writeError(w, 500, "Could not compare the export with existing imported events")
 		return
 	}
-	replacements, err := s.googleStaleReplacementCandidates(r.Context(), tx, bundles)
-	if err != nil {
-		writeError(w, 500, "Could not compare changed Google event identities")
-		return
-	}
 	out := googleDuplicateSummary(groups)
-	out["same_uid_repairable_groups"] = sameUIDRepairable
-	out["replacement_repairable_groups"] = len(replacements)
-	out["export_repairable_groups"] = sameUIDRepairable + len(replacements)
-	out["replacement_examples"] = googleReplacementSummary(replacements)
+	out["export_repairable_groups"] = repairable
 	writeJSON(w, 200, out)
 }
 
@@ -649,46 +407,25 @@ func (s *server) repairGoogleDuplicatesWithExport(w http.ResponseWriter, r *http
 		return
 	}
 
-	_, sameUIDRemoved, err := s.exportRepairableGoogleDuplicates(r.Context(), tx, bundles, groups, true)
+	_, removed, err := s.exportRepairableGoogleDuplicates(r.Context(), tx, bundles, groups, true)
 	if err != nil {
 		writeError(w, 500, "Could not repair imported duplicates")
 		return
 	}
-	replacements, err := s.googleStaleReplacementCandidates(r.Context(), tx, bundles)
-	if err != nil {
-		writeError(w, 500, "Could not compare changed Google event identities")
-		return
-	}
-	replacementRemoved, err := s.applyGoogleStaleReplacementRepair(r.Context(), tx, replacements)
-	if err != nil {
-		writeError(w, 500, "Could not remove stale replaced Google events")
-		return
-	}
-	removed := sameUIDRemoved + replacementRemoved
 	if err := tx.Commit(r.Context()); err != nil {
 		writeError(w, 500, "Could not finish duplicate repair")
 		return
 	}
-	s.audit(r, "repair", "integration", nil, "Repaired Google Calendar duplicates and stale replacements", map[string]any{
-		"removed_copies": removed,
-		"same_uid_removed": sameUIDRemoved,
-		"replacement_removed": replacementRemoved,
-	})
+	s.audit(r, "repair", "integration", nil, "Repaired Google Calendar duplicates using export revision data", map[string]any{"removed_copies": removed})
 
 	checkTx, err := s.db.Begin(r.Context())
 	if err != nil {
-		writeJSON(w, 200, map[string]any{
-			"removed_copies": removed,
-			"same_uid_removed": sameUIDRemoved,
-			"replacement_removed": replacementRemoved,
-		})
+		writeJSON(w, 200, map[string]any{"removed_copies": removed})
 		return
 	}
 	defer checkTx.Rollback(r.Context())
 	remaining, _ := s.googleDuplicateGroups(r.Context(), checkTx)
 	out := googleDuplicateSummary(remaining)
 	out["removed_copies"] = removed
-	out["same_uid_removed"] = sameUIDRemoved
-	out["replacement_removed"] = replacementRemoved
 	writeJSON(w, 200, out)
 }
