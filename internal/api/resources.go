@@ -568,6 +568,11 @@ func (s *server) createEvent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if err = s.createEventNotifications(r.Context(), tx, id, in.CalendarID, in.Title, in.AssigneeIDs); err != nil {
+		writeError(w, 500, "Could not create event notifications")
+		return
+	}
+
 	if err = tx.Commit(r.Context()); err != nil {
 		writeError(w, 500, "Could not save event")
 		return
