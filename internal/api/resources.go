@@ -99,7 +99,7 @@ func hashPassword(password string) (string, error) { return bcryptHash(password)
 
 func (s *server) listCalendars(w http.ResponseWriter, r *http.Request) {
 	a := currentActor(r)
-	rows, err := s.db.Query(r.Context(), `SELECT c.id,c.name,c.color,c.icon,c.description,
+	rows, err := s.db.Query(r.Context(), `SELECT c.id,c.name,c.color,c.icon,c.description,c.calendar_type,
 		COALESCE(p.can_edit,false),COALESCE(p.can_delete,false)
 		FROM calendars c
 		LEFT JOIN calendar_permissions p ON p.calendar_id=c.id AND p.user_id=$1
@@ -112,14 +112,14 @@ func (s *server) listCalendars(w http.ResponseWriter, r *http.Request) {
 	out := []map[string]any{}
 	for rows.Next() {
 		var id uuid.UUID
-		var name, color, icon, description string
+		var name, color, icon, description, calendarType string
 		var canEdit, canDelete bool
-		if rows.Scan(&id, &name, &color, &icon, &description, &canEdit, &canDelete) == nil {
+		if rows.Scan(&id, &name, &color, &icon, &description, &calendarType, &canEdit, &canDelete) == nil {
 			if a.Role == "admin" {
 				canEdit = true
 				canDelete = true
 			}
-			out = append(out, map[string]any{"id": id, "name": name, "color": color, "icon": icon, "description": description, "can_edit": canEdit, "can_delete": canDelete})
+			out = append(out, map[string]any{"id": id, "name": name, "color": color, "icon": icon, "description": description, "calendar_type": calendarType, "can_edit": canEdit, "can_delete": canDelete})
 		}
 	}
 	writeJSON(w, 200, out)
@@ -130,8 +130,9 @@ func (s *server) createCalendar(w http.ResponseWriter, r *http.Request) {
 		Name        string      `json:"name"`
 		Color       string      `json:"color"`
 		Icon        string      `json:"icon"`
-		Description string      `json:"description"`
-		VisibleTo   []uuid.UUID `json:"visible_to"`
+		Description  string      `json:"description"`
+		CalendarType string      `json:"calendar_type"`
+		VisibleTo    []uuid.UUID `json:"visible_to"`
 		EditableBy  []uuid.UUID `json:"editable_by"`
 	}
 	if decode(r, &raw) != nil {
@@ -145,6 +146,13 @@ func (s *server) createCalendar(w http.ResponseWriter, r *http.Request) {
 	if raw.Icon == "" {
 		raw.Icon = "calendar"
 	}
+	if raw.CalendarType == "" {
+		raw.CalendarType = "standard"
+	}
+	if raw.CalendarType != "standard" && raw.CalendarType != "bill_pay" {
+		writeError(w, 400, "Choose a valid calendar type")
+		return
+	}
 	tx, err := s.db.Begin(r.Context())
 	if err != nil {
 		writeError(w, 500, "Could not create calendar")
@@ -152,8 +160,8 @@ func (s *server) createCalendar(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(r.Context())
 	var id uuid.UUID
-	if err = tx.QueryRow(r.Context(), `INSERT INTO calendars(name,color,icon,description,created_by) VALUES($1,$2,$3,$4,$5) RETURNING id`,
-		cleanText(raw.Name, 100), raw.Color, cleanText(raw.Icon, 40), cleanText(raw.Description, 500), currentActor(r).ID).Scan(&id); err != nil {
+	if err = tx.QueryRow(r.Context(), `INSERT INTO calendars(name,color,icon,description,calendar_type,created_by) VALUES($1,$2,$3,$4,$5,$6) RETURNING id`,
+		cleanText(raw.Name, 100), raw.Color, cleanText(raw.Icon, 40), cleanText(raw.Description, 500), raw.CalendarType, currentActor(r).ID).Scan(&id); err != nil {
 		writeError(w, 500, "Could not create calendar")
 		return
 	}
@@ -298,6 +306,7 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 
 		assignees := s.eventAssignees(r, id)
 		reminders := s.eventReminders(r, id)
+		billDetails := s.eventBillDetails(r.Context(), id)
 
 		var rule *recurrence.Rule
 		if frequency != nil && interval != nil {
@@ -332,7 +341,7 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			displayColor := calendarColor
-			out = append(out, map[string]any{
+			item := map[string]any{
 				"id": id, "series_id": id, "calendar_id": calID, "category_id": categoryID,
 				"category_name": categoryName, "category_color": categoryColor, "calendar_color": calendarColor,
 				"title": title, "notes": notes, "location": location,
@@ -342,7 +351,9 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 				"assignees": assignees, "reminders": reminders, "recurrence": rule,
 				"is_recurring": rule != nil, "is_occurrence_override": false,
 				"occurrence_index": occurrence.Index, "occurrence_start": occurrence.Start,
-			})
+			}
+			addBillFields(item, "", billDetails)
+			out = append(out, item)
 		}
 	}
 	if err := rows.Err(); err != nil {
@@ -414,7 +425,7 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 
 		replacementDisplayColor := replacementCalendarColor
 		parentDisplayColor := parentCalendarColor
-		out = append(out, map[string]any{
+		item := map[string]any{
 			"id": parentID, "series_id": parentID, "replacement_event_id": replacementID,
 			"calendar_id": replacementCalID, "category_id": replacementCategoryID,
 			"category_name": replacementCategoryName, "category_color": replacementCategoryColor, "calendar_color": replacementCalendarColor,
@@ -432,7 +443,10 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 			"series_location": parentLocation, "series_all_day": parentAllDay, "series_status": parentStatus,
 			"series_calendar_name": parentCalName, "series_color": parentDisplayColor,
 			"series_assignees": s.eventAssignees(r, parentID), "series_reminders": s.eventReminders(r, parentID),
-		})
+		}
+		addBillFields(item, "", s.eventBillDetails(r.Context(), replacementID))
+		addBillFields(item, "series_", s.eventBillDetails(r.Context(), parentID))
+		out = append(out, item)
 	}
 	if err := overrideRows.Err(); err != nil {
 		writeError(w, 500, "Could not finish loading changed recurring occurrences")
@@ -528,6 +542,10 @@ func (s *server) createEvent(w http.ResponseWriter, r *http.Request) {
 			writeError(w, 400, "One of the selected people is invalid")
 			return
 		}
+	}
+	if err = s.saveBillDetails(r.Context(), tx, id, in.CalendarID, in); err != nil {
+		writeError(w, 400, "Could not save bill details")
+		return
 	}
 
 	if in.Recurrence != nil {

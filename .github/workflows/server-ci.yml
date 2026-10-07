@@ -186,6 +186,9 @@ jobs:
           names={c["name"] for c in calendars}
           assert names == {"Family","Bills","Appointments"}, calendars
           assert all(c["can_edit"] for c in calendars), calendars
+          bills=next(c for c in calendars if c["name"]=="Bills")
+          assert bills["calendar_type"] == "bill_pay", calendars
+          assert all(c["calendar_type"]=="standard" for c in calendars if c["name"]!="Bills"), calendars
           print(json.dumps({"settings":settings,"calendars":calendars},indent=2))
           PY
 
@@ -279,6 +282,21 @@ jobs:
             if (!avatarPreviewLoaded) throw new Error('Profile image preview did not load');
             await form.locator('button[type="submit"]').click();
             await page.locator('#people-list').getByText('Second User').waitFor({ state: 'visible' });
+
+            await page.locator('.nav-item[data-page="bills"]').click();
+            await page.locator('#page-bills').waitFor({ state: 'visible' });
+            await page.locator('#add-bill').click();
+            await page.locator('#bill-event-details').waitFor({ state: 'visible' });
+            await eventForm.locator('input[name="title"]').fill('Electric CI Bill');
+            await eventForm.locator('input[name="bill_amount"]').fill('137.42');
+            await eventForm.locator('input[name="bill_amount_is_estimate"]').check();
+            await eventForm.locator('select[name="bill_payer_user_id"]').selectOption({ label: 'Second User' });
+            await eventForm.locator('button[type="submit"]').click();
+            await page.locator('#event-dialog').waitFor({ state: 'hidden' });
+            await page.locator('#bill-list').getByText('Electric CI Bill', { exact: true }).waitFor({ state: 'visible' });
+            await page.locator('#bill-list').getByText('Second User', { exact: false }).waitFor({ state: 'visible' });
+            const billRowText = await page.locator('#bill-list .bill-row').filter({ hasText: 'Electric CI Bill' }).innerText();
+            if (!billRowText.includes('137.42')) throw new Error('Bill amount was not shown in Bill Pay.');
 
             await page.locator('.nav-item[data-page="categories"]').click();
             await page.locator('#page-categories').waitFor({ state: 'visible' });
@@ -594,6 +612,32 @@ jobs:
                   body=response.read()
                   return None if not body else json.loads(body)
 
+          def google_multipart(path, archive_payload, token, fields=None):
+              boundary="----CalDenGoogleCI"+uuid.uuid4().hex
+              body=b""
+              for name,value in (fields or {}).items():
+                  body+=(
+                      f"--{boundary}\r\n"
+                      f'Content-Disposition: form-data; name="{name}"\r\n\r\n'
+                      f"{value}\r\n"
+                  ).encode()
+              body+=(
+                  f"--{boundary}\r\n"
+                  'Content-Disposition: form-data; name="archive"; filename="google-calendar.zip"\r\n'
+                  "Content-Type: application/zip\r\n\r\n"
+              ).encode()+archive_payload+f"\r\n--{boundary}--\r\n".encode()
+              req=urllib.request.Request(
+                  base+path,
+                  data=body,
+                  headers={
+                      "Authorization":"Bearer "+token,
+                      "Content-Type":f"multipart/form-data; boundary={boundary}",
+                  },
+                  method="POST",
+              )
+              with urllib.request.urlopen(req) as response:
+                  return json.load(response)
+
           token=json_request("/api/login","POST",{"username":"testadmin","password":"test-password-123"})["token"]
 
           now=dt.datetime.now(dt.timezone.utc)
@@ -635,34 +679,12 @@ jobs:
               z.writestr("Takeout/Calendar/Google Shared.ics",shared)
           payload=archive.getvalue()
 
-          def import_google():
-              boundary="----CalDenGoogleCI"+uuid.uuid4().hex
-              body=(
-                  f"--{boundary}\r\n"
-                  'Content-Disposition: form-data; name="reuse_by_name"\r\n\r\n'
-                  "true\r\n"
-                  f"--{boundary}\r\n"
-                  'Content-Disposition: form-data; name="archive"; filename="google-calendar.zip"\r\n'
-                  "Content-Type: application/zip\r\n\r\n"
-              ).encode()+payload+f"\r\n--{boundary}--\r\n".encode()
-              req=urllib.request.Request(
-                  base+"/api/integrations/google/import",
-                  data=body,
-                  headers={
-                      "Authorization":"Bearer "+token,
-                      "Content-Type":f"multipart/form-data; boundary={boundary}",
-                  },
-                  method="POST",
-              )
-              with urllib.request.urlopen(req) as response:
-                  return json.load(response)
-
-          first=import_google()
+          first=google_multipart("/api/integrations/google/import",payload,token,{"reuse_by_name":"true"})
           assert first["calendar_count"] == 2, first
           assert first["created_calendars"] == 2, first
           assert first["created"] == 2, first
 
-          second=import_google()
+          second=google_multipart("/api/integrations/google/import",payload,token,{"reuse_by_name":"true"})
           assert second["calendar_count"] == 2, second
           assert second["reused_calendars"] == 2, second
           assert second["updated"] == 2, second
@@ -677,8 +699,72 @@ jobs:
           monday=[e for e in events if e["title"]=="Google First Monday"]
           assert len(monday) == 3, monday
           assert all(e["recurrence"]["raw"]=="FREQ=MONTHLY;COUNT=3;BYDAY=1MO" for e in monday), monday
-          assert all(e["starts_at"][0:10] != "" for e in monday), monday
-          print(json.dumps({"first":first,"second":second,"advanced_occurrences":len(monday)},indent=2))
+
+          # Reproduce the alpha6 failure mode: force Google "Family Calendar" into its own
+          # auto-created calendar even though CalDen already has "Family".
+          repair_day=family_day+dt.timedelta(days=2)
+          repair_ics=(
+              "BEGIN:VCALENDAR\r\n"
+              "VERSION:2.0\r\n"
+              "X-WR-CALNAME:Family Calendar\r\n"
+              "BEGIN:VEVENT\r\n"
+              "UID:google-family-repair@test\r\n"
+              f"DTSTART;VALUE=DATE:{repair_day.strftime('%Y%m%d')}\r\n"
+              f"DTEND;VALUE=DATE:{(repair_day+dt.timedelta(days=1)).strftime('%Y%m%d')}\r\n"
+              "SUMMARY:Family Import Repair Event\r\n"
+              "END:VEVENT\r\n"
+              "END:VCALENDAR\r\n"
+          )
+          repair_path="Takeout/Calendar/Family Calendar.ics"
+          repair_archive=io.BytesIO()
+          with zipfile.ZipFile(repair_archive,"w",zipfile.ZIP_DEFLATED) as z:
+              z.writestr(repair_path,repair_ics)
+          repair_payload=repair_archive.getvalue()
+          external_id=repair_path.lower()
+
+          forced=google_multipart(
+              "/api/integrations/google/import",
+              repair_payload,
+              token,
+              {"calendar_mapping":json.dumps({external_id:"__create__"})},
+          )
+          assert forced["created_calendars"] == 1, forced
+          calendars=json_request("/api/calendars",token=token)
+          assert any(c["name"]=="Family Calendar" for c in calendars), calendars
+          family=next(c for c in calendars if c["name"]=="Family")
+
+          preview=google_multipart("/api/integrations/google/preview",repair_payload,token)
+          assert preview["calendar_count"] == 1, preview
+          match=preview["calendars"][0]
+          assert match["previous_auto_created"] is True, match
+          assert match["suggested_calendar_id"] == family["id"], match
+          assert match["match_score"] >= 80, match
+
+          repaired=google_multipart(
+              "/api/integrations/google/import",
+              repair_payload,
+              token,
+              {"calendar_mapping":json.dumps({external_id:family["id"]})},
+          )
+          assert repaired["created_calendars"] == 0, repaired
+          assert repaired["cleaned_calendars"] == 1, repaired
+          calendars=json_request("/api/calendars",token=token)
+          assert not any(c["name"]=="Family Calendar" for c in calendars), calendars
+
+          repair_from=urllib.parse.quote((repair_day-dt.timedelta(days=1)).isoformat().replace("+00:00","Z"))
+          repair_to=urllib.parse.quote((repair_day+dt.timedelta(days=2)).isoformat().replace("+00:00","Z"))
+          repaired_events=json_request(f"/api/events?from={repair_from}&to={repair_to}",token=token)
+          repaired_events=[e for e in repaired_events if e["title"]=="Family Import Repair Event"]
+          assert len(repaired_events) == 1, repaired_events
+          assert repaired_events[0]["calendar_id"] == family["id"], repaired_events
+
+          print(json.dumps({
+              "first":first,
+              "second":second,
+              "advanced_occurrences":len(monday),
+              "preview_match":match,
+              "repair":repaired,
+          },indent=2))
           PY
 
       - name: Verify complete backup and cold restore
