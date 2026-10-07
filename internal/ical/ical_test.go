@@ -14,9 +14,9 @@ func TestRoundTripRecurringEventWithException(t *testing.T) {
 	end := start.Add(time.Hour)
 	count := 6
 	rule := &recurrence.Rule{
-		Frequency: "weekly",
-		Interval:  1,
-		Weekdays:  []int{1, 3},
+		Frequency:       "weekly",
+		Interval:        1,
+		Weekdays:        []int{1, 3},
 		OccurrenceCount: &count,
 	}
 	ex := start.AddDate(0, 0, 2)
@@ -25,24 +25,23 @@ func TestRoundTripRecurringEventWithException(t *testing.T) {
 		Name: "Family",
 		Events: []Event{
 			{
-				UID: "abc-123@calden",
-				Summary: "Therapy, check-in",
-				Description: "Bring notes
-Second line",
-				Location: "Clinic; Building A",
-				Category: "Medical",
-				Start: start,
-				End: end,
-				Recurrence: rule,
-				ExDates: []time.Time{ex},
+				UID:         "abc-123@calden",
+				Summary:     "Therapy, check-in",
+				Description: "Bring notes\nSecond line",
+				Location:    "Clinic; Building A",
+				Category:    "Medical",
+				Start:       start,
+				End:         end,
+				Recurrence:  rule,
+				ExDates:     []time.Time{ex},
 			},
 			{
-				UID: "abc-123@calden",
-				Summary: "Therapy moved",
-				Location: "Clinic",
-				Category: "Medical",
-				Start: overrideStart,
-				End: overrideStart.Add(time.Hour),
+				UID:          "abc-123@calden",
+				Summary:      "Therapy moved",
+				Location:     "Clinic",
+				Category:     "Medical",
+				Start:        overrideStart,
+				End:          overrideStart.Add(time.Hour),
 				RecurrenceID: &ex,
 			},
 		},
@@ -60,8 +59,7 @@ Second line",
 		"CATEGORIES:Medical",
 	} {
 		if !strings.Contains(raw, want) {
-			t.Fatalf("export missing %q:
-%s", want, raw)
+			t.Fatalf("export missing %q:\n%s", want, raw)
 		}
 	}
 
@@ -76,8 +74,7 @@ Second line",
 		t.Fatalf("expected 2 VEVENTs, got %d", len(parsed.Events))
 	}
 	parent := parsed.Events[0]
-	if parent.Summary != "Therapy, check-in" || parent.Description != "Bring notes
-Second line" {
+	if parent.Summary != "Therapy, check-in" || parent.Description != "Bring notes\nSecond line" {
 		t.Fatalf("escaped text did not round-trip: %#v", parent)
 	}
 	if parent.Recurrence == nil || parent.Recurrence.Frequency != "weekly" || len(parent.Recurrence.Weekdays) != 2 {
@@ -107,8 +104,7 @@ func TestAllDayRoundTripUsesExclusiveICalEnd(t *testing.T) {
 	}
 	raw := buf.String()
 	if !strings.Contains(raw, "DTSTART;VALUE=DATE:20261020") || !strings.Contains(raw, "DTEND;VALUE=DATE:20261021") {
-		t.Fatalf("unexpected all-day export:
-%s", raw)
+		t.Fatalf("unexpected all-day export:\n%s", raw)
 	}
 	parsed, err := Parse(strings.NewReader(raw), loc)
 	if err != nil {
@@ -121,17 +117,7 @@ func TestAllDayRoundTripUsesExclusiveICalEnd(t *testing.T) {
 }
 
 func TestParseTZIDAndFoldedText(t *testing.T) {
-	raw := "BEGIN:VCALENDAR
-VERSION:2.0
-BEGIN:VEVENT
-UID:tz@test
-DTSTART;TZID=America/New_York:20261020T090000
-DTEND;TZID=America/New_York:20261020T100000
-SUMMARY:A long family event that has a folded
-  summary
-END:VEVENT
-END:VCALENDAR
-"
+	raw := "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:tz@test\r\nDTSTART;TZID=America/New_York:20261020T090000\r\nDTEND;TZID=America/New_York:20261020T100000\r\nSUMMARY:A long family event that has a folded\r\n  summary\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
 	cal, err := Parse(strings.NewReader(raw), time.UTC)
 	if err != nil {
 		t.Fatal(err)
