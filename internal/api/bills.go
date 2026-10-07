@@ -35,18 +35,25 @@ type billPaymentEntry struct {
 }
 
 type billPaymentDetails struct {
-	Status             string
-	NoBalance          bool
-	NoBalanceMarkedAt  *time.Time
-	AmountPaid         *float64
-	PaidAt             *time.Time
-	PaidOn             *string
-	ClearedOn          *string
-	PaidByID           *uuid.UUID
-	PaidByName         *string
-	PaidByInitials     *string
-	PaidByAvatarURL    *string
-	Payments           []billPaymentEntry
+	Status               string
+	NoBalance            bool
+	NoBalanceMarkedAt    *time.Time
+	AmountPaid           *float64
+	PaidAt               *time.Time
+	PaidOn               *string
+	ClearedOn            *string
+	PaidByID             *uuid.UUID
+	PaidByName           *string
+	PaidByInitials       *string
+	PaidByAvatarURL      *string
+	AllocatedAmount      *float64
+	AllocatedOn          *string
+	AllocatedAt          *time.Time
+	AllocatedByID        *uuid.UUID
+	AllocatedByName      *string
+	AllocatedByInitials  *string
+	AllocatedByAvatarURL *string
+	Payments             []billPaymentEntry
 }
 
 type billOccurrenceTarget struct {
@@ -83,6 +90,9 @@ func (s *server) saveBillDetails(ctx context.Context, tx pgx.Tx, eventID, calend
 			return err
 		}
 		if _, err = tx.Exec(ctx, `DELETE FROM bill_payments WHERE event_id=$1`, eventID); err != nil {
+			return err
+		}
+		if _, err = tx.Exec(ctx, `DELETE FROM bill_allocations WHERE event_id=$1`, eventID); err != nil {
 			return err
 		}
 		_, err = tx.Exec(ctx, `DELETE FROM bill_no_balance_occurrences WHERE event_id=$1`, eventID)
@@ -165,8 +175,29 @@ func billPaymentEntryJSON(entry billPaymentEntry) map[string]any {
 func (s *server) eventBillPayment(ctx context.Context, eventID uuid.UUID, occurrenceStart time.Time) billPaymentDetails {
 	out := billPaymentDetails{Status: "due", Payments: []billPaymentEntry{}}
 
+	var allocatedAmount float64
+	var allocatedOn string
+	var allocatedAt time.Time
+	err := s.db.QueryRow(ctx, `SELECT
+		a.amount_allocated::double precision,to_char(a.allocated_on,'YYYY-MM-DD'),a.allocated_at,
+		a.allocated_by_user_id,u.display_name,u.initials,u.avatar_url
+		FROM bill_allocations a
+		LEFT JOIN users u ON u.id=a.allocated_by_user_id
+		WHERE a.event_id=$1 AND a.occurrence_start=$2`, eventID, occurrenceStart).Scan(
+		&allocatedAmount, &allocatedOn, &allocatedAt,
+		&out.AllocatedByID, &out.AllocatedByName, &out.AllocatedByInitials, &out.AllocatedByAvatarURL,
+	)
+	if err == nil {
+		out.AllocatedAmount = &allocatedAmount
+		out.AllocatedOn = &allocatedOn
+		out.AllocatedAt = &allocatedAt
+		out.Status = "allocated"
+	} else if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return out
+	}
+
 	var markedAt time.Time
-	err := s.db.QueryRow(ctx, `SELECT marked_at FROM bill_no_balance_occurrences
+	err = s.db.QueryRow(ctx, `SELECT marked_at FROM bill_no_balance_occurrences
 		WHERE event_id=$1 AND occurrence_start=$2`, eventID, occurrenceStart).Scan(&markedAt)
 	if err == nil {
 		out.NoBalance = true
@@ -192,6 +223,7 @@ func (s *server) eventBillPayment(ctx context.Context, eventID uuid.UUID, occurr
 	total := 0.0
 	var final *billPaymentEntry
 	var last *billPaymentEntry
+	allCleared := true
 	for rows.Next() {
 		var entry billPaymentEntry
 		if rows.Scan(
@@ -203,6 +235,9 @@ func (s *server) eventBillPayment(ctx context.Context, eventID uuid.UUID, occurr
 		}
 		total += entry.AmountPaid
 		out.Payments = append(out.Payments, entry)
+		if entry.ClearedOn == nil {
+			allCleared = false
+		}
 		copy := entry
 		last = &copy
 		if entry.SettlesBill {
@@ -225,6 +260,9 @@ func (s *server) eventBillPayment(ctx context.Context, eventID uuid.UUID, occurr
 		representative = final
 		if !out.NoBalance {
 			out.Status = "paid"
+			if allCleared {
+				out.Status = "cleared"
+			}
 		}
 	}
 	if representative != nil {
@@ -241,9 +279,15 @@ func (s *server) eventBillPayment(ctx context.Context, eventID uuid.UUID, occurr
 
 func addBillPaymentFields(target map[string]any, details billPaymentDetails) {
 	target["bill_payment_status"] = details.Status
-	target["bill_paid"] = details.Status == "paid"
+	target["bill_paid"] = details.Status == "paid" || details.Status == "cleared"
 	target["bill_no_balance"] = details.NoBalance
 	target["bill_amount_paid"] = details.AmountPaid
+	target["bill_amount_allocated"] = details.AllocatedAmount
+	target["bill_allocated_on"] = details.AllocatedOn
+	target["bill_allocated_at"] = details.AllocatedAt
+	target["bill_allocated_by"] = billPaymentPerson(
+		details.AllocatedByID, details.AllocatedByName, details.AllocatedByInitials, details.AllocatedByAvatarURL,
+	)
 	target["bill_paid_at"] = details.PaidAt
 	target["bill_paid_on"] = details.PaidOn
 	target["bill_cleared_on"] = details.ClearedOn
@@ -353,6 +397,72 @@ func (s *server) activeBillPayer(ctx context.Context, requested *uuid.UUID, fall
 		return uuid.Nil, errors.New("Choose an active person who made this payment")
 	}
 	return paidBy, nil
+}
+
+func (s *server) setBillAllocation(w http.ResponseWriter, r *http.Request) {
+	eventID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeError(w, 400, "Invalid bill")
+		return
+	}
+	var in struct {
+		OccurrenceStart time.Time `json:"occurrence_start"`
+		Allocated       bool      `json:"allocated"`
+		AmountAllocated float64   `json:"amount_allocated"`
+		AllocatedOn     string    `json:"allocated_on"`
+	}
+	if decode(r, &in) != nil || in.OccurrenceStart.IsZero() {
+		writeError(w, 400, "Check the allocation details")
+		return
+	}
+	target, err := s.billOccurrenceTarget(r, eventID, in.OccurrenceStart)
+	if err != nil {
+		writeError(w, 400, err.Error())
+		return
+	}
+
+	if !in.Allocated {
+		if _, err := s.db.Exec(r.Context(), `DELETE FROM bill_allocations
+			WHERE event_id=$1 AND occurrence_start=$2`, eventID, in.OccurrenceStart); err != nil {
+			writeError(w, 500, "Could not clear allocation")
+			return
+		}
+		s.audit(r, "bill_allocation_clear", "event", &eventID, "Cleared bill allocation "+cleanText(target.Title, 200), map[string]any{
+			"occurrence_start": in.OccurrenceStart,
+		})
+		out := map[string]any{}
+		addBillPaymentFields(out, s.eventBillPayment(r.Context(), eventID, in.OccurrenceStart))
+		writeJSON(w, 200, out)
+		return
+	}
+
+	if math.IsNaN(in.AmountAllocated) || math.IsInf(in.AmountAllocated, 0) || in.AmountAllocated <= 0 || in.AmountAllocated > 9999999999.99 {
+		writeError(w, 400, "Enter the amount allocated")
+		return
+	}
+	allocatedOn, err := parseBillDate(in.AllocatedOn, true)
+	if err != nil {
+		writeError(w, 400, "Choose the allocation date")
+		return
+	}
+	if _, err := s.db.Exec(r.Context(), `INSERT INTO bill_allocations(
+			event_id,occurrence_start,amount_allocated,allocated_on,allocated_by_user_id,allocated_at,updated_at
+		) VALUES($1,$2,$3,$4,$5,now(),now())
+		ON CONFLICT(event_id,occurrence_start) DO UPDATE SET
+			amount_allocated=EXCLUDED.amount_allocated,
+			allocated_on=EXCLUDED.allocated_on,
+			allocated_by_user_id=EXCLUDED.allocated_by_user_id,
+			updated_at=now()`,
+		eventID, in.OccurrenceStart, normalizeBillAmount(&in.AmountAllocated), allocatedOn, currentActor(r).ID); err != nil {
+		writeError(w, 500, "Could not save allocation")
+		return
+	}
+	s.audit(r, "bill_allocation", "event", &eventID, "Allocated bill funds "+cleanText(target.Title, 200), map[string]any{
+		"occurrence_start": in.OccurrenceStart, "amount_allocated": in.AmountAllocated, "allocated_on": in.AllocatedOn,
+	})
+	out := map[string]any{}
+	addBillPaymentFields(out, s.eventBillPayment(r.Context(), eventID, in.OccurrenceStart))
+	writeJSON(w, 200, out)
 }
 
 func (s *server) addBillPayment(w http.ResponseWriter, r *http.Request) {
@@ -552,6 +662,11 @@ func (s *server) setBillNoBalance(w http.ResponseWriter, r *http.Request) {
 		if _, err = tx.Exec(r.Context(), `DELETE FROM bill_payments
 			WHERE event_id=$1 AND occurrence_start=$2`, eventID, in.OccurrenceStart); err != nil {
 			writeError(w, 500, "Could not clear existing payments")
+			return
+		}
+		if _, err = tx.Exec(r.Context(), `DELETE FROM bill_allocations
+			WHERE event_id=$1 AND occurrence_start=$2`, eventID, in.OccurrenceStart); err != nil {
+			writeError(w, 500, "Could not clear existing allocation")
 			return
 		}
 		if _, err = tx.Exec(r.Context(), `INSERT INTO bill_no_balance_occurrences(
