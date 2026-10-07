@@ -1347,11 +1347,14 @@ function renderGoogleImportMapping(body){
     host.innerHTML='<div class="empty-state"><strong>No calendars found</strong></div>';
     button.classList.add("hidden");button.disabled=true;return;
   }
-  host.innerHTML=`<div class="google-mapping-head"><div><strong>Review calendar mapping</strong><span>Nothing is imported until you confirm these choices.</span></div><span>${items.length} Google calendar${items.length===1?"":"s"}</span></div>
+  const duplicateSuppressed=Number(body?.duplicate_events_suppressed)||0;
+  host.innerHTML=`<div class="google-mapping-head"><div><strong>Review calendar mapping</strong><span>Nothing is imported until you confirm these choices. ${duplicateSuppressed?duplicateSuppressed+" stale duplicate Google event"+(duplicateSuppressed===1?" was":"s were")+" removed from the export before mapping.":""}</span></div><span>${items.length} Google calendar${items.length===1?"":"s"}</span></div>
     <div class="google-mapping-list">${items.map((item,index)=>{
       const prior=item.previous_auto_created?" · previous import created a duplicate calendar":"";
+      const suppressed=Number(item.duplicate_events_suppressed)||0;
+      const duplicateNote=suppressed?" · "+suppressed+" stale duplicate"+(suppressed===1?"":"s")+" ignored":"";
       return `<article class="google-mapping-row">
-        <div class="google-mapping-source"><strong>${escapeHTML(item.name)}</strong><small>${Number(item.event_count)||0} exported event${Number(item.event_count)===1?"":"s"}${escapeHTML(prior)}</small></div>
+        <div class="google-mapping-source"><strong>${escapeHTML(item.name)}</strong><small>${Number(item.event_count)||0} event${Number(item.event_count)===1?"":"s"} to import${escapeHTML(duplicateNote)}${escapeHTML(prior)}</small></div>
         <label>Import into<select class="google-map-select" data-google-map-index="${index}">${googleMappingOptions(item)}</select></label>
         <div class="google-match-reason ${item.match_score>=80?"match-good":""}"><strong>${item.match_score>=80?"Suggested match":"Review required"}</strong><span>${escapeHTML(item.match_reason||"Choose where this calendar belongs.")}</span></div>
       </article>`;
@@ -1377,7 +1380,9 @@ function renderGoogleImportResults(body){
     <span>${Number(body?.created)||0} new events</span>
     <span>${Number(body?.updated)||0} updated</span>
     <span>${Number(body?.skipped_calendars)||0} skipped calendars</span>
-    <span>${Number(body?.cleaned_calendars)||0} old duplicates cleaned up</span>
+    <span>${Number(body?.cleaned_calendars)||0} old duplicate calendars cleaned up</span>
+    <span>${Number(body?.duplicate_events_suppressed)||0} stale Google event copies suppressed</span>
+    <span>${Number(body?.duplicate_events_reconciled)||0} existing duplicate events repaired</span>
   </div>`+calendars.map(item=>`<article class="google-import-calendar">
     <div><strong>${escapeHTML(item.name||"Imported calendar")}</strong><small>${Number(item.created)||0} new · ${Number(item.updated)||0} updated${item.skipped?" · "+Number(item.skipped)+" skipped":""}</small></div>
     <span>${item.created_calendar?"Created calendar":"Mapped to existing"}</span>
