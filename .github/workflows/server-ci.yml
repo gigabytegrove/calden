@@ -223,6 +223,119 @@ jobs:
           })();
           NODE
 
+      - name: Verify recurring series and single-occurrence exceptions
+        run: |
+          python - <<'PY'
+          import datetime as dt
+          import json
+          import urllib.request
+
+          base = "http://127.0.0.1:8787"
+
+          def request(path, method="GET", payload=None, token=None):
+              headers = {"Content-Type": "application/json"}
+              if token:
+                  headers["Authorization"] = "Bearer " + token
+              data = None if payload is None else json.dumps(payload).encode()
+              req = urllib.request.Request(base + path, data=data, headers=headers, method=method)
+              with urllib.request.urlopen(req) as response:
+                  if response.status == 204:
+                      return None
+                  return json.load(response)
+
+          token = request("/api/login", "POST", {
+              "username": "testadmin",
+              "password": "test-password-123",
+          })["token"]
+
+          calendars = request("/api/calendars", token=token)
+          family = next(c for c in calendars if c["name"] == "Family")
+
+          start = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=1)).replace(
+              hour=14, minute=0, second=0, microsecond=0
+          )
+          end = start + dt.timedelta(hours=1)
+
+          created = request("/api/events", "POST", {
+              "calendar_id": family["id"],
+              "title": "Recurring CI Event",
+              "notes": "recurrence verification",
+              "location": "Test Room",
+              "starts_at": start.isoformat().replace("+00:00", "Z"),
+              "ends_at": end.isoformat().replace("+00:00", "Z"),
+              "all_day": False,
+              "assignee_ids": [],
+              "reminders": [],
+              "recurrence": {
+                  "frequency": "daily",
+                  "interval": 1,
+                  "weekdays": [],
+                  "until": None,
+                  "occurrence_count": 4,
+              },
+          }, token)
+          series_id = created["id"]
+
+          window_from = (start - dt.timedelta(hours=1)).isoformat().replace("+00:00", "Z")
+          window_to = (start + dt.timedelta(days=5)).isoformat().replace("+00:00", "Z")
+          events = request(
+              "/api/events?from=" + urllib.parse.quote(window_from) + "&to=" + urllib.parse.quote(window_to),
+              token=token,
+          )
+          series = [e for e in events if e["id"] == series_id]
+          assert len(series) == 4, series
+          assert all(e["is_recurring"] for e in series), series
+
+          second = series[1]
+          original_second = second["occurrence_start"]
+          moved_start = start + dt.timedelta(days=1, hours=2)
+          moved_end = moved_start + dt.timedelta(hours=1)
+
+          request(f"/api/events/{series_id}/occurrences", "PUT", {
+              "original_start": original_second,
+              "event": {
+                  "calendar_id": family["id"],
+                  "title": "Moved recurring CI Event",
+                  "notes": "one occurrence only",
+                  "location": "Moved Room",
+                  "starts_at": moved_start.isoformat().replace("+00:00", "Z"),
+                  "ends_at": moved_end.isoformat().replace("+00:00", "Z"),
+                  "all_day": False,
+                  "assignee_ids": [],
+                  "reminders": [],
+                  "recurrence": None,
+              },
+          }, token)
+
+          events = request(
+              "/api/events?from=" + urllib.parse.quote(window_from) + "&to=" + urllib.parse.quote(window_to),
+              token=token,
+          )
+          series = [e for e in events if e["id"] == series_id]
+          assert len(series) == 4, series
+          assert not any(e["starts_at"] == original_second for e in series), series
+          moved = next(e for e in series if e.get("is_occurrence_override"))
+          assert moved["title"] == "Moved recurring CI Event", moved
+          assert moved["occurrence_start"] == original_second, moved
+
+          third_original = (start + dt.timedelta(days=2)).isoformat().replace("+00:00", "Z")
+          request(f"/api/events/{series_id}/occurrences", "DELETE", {
+              "original_start": third_original,
+          }, token)
+
+          events = request(
+              "/api/events?from=" + urllib.parse.quote(window_from) + "&to=" + urllib.parse.quote(window_to),
+              token=token,
+          )
+          series = [e for e in events if e["id"] == series_id]
+          assert len(series) == 3, series
+          assert not any(e["occurrence_start"] == third_original for e in series), series
+          assert any(e["is_occurrence_override"] for e in series), series
+
+          request(f"/api/events/{series_id}", "DELETE", token=token)
+          print("Recurring series and single-occurrence exception test passed.")
+          PY
+
       - name: Stop source-build test stack
         run: docker compose down -v
 
