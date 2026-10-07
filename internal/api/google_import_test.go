@@ -99,3 +99,16 @@ func TestGoogleCalendarMatchScore(t *testing.T) {
 		t.Fatalf("unrelated calendars should not match, got %d", score)
 	}
 }
+
+
+func TestGoogleCalendarDisplayNameUsesSpecialExportFilename(t *testing.T) {
+	if got := googleCalendarDisplayName("person@example.com", "Birthdays_person@example.com.ics"); got != "Birthdays" {
+		t.Fatalf("expected special birthdays export to be named Birthdays, got %q", got)
+	}
+	if got := googleCalendarDisplayName("person@example.com", "person@example.com.ics"); got != "person@example.com" {
+		t.Fatalf("expected primary account calendar to keep its email name, got %q", got)
+	}
+	if got := googleCalendarDisplayName("Bill Pay Calendar", "Bill Pay Calendar_abc@group.calendar.google.com.ics"); got != "Bill Pay Calendar" {
+		t.Fatalf("expected normal Google calendar name to be preserved, got %q", got)
+	}
+}
