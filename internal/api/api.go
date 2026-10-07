@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/gigabytegrove/calden/internal/backup"
 	"github.com/gigabytegrove/calden/internal/updater"
 )
 
@@ -32,6 +33,7 @@ type server struct {
 	dataDir   string
 	version   string
 	updater   *updater.Manager
+	backup    *backup.Manager
 }
 
 type actor struct {
@@ -46,6 +48,7 @@ const actorKey contextKey = "actor"
 func New(cfg Config) http.Handler {
 	s := &server{db: cfg.DB, jwtSecret: cfg.JWTSecret, webDir: cfg.WebDir, dataDir: cfg.DataDir, version: cfg.Version}
 	s.updater = updater.New(cfg.DataDir, cfg.Version)
+	s.backup = backup.New(cfg.DataDir, cfg.Version)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", s.health)
 	mux.HandleFunc("GET /api/setup/status", s.setupStatus)
@@ -85,6 +88,13 @@ func New(cfg Config) http.Handler {
 	mux.Handle("PUT /api/system/update/preferences", s.auth(s.admin(http.HandlerFunc(s.saveUpdatePreferences))))
 	mux.Handle("POST /api/system/update/install", s.auth(s.admin(http.HandlerFunc(s.installUpdate))))
 	mux.Handle("POST /api/system/update/rollback", s.auth(s.admin(http.HandlerFunc(s.rollbackUpdate))))
+	mux.Handle("GET /api/system/backup/status", s.auth(s.admin(http.HandlerFunc(s.backupStatus))))
+	mux.Handle("GET /api/system/backup/download", s.auth(s.admin(http.HandlerFunc(s.downloadBackup))))
+	mux.Handle("POST /api/system/backup/restore", s.auth(s.admin(http.HandlerFunc(s.stageRestore))))
+	mux.Handle("DELETE /api/system/backup/restore", s.auth(s.admin(http.HandlerFunc(s.cancelRestore))))
+	mux.Handle("GET /api/system/backups/{name}", s.auth(s.admin(http.HandlerFunc(s.downloadSavedBackup))))
+	mux.Handle("DELETE /api/system/backups/{name}", s.auth(s.admin(http.HandlerFunc(s.deleteSavedBackup))))
+	mux.Handle("POST /api/system/restart", s.auth(s.admin(http.HandlerFunc(s.restartSystem))))
 	mux.Handle("/", s.static())
 	return securityHeaders(mux)
 }
