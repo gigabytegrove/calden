@@ -121,3 +121,13 @@ dialog{border:0;padding:0;width:min(900px,calc(100% - 28px));max-height:92vh;box
 .interop-box{display:grid;gap:10px;border:1px solid #e0e5eb;background:#f8fafb;padding:13px;border-radius:7px}.interop-box h3{margin-bottom:3px}.interop-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .file-button{display:inline-flex;align-items:center;justify-content:center;border:1px solid #cfd6e1;background:#fff;color:#354157;padding:.72rem .95rem;border-radius:7px;font-weight:750;line-height:1;min-height:40px;cursor:pointer}.file-button input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
 @media(max-width:620px){.interop-actions>*{flex:1 1 100%}}
+
+/* Profile images */
+.account-badge{overflow:hidden}.account-badge img{width:100%;height:100%;object-fit:cover;display:block}
+.management-avatar{overflow:hidden}.management-avatar .avatar-image,.management-avatar .avatar-fallback{width:100%;height:100%;display:grid;place-items:center}.management-avatar .avatar-image{object-fit:cover}
+.avatar-editor,.account-avatar-settings{display:grid;grid-template-columns:auto minmax(0,1fr);gap:14px;align-items:center}
+.avatar-preview{border-radius:50%;overflow:hidden;background:#e7ebf0;border:1px solid #d5dce5;display:grid;place-items:center;color:#4c596e;font-weight:850;flex:none}
+.avatar-preview.large{width:72px;height:72px;font-size:1rem}.avatar-preview.xlarge{width:92px;height:92px;font-size:1.2rem}
+.avatar-preview img{width:100%;height:100%;object-fit:cover;display:block}
+.compact-stack{gap:8px}
+@media(max-width:620px){.avatar-editor,.account-avatar-settings{grid-template-columns:1fr}.avatar-preview.large,.avatar-preview.xlarge{width:78px;height:78px}}
