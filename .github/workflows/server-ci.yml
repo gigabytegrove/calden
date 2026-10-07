@@ -360,6 +360,81 @@ jobs:
           print("Recurring series and single-occurrence exception test passed.")
           PY
 
+      - name: Verify complete backup and cold restore
+        run: |
+          set -euo pipefail
+
+          TOKEN="$(python - <<'PY'
+          import json, urllib.request
+          req=urllib.request.Request(
+              "http://127.0.0.1:8787/api/login",
+              data=json.dumps({"username":"testadmin","password":"test-password-123"}).encode(),
+              headers={"Content-Type":"application/json"},
+              method="POST",
+          )
+          with urllib.request.urlopen(req) as r:
+              print(json.load(r)["token"])
+          PY
+          )"
+
+          curl -fsS             -H "Authorization: Bearer $TOKEN"             http://127.0.0.1:8787/api/system/backup/download             -o /tmp/calden-restore-test.tar.gz
+
+          tar -tzf /tmp/calden-restore-test.tar.gz | grep -qx 'manifest.json'
+          tar -tzf /tmp/calden-restore-test.tar.gz | grep -qx 'calden.dump'
+
+          curl -fsS             -X PUT             -H "Authorization: Bearer $TOKEN"             -H "Content-Type: application/json"             --data '{"household_name":"Mutated After Backup","timezone":"America/New_York","week_start":"sunday","default_view":7}'             http://127.0.0.1:8787/api/settings/general >/tmp/mutated-settings.json
+          grep -q 'Mutated After Backup' /tmp/mutated-settings.json
+
+          curl -fsS             -X POST             -H "Authorization: Bearer $TOKEN"             -F "backup=@/tmp/calden-restore-test.tar.gz"             http://127.0.0.1:8787/api/system/backup/restore >/tmp/staged-restore.json
+          grep -q '"staged":true' /tmp/staged-restore.json
+
+          curl -fsS             -X POST             -H "Authorization: Bearer $TOKEN"             -H "Content-Type: application/json"             --data '{}'             http://127.0.0.1:8787/api/system/restart >/tmp/restart.json
+
+          sleep 3
+          for i in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:8787/api/health >/tmp/restored-health.json 2>/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:8787/api/health >/tmp/restored-health.json
+
+          NEW_TOKEN="$(python - <<'PY'
+          import json, urllib.request
+          req=urllib.request.Request(
+              "http://127.0.0.1:8787/api/login",
+              data=json.dumps({"username":"testadmin","password":"test-password-123"}).encode(),
+              headers={"Content-Type":"application/json"},
+              method="POST",
+          )
+          with urllib.request.urlopen(req) as r:
+              print(json.load(r)["token"])
+          PY
+          )"
+          export NEW_TOKEN
+
+          python - <<'PY'
+          import json, os, urllib.request
+          token=os.environ["NEW_TOKEN"]
+          req=urllib.request.Request(
+              "http://127.0.0.1:8787/api/settings/general",
+              headers={"Authorization":"Bearer "+token},
+          )
+          with urllib.request.urlopen(req) as r:
+              settings=json.load(r)
+          assert settings["household_name"] == "Updated Test Family", settings
+
+          req=urllib.request.Request(
+              "http://127.0.0.1:8787/api/system/backup/status",
+              headers={"Authorization":"Bearer "+token},
+          )
+          with urllib.request.urlopen(req) as r:
+              status=json.load(r)
+          assert status["pending"] is False, status
+          assert status["last"]["status"] == "success", status
+          assert any(b["name"].startswith("pre-restore-") for b in status["backups"]), status
+          print(json.dumps({"settings":settings,"restore":status["last"]},indent=2))
+          PY
       - name: Stop source-build test stack
         run: docker compose down -v
 
