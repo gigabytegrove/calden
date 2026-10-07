@@ -95,17 +95,38 @@
   </header>
   <main class="page">
     <section class="hero">
-      <div><p class="eyebrow" id="today-label"></p><h1>Today</h1><p id="household-label" class="hero-household"></p></div>
+      <div><p class="eyebrow" id="today-label"></p><h1 id="view-title">Calendar</h1><p id="household-label" class="hero-household"></p></div>
       <button id="new-event">+ Add event</button>
     </section>
-    <section id="calendar-strip" class="calendar-strip"></section>
-    <section>
-      <div class="section-title"><h2>Coming up</h2><span id="event-count"></span></div>
+
+    <section class="calendar-toolbar" aria-label="Calendar controls">
+      <div class="date-nav">
+        <button id="calendar-prev" class="quiet" type="button" aria-label="Previous period">‹</button>
+        <button id="calendar-today" class="quiet" type="button">Today</button>
+        <button id="calendar-next" class="quiet" type="button" aria-label="Next period">›</button>
+        <strong id="calendar-range-label"></strong>
+      </div>
+      <div class="view-switcher" role="group" aria-label="Calendar view">
+        <button type="button" data-days="1">1 Day</button>
+        <button type="button" data-days="7">7 Day</button>
+        <button type="button" data-days="14">14 Day</button>
+        <button type="button" data-days="30">30 Day</button>
+      </div>
+    </section>
+
+    <section id="calendar-strip" class="calendar-strip" aria-label="Visible calendars"></section>
+
+    <section class="calendar-shell">
+      <div id="calendar-view" class="calendar-view"></div>
+    </section>
+
+    <section class="agenda-section">
+      <div class="section-title"><h2>Agenda</h2><span id="event-count"></span></div>
       <div id="events" class="events"></div>
     </section>
   </main>
   <nav class="bottom-nav">
-    <button class="active">Today</button><button>Calendar</button><button id="nav-add">Add</button><button>Notifications</button><button id="nav-more">More</button>
+    <button id="nav-today" class="active">Today</button><button id="nav-calendar">Calendar</button><button id="nav-add">Add</button><button>Notifications</button><button id="nav-more">More</button>
   </nav>
 </div>
 
