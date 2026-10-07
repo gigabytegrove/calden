@@ -295,3 +295,11 @@ input:focus,select:focus,textarea:focus{border-color:#596b83;box-shadow:0 0 0 3p
 .google-match-reason{display:grid;gap:2px;border-left:3px solid #b8c1cd;padding-left:9px}.google-match-reason.match-good{border-left-color:#278154}.google-match-reason strong{font-size:.7rem}.google-match-reason span{font-size:.67rem;color:#758193;line-height:1.35}
 .google-import-warnings{display:grid;gap:5px;border:1px solid #e4d7ae;background:#fffaf0;border-radius:8px;padding:10px 11px;font-size:.73rem;color:#695c34}.google-import-warnings strong{font-size:.76rem}
 @media(max-width:900px){.google-mapping-row{grid-template-columns:1fr}.google-match-reason{border-left:0;border-top:3px solid #b8c1cd;padding:8px 0 0}.google-match-reason.match-good{border-top-color:#278154}}
+
+
+/* Destructive calendar deletion */
+.destructive-confirmation{max-width:560px}
+.delete-warning{display:grid;gap:3px;border:1px solid #e8c9c9;background:#fff7f7;border-radius:8px;padding:11px 12px}
+.delete-warning strong{font-size:.88rem;color:#7e2727}.delete-warning span{font-size:.75rem;color:#855555}
+.destructive-confirmation code{display:inline-block;padding:2px 5px;border-radius:4px;background:#f1f3f6;color:#253247;font-size:.78rem;font-weight:800}
+.destructive-confirmation input{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
