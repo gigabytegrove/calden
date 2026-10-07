@@ -445,6 +445,11 @@ func (s *server) setBillAllocation(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "Choose the allocation date")
 		return
 	}
+	if _, err := s.db.Exec(r.Context(), `DELETE FROM bill_no_balance_occurrences
+		WHERE event_id=$1 AND occurrence_start=$2`, eventID, in.OccurrenceStart); err != nil {
+		writeError(w, 500, "Could not reopen this bill")
+		return
+	}
 	if _, err := s.db.Exec(r.Context(), `INSERT INTO bill_allocations(
 			event_id,occurrence_start,amount_allocated,allocated_on,allocated_by_user_id,allocated_at,updated_at
 		) VALUES($1,$2,$3,$4,$5,now(),now())
