@@ -25,6 +25,10 @@ type Event struct {
 	ExDates      []time.Time
 	RecurrenceID *time.Time
 	Cancelled    bool
+	CreatedAt    time.Time
+	ModifiedAt   time.Time
+	StampAt      time.Time
+	Sequence     int
 }
 
 type Calendar struct {
@@ -222,6 +226,22 @@ func Parse(r io.Reader, defaultLoc *time.Location) (Calendar, error) {
 			}
 		case "STATUS":
 			current.Cancelled = strings.EqualFold(strings.TrimSpace(value), "CANCELLED")
+		case "CREATED":
+			if t, _, err := parseTimeValue(value, params, defaultLoc); err == nil {
+				current.CreatedAt = t
+			}
+		case "LAST-MODIFIED":
+			if t, _, err := parseTimeValue(value, params, defaultLoc); err == nil {
+				current.ModifiedAt = t
+			}
+		case "DTSTAMP":
+			if t, _, err := parseTimeValue(value, params, defaultLoc); err == nil {
+				current.StampAt = t
+			}
+		case "SEQUENCE":
+			if n, err := strconv.Atoi(strings.TrimSpace(value)); err == nil {
+				current.Sequence = n
+			}
 		case "DTSTART":
 			t, allDay, err := parseTimeValue(value, params, defaultLoc)
 			if err != nil {
