@@ -262,6 +262,32 @@ jobs:
             await page.locator('#calendar-view').getByText('Web UI CI Event', { exact: true }).waitFor({ state: 'visible' });
             await page.locator('#clear-calendar-filters').click();
 
+            // RFC 5545 DTEND is exclusive. A one-day all-day event must render on
+            // exactly one day, not again on the midnight end date.
+            await page.locator('#new-event').click();
+            const allDayDates = await page.evaluate(() => {
+              const pad = value => String(value).padStart(2, '0');
+              const input = date => `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T00:00`;
+              const start = new Date();
+              start.setHours(0, 0, 0, 0);
+              const end = new Date(start);
+              end.setDate(end.getDate() + 1);
+              return { start: input(start), end: input(end) };
+            });
+            await eventForm.locator('input[name="title"]').fill('All Day Exclusive CI');
+            await eventForm.locator('select[name="calendar_id"]').selectOption({ index: 1 });
+            await eventForm.locator('input[name="starts_at"]').fill(allDayDates.start);
+            await eventForm.locator('input[name="ends_at"]').fill(allDayDates.end);
+            await eventForm.locator('input[name="all_day"]').check();
+            await eventForm.locator('button[type="submit"]').click();
+            await page.locator('#event-dialog').waitFor({ state: 'hidden' });
+            const allDayRendered = page.locator('#calendar-view').getByText('All Day Exclusive CI', { exact: true });
+            await allDayRendered.first().waitFor({ state: 'visible' });
+            const allDayCount = await allDayRendered.count();
+            if (allDayCount !== 1) {
+              throw new Error('One-day all-day event rendered on ' + allDayCount + ' days; DTEND must be exclusive.');
+            }
+
             await page.locator('.nav-item[data-page="notifications"]').click();
             await page.locator('#page-notifications').waitFor({ state: 'visible' });
             await page.locator('#notification-inbox-list').getByText('Web UI CI Event', { exact: true }).waitFor({ state: 'visible' });

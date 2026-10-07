@@ -292,7 +292,9 @@ function eventMatchesFilters(e){
 function visibleEvents(){return state.events.filter(eventMatchesFilters)}
 function eventsForDay(day){
   const start=startOfDay(day),end=addDays(start,1);
-  return visibleEvents().filter(e=>new Date(e.starts_at)<end&&new Date(e.ends_at)>=start);
+  // Calendar ranges are half-open: [start, end). iCalendar DTEND is exclusive,
+  // so an all-day event ending at midnight must not render again on that end date.
+  return visibleEvents().filter(e=>new Date(e.starts_at)<end&&new Date(e.ends_at)>start);
 }
 function renderCalendarFilters(){
   const category=$("#calendar-category-filter"),person=$("#calendar-person-filter"),search=$("#calendar-search");

@@ -274,7 +274,7 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 		WHERE e.recurrence_parent_id IS NULL
 		  AND ($2='admin' OR COALESCE(p.can_view,false)=true)
 		  AND (
-			(er.event_id IS NULL AND e.starts_at < $4 AND e.ends_at >= $3)
+			(er.event_id IS NULL AND e.starts_at < $4 AND e.ends_at > $3)
 			OR
 			(er.event_id IS NOT NULL AND e.starts_at < $4 AND (er.until_at IS NULL OR er.until_at >= $3))
 		  )
@@ -382,7 +382,7 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 		WHERE replacement.recurrence_parent_id IS NOT NULL
 		  AND ($2='admin' OR COALESCE(rp.can_view,false)=true)
 		  AND replacement.starts_at < $4
-		  AND replacement.ends_at >= $3
+		  AND replacement.ends_at > $3
 		ORDER BY replacement.starts_at`, a.ID, a.Role, from, to)
 	if err != nil {
 		writeError(w, 500, "Could not load changed recurring occurrences")

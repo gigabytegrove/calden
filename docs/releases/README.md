@@ -1,7 +1,8 @@
 # CalDen release notes
 
-Release notes are retained as historical records. The current development release is **0.1.0-alpha11**.
+Release notes are retained as historical records. The current development release is **0.1.0-alpha11.1**.
 
+- [0.1.0-alpha11.1](v0.1.0-alpha11.1.md) — fixes exclusive all-day end dates rendering on the following day
 - [0.1.0-alpha11](v0.1.0-alpha11.md) — in-place Google duplicate repair; Bill Pay split payments, no-balance months, payment and cleared dates
 - [0.1.0-alpha10.1](v0.1.0-alpha10.1.md) — updater ordering correction and Alpha10 feature set
 - [0.1.0-alpha10](v0.1.0-alpha10.md) — initial Bill Pay payment history and Google duplicate detection
