@@ -209,7 +209,7 @@ jobs:
 
           (async () => {
             const browser = await chromium.launch({ headless: true });
-            const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+            const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, timezoneId: 'America/New_York' });
             const errors = [];
 
             page.on('pageerror', err => errors.push('PAGE ERROR: ' + err.message));
@@ -298,6 +298,43 @@ jobs:
               throw new Error('One-day all-day event rendered on ' + allDayCount + ' days; DTEND must be exclusive.');
             }
 
+            // Google DATE imports are stored at UTC midnight. In Eastern time that instant
+            // is the prior evening, but it must still render only on its calendar date.
+            await page.evaluate(async ({ startDate, endDate }) => {
+              const calendar = state.calendars.find(cal => cal.can_edit && cal.calendar_type !== 'bill_pay')
+                || state.calendars.find(cal => cal.can_edit);
+              if (!calendar) throw new Error('No editable calendar for UTC all-day regression test.');
+              await api('/api/events', {
+                method: 'POST',
+                body: JSON.stringify({
+                  calendar_id: calendar.id,
+                  category_id: null,
+                  title: 'Google UTC All Day CI',
+                  notes: '',
+                  location: '',
+                  starts_at: startDate + 'T00:00:00Z',
+                  ends_at: endDate + 'T00:00:00Z',
+                  all_day: true,
+                  assignee_ids: [],
+                  reminders: [],
+                  recurrence: null,
+                }),
+              });
+              await loadEvents();
+              renderCalendar();
+            }, {
+              startDate: allDayDates.start.slice(0, 10),
+              endDate: allDayDates.end.slice(0, 10),
+            });
+            await page.locator('#calendar-search').fill('Google UTC All Day CI');
+            const googleAllDayRendered = page.locator('#calendar-view').getByText('Google UTC All Day CI', { exact: true });
+            await googleAllDayRendered.first().waitFor({ state: 'visible' });
+            const googleAllDayCount = await googleAllDayRendered.count();
+            if (googleAllDayCount !== 1) {
+              throw new Error('UTC-midnight all-day event rendered on ' + googleAllDayCount + ' days; expected exactly its Google calendar date.');
+            }
+            await page.locator('#clear-calendar-filters').click();
+
             await page.locator('.nav-item[data-page="notifications"]').click();
             await page.locator('#page-notifications').waitFor({ state: 'visible' });
             await page.locator('#notification-inbox-list').getByText('Web UI CI Event', { exact: true }).waitFor({ state: 'visible' });
@@ -356,6 +393,13 @@ jobs:
             await page.locator('#bill-payment-dialog').waitFor({ state: 'visible' });
             const paymentDialogFits = await page.locator('#bill-payment-dialog').evaluate(el => el.scrollWidth <= el.clientWidth + 1);
             if (!paymentDialogFits) throw new Error('Bill payment modal has a horizontal scrollbar.');
+            await page.locator('#bill-allocation-amount').fill('137.42');
+            await page.locator('#bill-allocation-date').fill('2026-10-04');
+            await page.locator('#bill-allocation-save').click();
+            await page.locator('#bill-allocation-current').getByText('$137.42 allocated', { exact: true }).waitFor({ state: 'visible' });
+            if (!((await page.locator('#bill-payment-summary').innerText()).toLowerCase().includes('allocated'))) {
+              throw new Error('Bill allocation was not reflected in the activity summary.');
+            }
             await page.locator('#bill-payment-person').selectOption({ label: 'Test Admin' });
             await page.locator('#bill-payment-amount').fill('60.00');
             await page.locator('#bill-payment-date').fill('2026-10-05');
@@ -528,6 +572,17 @@ jobs:
           assert len(occurrences) == 2, occurrences
           first, later = occurrences
 
+          allocated = request(f"/api/bills/{event_id}/allocation", "PUT", {
+              "occurrence_start": first["occurrence_start"],
+              "allocated": True,
+              "amount_allocated": 91.27,
+              "allocated_on": "2026-10-04",
+          }, token)
+          assert allocated["bill_payment_status"] == "allocated", allocated
+          assert abs(allocated["bill_amount_allocated"] - 91.27) < 0.001, allocated
+          assert allocated["bill_allocated_on"] == "2026-10-04", allocated
+          assert allocated["bill_allocated_by"]["id"] == me["id"], allocated
+
           first_payment = request(f"/api/bills/{event_id}/payments", "POST", {
               "occurrence_start": first["occurrence_start"],
               "paid_by_user_id": me["id"],
@@ -555,17 +610,37 @@ jobs:
           assert second_payment["bill_cleared_on"] == "2026-10-07", second_payment
           assert second_payment["bill_paid_by"]["id"] == second_user["id"], second_payment
 
+          first_entry = next(p for p in second_payment["bill_payments"] if abs(p["amount_paid"] - 30.00) < 0.001)
+          cleared = request(f"/api/bills/{event_id}/payments/{first_entry['id']}", "PUT", {
+              "occurrence_start": first["occurrence_start"],
+              "paid_by_user_id": me["id"],
+              "amount_paid": 30.00,
+              "paid_on": "2026-10-05",
+              "cleared_on": "2026-10-07",
+              "settles_bill": False,
+          }, token)
+          assert cleared["bill_payment_status"] == "cleared", cleared
+          assert cleared["bill_paid"] is True, cleared
+
           events = request(
               "/api/events?from=" + urllib.parse.quote(window_from) + "&to=" + urllib.parse.quote(window_to),
               token=token,
           )
           first = next(e for e in events if e["id"] == event_id and e["occurrence_start"] == first["occurrence_start"])
           later = next(e for e in events if e["id"] == event_id and e["occurrence_start"] == later["occurrence_start"])
-          assert first["bill_payment_status"] == "paid", first
+          assert first["bill_payment_status"] == "cleared", first
           assert len(first["bill_payments"]) == 2, first
           assert first["bill_payer"]["id"] == second_user["id"], first
           assert later["bill_payment_status"] == "due", later
           assert later["bill_payment_count"] == 0, later
+
+          later_allocated = request(f"/api/bills/{event_id}/allocation", "PUT", {
+              "occurrence_start": later["occurrence_start"],
+              "allocated": True,
+              "amount_allocated": 91.27,
+              "allocated_on": "2026-10-08",
+          }, token)
+          assert later_allocated["bill_payment_status"] == "allocated", later_allocated
 
           no_balance = request(f"/api/bills/{event_id}/no-balance", "PUT", {
               "occurrence_start": later["occurrence_start"],
@@ -574,6 +649,7 @@ jobs:
           assert no_balance["bill_payment_status"] == "no_balance", no_balance
           assert no_balance["bill_no_balance"] is True, no_balance
           assert no_balance["bill_payment_count"] == 0, no_balance
+          assert no_balance["bill_amount_allocated"] is None, no_balance
 
           reopened = request(f"/api/bills/{event_id}/no-balance", "PUT", {
               "occurrence_start": later["occurrence_start"],
@@ -582,7 +658,7 @@ jobs:
           assert reopened["bill_payment_status"] == "due", reopened
 
           request(f"/api/events/{event_id}", "DELETE", token=token)
-          print("Split payments, payment/cleared dates, and no-balance occurrence test passed.")
+          print("Allocation, split payments, paid/cleared states, and no-balance occurrence test passed.")
           PY
 
       - name: Verify event assignment and whole-family notifications
