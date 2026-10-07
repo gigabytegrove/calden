@@ -5,13 +5,15 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#f7f8fb">
   <title>CalDen</title>
-  <link rel="stylesheet" href="/app.css">
+  <link rel="stylesheet" href="/styles.css">
 </head>
-<body>
+<body class="bg-slate-50 text-slate-900">
 <div id="auth" class="auth-shell">
-  <main id="auth-card" class="auth-card">
-    <img class="brand-logo" src="/calden-logo-official.webp" alt="CalDen">
-    <p class="brand-tagline">Your family calendar.</p>
+  <main id="auth-card" class="auth-card shadow-xl shadow-slate-900/5">
+    <div class="auth-brand-panel">
+      <img class="brand-logo" src="/calden-logo-official.webp" alt="CalDen">
+      <div class="auth-brand-fallback"><strong>CalDen</strong><span>Your family calendar.</span></div>
+    </div>
     <div id="boot-status" class="boot-status" role="status">Starting CalDen…</div>
 
     <form id="setup-form" class="setup-wizard hidden" novalidate>
@@ -74,8 +76,11 @@
 </div>
 
 <div id="app" class="app-shell hidden">
-  <aside class="sidebar" id="sidebar">
-    <div class="sidebar-brand"><img src="/calden-logo-official.webp" alt="CalDen"></div>
+  <aside class="sidebar bg-slate-950 text-slate-100 shadow-xl shadow-slate-950/10" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="sidebar-logo-surface"><img src="/calden-logo-official.webp" alt="CalDen"></div>
+      <div class="sidebar-brand-copy"><strong>CalDen</strong><span>Family workspace</span></div>
+    </div>
     <nav class="primary-nav" aria-label="Main navigation">
       <button class="nav-item active" data-page="calendar">Calendar</button>
       <button class="nav-item bill-nav hidden" data-page="bills">Bills</button>
@@ -83,7 +88,7 @@
       <button class="nav-item admin-only" data-page="people">People</button>
       <button class="nav-item admin-only" data-page="calendars">Calendars</button>
       <button class="nav-item admin-only" data-page="categories">Categories</button>
-      <button class="nav-item" data-page="notifications">Notifications</button>
+      <button class="nav-item" data-page="notifications">Notifications<span id="notification-nav-badge" class="nav-badge hidden">0</span></button>
       <button class="nav-item admin-only" data-page="integrations">Integrations</button>
       <button class="nav-item admin-only" data-page="updates">Updates</button>
       <button class="nav-item admin-only" data-page="backups">Backups</button>
@@ -98,10 +103,10 @@
   </aside>
 
   <main class="workspace">
-    <header class="workspace-topbar">
+    <header class="workspace-topbar backdrop-blur-xl">
       <button id="mobile-menu" class="icon-button mobile-only" type="button" aria-label="Open menu">☰</button>
       <div><p class="workspace-household" id="household-label"></p><h1 id="page-title">Calendar</h1></div>
-      <button id="new-event" class="button">+ Add event</button>
+      <button id="new-event" class="button bg-blue-600 border-blue-600 hover:bg-blue-700 shadow-sm">+ Add event</button>
     </header>
 
     <section id="page-calendar" class="app-page">
@@ -226,7 +231,7 @@
           <label>Name<input name="name" required maxlength="100" placeholder="Medical"></label>
           <label>Color<input name="color" type="color" value="#dc2626" required></label>
           <label>Description<textarea name="description" rows="3" maxlength="500" placeholder="Optional"></textarea></label>
-          <div class="form-actions"><button id="delete-category" type="button" class="button danger hidden">Archive</button><span class="grow"></span><button id="cancel-category-edit" type="button" class="button secondary hidden">Cancel</button><button type="submit" class="button">Save category</button></div>
+          <div class="form-actions"><button id="delete-category" type="button" class="button danger hidden">Delete category</button><span class="grow"></span><button id="cancel-category-edit" type="button" class="button secondary hidden">Cancel</button><button type="submit" class="button">Save category</button></div>
           <p id="category-error" class="error"></p><p id="category-status" class="success"></p>
         </form>
       </div>
@@ -234,8 +239,9 @@
 
     <section id="page-notifications" class="app-page hidden">
       <div class="page-header">
-        <div><p class="eyebrow">Reminders and alerts</p><h2>Notifications</h2><p class="muted">See the reminders CalDen has scheduled from your events.</p></div>
+        <div><p class="eyebrow">Inbox and reminders</p><h2>Notifications</h2><p class="muted">New event assignments show up here immediately. Events with nobody assigned notify everyone who can see that calendar.</p></div>
         <div class="notification-tools">
+          <button id="enable-browser-notifications" type="button" class="button secondary compact hidden">Enable browser alerts</button>
           <select id="notification-kind-filter" aria-label="Reminder type">
             <option value="">All reminders</option>
             <option value="personal">Personal reminders</option>
@@ -244,6 +250,15 @@
           <button id="refresh-notifications" type="button" class="button secondary compact">Refresh</button>
         </div>
       </div>
+
+      <section class="panel notification-inbox">
+        <div class="notification-schedule-head">
+          <div><h3>Recent alerts</h3><p class="muted">Assignment and whole-family alerts created when events are added in CalDen.</p></div>
+          <div class="notification-inbox-actions"><span id="notification-unread-count"></span><button id="mark-notifications-read" type="button" class="button secondary compact">Mark all read</button></div>
+        </div>
+        <div id="notification-inbox-list" class="notification-inbox-list"></div>
+      </section>
+
       <div id="notification-summary" class="notification-summary"></div>
       <div class="panel notification-schedule">
         <div class="notification-schedule-head"><div><h3>Scheduled reminders</h3><p class="muted">Upcoming reminder deliveries from the events currently on your calendars.</p></div><span id="notification-count"></span></div>
@@ -495,7 +510,7 @@
           </div>
         </section>
 
-        <fieldset><legend>Who is this for?</legend><div id="people-picker" class="people-picker"></div></fieldset>
+        <fieldset><legend>Who is this for?</legend><p class="field-help event-audience-help">Choose one or more people. Leave everyone unchecked for a whole-family event.</p><div id="people-picker" class="people-picker"></div></fieldset>
         <label>Location<input name="location" maxlength="500" placeholder="Optional"></label>
         <label>Notes<textarea name="notes" rows="4" maxlength="5000" placeholder="Optional"></textarea></label>
       </div>

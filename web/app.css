@@ -303,3 +303,210 @@ input:focus,select:focus,textarea:focus{border-color:#596b83;box-shadow:0 0 0 3p
 .delete-warning strong{font-size:.88rem;color:#7e2727}.delete-warning span{font-size:.75rem;color:#855555}
 .destructive-confirmation code{display:inline-block;padding:2px 5px;border-radius:4px;background:#f1f3f6;color:#253247;font-size:.78rem;font-weight:800}
 .destructive-confirmation input{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+
+
+/* Alpha 9 product polish — Tailwind-backed shell */
+:root{
+  --page:#f8fafc;
+  --panel:#ffffff;
+  --panel-border:#e2e8f0;
+  --ink:#0f172a;
+  --muted:#64748b;
+  --accent:#2563eb;
+  --accent-strong:#1d4ed8;
+  --sidebar:#0f172a;
+  --sidebar-soft:#172033;
+  --sidebar-line:rgba(148,163,184,.18);
+  --sidebar-text:#cbd5e1;
+  --panel-shadow:0 1px 2px rgba(15,23,42,.035),0 10px 30px rgba(15,23,42,.04);
+  --panel-shadow-hover:0 3px 8px rgba(15,23,42,.055),0 16px 36px rgba(15,23,42,.07);
+  --radius:14px;
+}
+html,body{background:var(--page)}
+body{color:var(--ink)}
+.app-shell{grid-template-columns:264px minmax(0,1fr);background:
+  radial-gradient(circle at 76% -12%,rgba(37,99,235,.07),transparent 29rem),
+  #f8fafc}
+.sidebar{
+  width:auto;padding:20px 14px 16px;border-right:1px solid #172033;
+  background:var(--sidebar)!important;color:#e2e8f0;
+  box-shadow:8px 0 28px rgba(15,23,42,.08)
+}
+.sidebar-brand{
+  padding:2px 8px 22px;margin-bottom:10px;border-bottom:1px solid var(--sidebar-line);
+  display:grid;grid-template-columns:92px minmax(0,1fr);gap:10px;align-items:center
+}
+.sidebar-logo-surface{
+  width:92px;height:48px;border-radius:13px;display:grid;place-items:center;
+  background:#1e293b;border:1px solid rgba(255,255,255,.09);
+  box-shadow:0 8px 18px rgba(0,0,0,.16);overflow:hidden
+}
+.sidebar-logo-surface img{
+  display:block;width:84px;height:42px;object-fit:contain;
+  filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))
+}
+.sidebar-brand-copy{min-width:0;display:grid;gap:1px}
+.sidebar-brand-copy strong{font-size:1rem;letter-spacing:-.025em;color:#fff}
+.sidebar-brand-copy span{font-size:.7rem;color:#94a3b8;font-weight:650}
+.primary-nav{gap:4px}
+.nav-item{
+  min-height:42px;display:flex;align-items:center;gap:11px;position:relative;
+  color:var(--sidebar-text)!important;border-radius:10px;padding:9px 10px!important;
+  font-size:.87rem;font-weight:650;background:transparent!important;
+  transition:background-color .16s ease,color .16s ease,transform .16s ease
+}
+.nav-item:hover{background:rgba(255,255,255,.065)!important;color:#fff!important;transform:translateX(1px)}
+.nav-item.active{
+  color:#fff!important;background:rgba(37,99,235,.24)!important;
+  box-shadow:inset 0 0 0 1px rgba(96,165,250,.23),0 6px 14px rgba(2,6,23,.16)
+}
+.nav-item.active::before{
+  left:0;top:9px;bottom:9px;width:3px;background:#60a5fa;box-shadow:0 0 10px rgba(96,165,250,.55)
+}
+.nav-icon{width:19px;height:19px;display:grid;place-items:center;flex:none;color:#94a3b8}
+.nav-item:hover .nav-icon,.nav-item.active .nav-icon{color:#dbeafe}
+.nav-icon svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.nav-badge{
+  margin-left:auto;min-width:20px;height:20px;padding:0 6px;border-radius:999px;
+  display:grid;place-items:center;background:#2563eb;color:#fff;font-size:.65rem;font-weight:850;
+  box-shadow:0 0 0 2px #0f172a
+}
+.sidebar-account{
+  margin:14px 0 0;padding:12px;border:1px solid var(--sidebar-line);border-radius:13px;
+  background:rgba(255,255,255,.045);box-shadow:none;color:#fff
+}
+.sidebar-account .account-copy strong{color:#f8fafc}.sidebar-account .account-copy span{color:#94a3b8}
+.sidebar-account .text-button{color:#cbd5e1}.sidebar-account .text-button:hover{color:#fff}
+.account-badge{background:#1e293b;border:1px solid rgba(148,163,184,.2);overflow:hidden}
+.account-badge img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+
+.workspace{background:transparent}
+.workspace-topbar{
+  height:82px;padding:0 34px;border-bottom:1px solid rgba(226,232,240,.92);
+  background:rgba(255,255,255,.86);box-shadow:0 1px 2px rgba(15,23,42,.025)
+}
+.workspace-topbar h1{font-size:1.42rem;color:#0f172a}
+.workspace-household{color:#64748b;font-weight:650}
+.app-page{padding:32px 34px 60px;width:min(1540px,100%)}
+.page-header{align-items:center;margin-bottom:24px}
+.page-header h2{font-size:1.75rem;color:#0f172a;margin-bottom:4px}
+.eyebrow{color:#64748b;font-weight:850;letter-spacing:.12em}
+.muted{color:#64748b}
+
+.button{
+  min-height:39px;border-radius:10px;padding:.67rem .9rem;font-weight:750;
+  box-shadow:0 1px 2px rgba(15,23,42,.06);transition:all .16s ease
+}
+.button:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 6px 16px rgba(15,23,42,.10)}
+.button.secondary{border-color:#d7dee8;color:#334155;background:#fff}
+.button.secondary:hover:not(:disabled){border-color:#b8c3d2;background:#f8fafc}
+.button.danger{background:#fff5f5;border-color:#fecaca;color:#b91c1c}
+input,select,textarea{
+  border-color:#cbd5e1;border-radius:10px;background:#fff;
+  box-shadow:0 1px 1px rgba(15,23,42,.02)
+}
+input:hover,select:hover,textarea:hover{border-color:#94a3b8}
+input:focus,select:focus,textarea:focus{border-color:#60a5fa;box-shadow:0 0 0 4px rgba(59,130,246,.11)}
+
+.panel,.management-card,.calendar-toolbar,.calendar-filterbar,.calendar-view,.bill-stat,.notification-stat,.activity-timeline{
+  border-color:var(--panel-border);border-radius:14px;box-shadow:var(--panel-shadow)
+}
+.panel{padding:22px}
+.management-card{padding:14px;border-radius:13px}
+.management-card:hover{border-color:#cbd5e1;box-shadow:var(--panel-shadow-hover);transform:translateY(-1px)}
+.management-copy strong{color:#0f172a}
+.management-copy span,.management-copy small{color:#64748b}
+.calendar-swatch{width:10px;height:46px;border-radius:999px}
+
+.calendar-toolbar{padding:11px 13px;background:rgba(255,255,255,.94)}
+.calendar-pill{border-color:#dbe2ea;border-radius:999px;padding:7px 12px;background:#fff}
+.calendar-view{overflow:hidden}
+.timeline-wrap,.day-grid-shell{border-radius:14px}
+.timeline-day-header.today,.day-cell.today{background:#eff6ff}
+.timed-event,.calendar-event{border-radius:8px}
+.agenda-tools{gap:9px}.agenda-tools input{min-width:290px}
+.events{gap:10px}
+.agenda-event{
+  min-height:70px;grid-template-columns:5px 78px minmax(0,1fr) auto;
+  border-color:#e2e8f0;border-radius:13px;padding:12px 14px;
+  box-shadow:0 1px 2px rgba(15,23,42,.035),0 5px 15px rgba(15,23,42,.025)
+}
+.agenda-event:hover{border-color:#bfdbfe;box-shadow:0 8px 22px rgba(15,23,42,.07);transform:translateY(-1px)}
+.agenda-color{width:5px;border-radius:999px}
+.agenda-date strong,.agenda-main strong{color:#0f172a}
+.agenda-date small,.agenda-main small{color:#64748b}
+
+.auth-shell{
+  background:
+    radial-gradient(circle at 20% 10%,rgba(37,99,235,.11),transparent 24rem),
+    radial-gradient(circle at 90% 90%,rgba(14,165,233,.08),transparent 28rem),
+    #f8fafc
+}
+.auth-card{border-color:#e2e8f0;border-radius:18px;box-shadow:0 24px 60px rgba(15,23,42,.09)}
+.auth-brand-panel{
+  display:grid;gap:10px;margin:-10px -10px 22px;padding:20px;border-radius:14px;
+  background:#0f172a;overflow:hidden
+}
+.auth-brand-panel .brand-logo{max-height:64px;width:auto;max-width:100%;object-fit:contain;object-position:left center}
+.auth-brand-fallback{display:grid;gap:1px}.auth-brand-fallback strong{color:#fff;font-size:1.1rem}.auth-brand-fallback span{color:#94a3b8;font-size:.78rem}
+.brand-tagline{display:none}
+
+.notification-inbox{padding:0;overflow:hidden;margin-bottom:18px}
+.notification-inbox-actions{display:flex;align-items:center;gap:10px;color:#64748b;font-size:.76rem}
+.notification-inbox-list{display:grid}
+.notification-inbox-row{
+  width:100%;display:grid;grid-template-columns:42px minmax(0,1fr) auto;gap:13px;align-items:center;
+  border:0;border-bottom:1px solid #edf2f7;background:#fff;text-align:left;color:#0f172a;padding:13px 17px
+}
+.notification-inbox-row:last-child{border-bottom:0}
+.notification-inbox-row:hover{background:#f8fafc}
+.notification-inbox-row.unread{background:#f7fbff}
+.notification-inbox-row.unread:hover{background:#eff6ff}
+.notification-inbox-icon{
+  width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font-size:.72rem;font-weight:900;
+  background:#e2e8f0;color:#334155
+}
+.notification-inbox-icon.assigned{background:#dbeafe;color:#1d4ed8}
+.notification-inbox-icon.family{background:#ede9fe;color:#6d28d9}
+.notification-inbox-main{display:grid;gap:2px;min-width:0}
+.notification-inbox-kicker{font-size:.66rem;text-transform:uppercase;letter-spacing:.055em;color:#64748b;font-weight:800}
+.notification-inbox-main strong{font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.notification-inbox-main small{font-size:.73rem;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.notification-inbox-side{display:grid;grid-template-columns:6px auto;gap:7px;align-items:center;color:#94a3b8;font-size:.68rem}
+.notification-inbox-side i{width:6px;height:30px;border-radius:999px;background:var(--cal)}
+.notification-empty{border:0;border-radius:0;box-shadow:none;min-height:110px}
+.notification-summary{margin-top:18px}
+.notification-stat{padding:16px 18px}
+.notification-stat strong{font-size:1.55rem;color:#0f172a}
+.notification-schedule{overflow:hidden}
+.notification-schedule-head{padding:17px 18px;background:#fff}
+.scheduled-reminder{padding:12px 18px}
+.scheduled-reminder:hover{background:#f8fafc}
+
+dialog{border-radius:17px;box-shadow:0 30px 90px rgba(15,23,42,.27)}
+dialog::backdrop{background:rgba(15,23,42,.58);backdrop-filter:blur(2px)}
+.event-editor{padding:25px}.dialog-head{padding-bottom:16px}
+.bill-event-details{border-radius:12px;background:#f8fafc}
+
+@media(max-width:1100px){
+  .app-shell{grid-template-columns:238px minmax(0,1fr)}
+  .sidebar{padding-left:11px;padding-right:11px}
+  .app-page{padding-left:24px;padding-right:24px}
+}
+@media(max-width:900px){
+  .app-shell{grid-template-columns:1fr}
+  .sidebar{width:252px;left:-274px}
+  .sidebar.open{left:0}
+  .workspace-topbar{padding:0 18px}
+  .app-page{padding:22px 16px 86px}
+}
+@media(max-width:620px){
+  .page-header{align-items:flex-start;gap:14px}
+  .agenda-tools{width:100%}.agenda-tools input{min-width:0;width:100%}
+  .agenda-event{grid-template-columns:5px 66px minmax(0,1fr)}
+  .agenda-event .mini-avatars{grid-column:3}
+  .notification-inbox-row{grid-template-columns:38px minmax(0,1fr)}
+  .notification-inbox-side{grid-column:2}
+  .notification-tools{display:grid;grid-template-columns:1fr 1fr}
+  .notification-tools select{grid-column:1/-1}
+}
