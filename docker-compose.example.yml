@@ -1,12 +1,12 @@
 # CalDen - copy-and-run Docker Compose
 #
-# This version uses the published CalDen image and requires no password setup.
+# This version builds CalDen directly from the public GitHub repository.
+# It does not require GitHub Container Registry credentials or a local checkout.
 # A database password is generated automatically on the first start and kept
 # in a private Docker volume.
 #
 # Optional:
 #   CALDEN_PORT=8787
-#   CALDEN_IMAGE=ghcr.io/gigabytegrove/calden:latest
 #   CALDEN_DB_NAME=calden
 #   CALDEN_DB_USER=calden
 
@@ -54,8 +54,9 @@ services:
       start_period: 10s
 
   calden:
-    image: ${CALDEN_IMAGE:-ghcr.io/gigabytegrove/calden:latest}
-    pull_policy: always
+    build:
+      context: https://github.com/gigabytegrove/calden.git#main
+      dockerfile: Dockerfile
     restart: unless-stopped
     depends_on:
       secrets:
