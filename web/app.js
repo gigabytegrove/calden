@@ -130,6 +130,13 @@ function dateInputValue(value=new Date()){
   const d=new Date(value),p=n=>String(n).padStart(2,"0");
   return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
 }
+function calendarDate(value){
+  const match=String(value||"").match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(!match)return new Date(value);
+  return new Date(Number(match[1]),Number(match[2])-1,Number(match[3]));
+}
+function eventStartDate(event){return event?.all_day?calendarDate(event.starts_at):new Date(event?.starts_at)}
+function eventEndDate(event){return event?.all_day?calendarDate(event.ends_at):new Date(event?.ends_at)}
 function clamp(n,min,max){return Math.min(max,Math.max(min,n))}
 function eventKey(e){return `${e.id}|${e.occurrence_start||e.starts_at}`}
 function findEventByKey(key){return state.events.find(e=>eventKey(e)===key)}
@@ -294,7 +301,7 @@ function eventsForDay(day){
   const start=startOfDay(day),end=addDays(start,1);
   // Calendar ranges are half-open: [start, end). iCalendar DTEND is exclusive,
   // so an all-day event ending at midnight must not render again on that end date.
-  return visibleEvents().filter(e=>new Date(e.starts_at)<end&&new Date(e.ends_at)>start);
+  return visibleEvents().filter(e=>eventStartDate(e)<end&&eventEndDate(e)>start);
 }
 function renderCalendarFilters(){
   const category=$("#calendar-category-filter"),person=$("#calendar-person-filter"),search=$("#calendar-search");
@@ -392,10 +399,10 @@ function renderBills(){
   const start=new Date(state.billMonth.getFullYear(),state.billMonth.getMonth(),1);
   $("#bill-month-label").textContent=formatDate(start,{month:"long",year:"numeric"});
   const fallback=state.events.filter(event=>{
-    const d=new Date(event.starts_at);
+    const d=eventStartDate(event);
     return isBillCalendar(event.calendar_id)&&d.getFullYear()===start.getFullYear()&&d.getMonth()===start.getMonth();
   });
-  const events=(state.currentPage==="bills"?state.billEvents:fallback).slice().sort((a,b)=>new Date(a.starts_at)-new Date(b.starts_at));
+  const events=(state.currentPage==="bills"?state.billEvents:fallback).slice().sort((a,b)=>eventStartDate(a)-eventStartDate(b));
 
   let known=0,estimated=0,unpriced=0,paidTotal=0,outstanding=0;
   let paidCount=0,partialCount=0,noBalanceCount=0,dueCount=0;
@@ -433,7 +440,7 @@ function renderBills(){
   $("#bill-count").textContent=`${paidCount} paid · ${partialCount} partial · ${noBalanceCount} no balance · ${dueCount} due`;
 
   host.innerHTML=events.length?events.map(event=>{
-    const due=new Date(event.starts_at),amount=billAmountLabel(event);
+    const due=eventStartDate(event),amount=billAmountLabel(event);
     const payer=event.bill_payer?.display_name||"Not assigned";
     const status=billPaymentStatus(event);
     const paidAmount=billPaidAmount(event),remaining=billRemaining(event);
@@ -484,7 +491,7 @@ function resetBillPaymentEntry(event=state.billPaymentEvent){
 
 function renderBillPaymentModal(){
   const event=state.billPaymentEvent;if(!event)return;
-  const due=new Date(event.starts_at),assigned=event.bill_payer?.display_name||"Not assigned";
+  const due=eventStartDate(event),assigned=event.bill_payer?.display_name||"Not assigned";
   const dueAmount=event.bill_amount===null||event.bill_amount===undefined?null:Number(event.bill_amount)||0;
   const paidAmount=billPaidAmount(event),remaining=billRemaining(event),status=billPaymentStatus(event);
   $("#bill-payment-title").textContent="Bill payments";
@@ -693,7 +700,7 @@ function renderDayGrid(days){
   const start=calendarViewStart();
   const weekdayHeader=Array.from({length:7},(_,i)=>`<div>${formatDate(addDays(start,i),{weekday:"short"})}</div>`).join("");
   const cells=Array.from({length:days},(_,i)=>{
-    const day=addDays(start,i),events=eventsForDay(day).sort((a,b)=>new Date(a.starts_at)-new Date(b.starts_at));
+    const day=addDays(start,i),events=eventsForDay(day).sort((a,b)=>eventStartDate(a)-eventStartDate(b));
     const visible=events.slice(0,state.viewDays===30?5:7);
     const more=events.length-visible.length;
     const monthMarker=i===0||day.getDate()===1?`<span class="month-marker">${formatDate(day,{month:"short"})}</span>`:"";
@@ -753,7 +760,7 @@ function renderAgenda(){
   const events=visibleEvents().filter(e=>{
     if(!query)return true;
     return [e.title,e.location,e.notes,e.calendar_name,...(e.assignees||[]).map(a=>a.display_name)].join(" ").toLowerCase().includes(query);
-  }).sort((a,b)=>new Date(a.starts_at)-new Date(b.starts_at));
+  }).sort((a,b)=>eventStartDate(a)-eventStartDate(b));
   $("#event-count").textContent=`${events.length} event${events.length===1?"":"s"}`;
   $("#events").innerHTML=events.length?events.map(eventCard).join(""):'<div class="empty-state"><strong>No matching events</strong><span>Add an event or change your filters.</span></div>';
   $("#events").querySelectorAll("[data-event-key]").forEach(el=>el.addEventListener("click",()=>{
@@ -761,7 +768,7 @@ function renderAgenda(){
   }));
 }
 function eventCard(e){
-  const start=new Date(e.starts_at),end=new Date(e.ends_at);
+  const start=eventStartDate(e),end=eventEndDate(e);
   return `<button class="agenda-event" data-event-key="${escapeAttr(eventKey(e))}" style="--cal:${safeColor(e.calendar_color||e.color)}">
     <span class="agenda-color"></span><span class="agenda-date"><strong>${formatDate(start,{month:"short",day:"numeric"})}</strong><small>${e.all_day?"All day":formatTime(start)}</small></span>
     <span class="agenda-main"><strong>${e.is_recurring?'<span class="repeat-mark" title="Repeating event">↻</span> ':""}${escapeHTML(e.title)}${billAmountLabel(e)?` · ${escapeHTML(billAmountLabel(e))}`:""}${billPaymentLabel(e)?` · ${escapeHTML(billPaymentLabel(e))}`:""}</strong><small>${escapeHTML(e.calendar_name)}${e.bill_payer?.display_name?" · assigned "+escapeHTML(e.bill_payer.display_name):""}${e.location?" · "+escapeHTML(e.location):""}${e.all_day?"":` · ends ${escapeHTML(formatTime(end))}`}</small></span>
@@ -817,7 +824,7 @@ function renderNotificationInbox(){
   $("#mark-notifications-read").disabled=unread===0;
 
   host.innerHTML=state.notifications.length?state.notifications.map(item=>{
-    const start=item.starts_at?new Date(item.starts_at):null;
+    const start=item.starts_at?(item.all_day?calendarDate(item.starts_at):new Date(item.starts_at)):null;
     const when=start?(item.all_day?formatDate(start,{weekday:"short",month:"short",day:"numeric"}):formatDate(start,{weekday:"short",month:"short",day:"numeric"})+" · "+formatTime(start)):"Event updated";
     const family=item.kind==="event_family";
     const color=safeColor(item.calendar_color||"#64748b");
@@ -1228,8 +1235,10 @@ function openEvent(existing=null,dateHint=null,scope="series"){
     const sourceAssignees=occurrenceScope?(existing.assignees||[]):(existing.series_assignees||existing.assignees||[]);
     const sourceReminders=occurrenceScope?(existing.reminders||[]):(existing.series_reminders||existing.reminders||[]);
     form.event_id.value=existing.id;form.title.value=sourceTitle||"";form.calendar_id.value=sourceCalendar||"";form.category_id.value=sourceCategory||"";
-    form.starts_at.value=localInput(new Date(occurrenceScope?existing.starts_at:(existing.series_starts_at||existing.starts_at)));
-    form.ends_at.value=localInput(new Date(occurrenceScope?existing.ends_at:(existing.series_ends_at||existing.ends_at)));
+    const sourceStartsAt=occurrenceScope?existing.starts_at:(existing.series_starts_at||existing.starts_at);
+    const sourceEndsAt=occurrenceScope?existing.ends_at:(existing.series_ends_at||existing.ends_at);
+    form.starts_at.value=localInput(sourceAllDay?calendarDate(sourceStartsAt):new Date(sourceStartsAt));
+    form.ends_at.value=localInput(sourceAllDay?calendarDate(sourceEndsAt):new Date(sourceEndsAt));
     form.all_day.checked=!!sourceAllDay;form.location.value=sourceLocation||"";form.notes.value=sourceNotes||"";
     const sourceBillAmount=occurrenceScope?existing.bill_amount:seriesValue(existing,"bill_amount",existing.bill_amount);
     const sourceBillEstimate=occurrenceScope?existing.bill_amount_is_estimate:seriesValue(existing,"bill_amount_is_estimate",existing.bill_amount_is_estimate);
