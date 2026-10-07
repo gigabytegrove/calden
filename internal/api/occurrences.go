@@ -192,6 +192,11 @@ func (s *server) deleteOccurrence(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "Could not clear bill payment status")
 		return
 	}
+	if _, err = tx.Exec(r.Context(), `DELETE FROM bill_no_balance_occurrences WHERE event_id=$1 AND occurrence_start=$2`,
+		parentID, in.OriginalStart); err != nil {
+		writeError(w, 500, "Could not clear no-balance status")
+		return
+	}
 
 	if _, err = tx.Exec(r.Context(), `INSERT INTO event_occurrence_exceptions(
 			event_id,original_start,cancelled,replacement_event_id,updated_at
