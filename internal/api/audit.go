@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -72,7 +73,7 @@ func (s *server) listAudit(w http.ResponseWriter, r *http.Request) {
 		var action, typ, summary string
 		var entityID *uuid.UUID
 		var metadata []byte
-		var createdAt any
+		var createdAt time.Time
 		var actorID *uuid.UUID
 		var actorName, actorInitials *string
 		if rows.Scan(&id, &action, &typ, &entityID, &summary, &metadata, &createdAt, &actorID, &actorName, &actorInitials) != nil {
