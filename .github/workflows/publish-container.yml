@@ -11,6 +11,7 @@ on:
       - "Dockerfile"
       - "go.mod"
       - "go.sum"
+      - "package.json"
       - ".github/workflows/publish-container.yml"
       - "VERSION"
   workflow_dispatch:
