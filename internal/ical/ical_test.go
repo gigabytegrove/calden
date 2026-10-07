@@ -133,3 +133,24 @@ func TestParseTZIDAndFoldedText(t *testing.T) {
 		t.Fatalf("TZID not applied: %v", event.Start)
 	}
 }
+
+func TestAdvancedRRULERoundTrip(t *testing.T) {
+	raw := "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:advanced@test\r\nDTSTART:20261005T090000Z\r\nDTEND:20261005T100000Z\r\nSUMMARY:First Monday\r\nRRULE:FREQ=MONTHLY;COUNT=4;BYDAY=1MO\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+	cal, err := Parse(strings.NewReader(raw), time.UTC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cal.Events) != 1 || cal.Events[0].Recurrence == nil {
+		t.Fatalf("advanced recurrence was not parsed: %#v", cal.Events)
+	}
+	if cal.Events[0].Recurrence.Raw != "FREQ=MONTHLY;COUNT=4;BYDAY=1MO" {
+		t.Fatalf("raw RRULE was not preserved: %#v", cal.Events[0].Recurrence)
+	}
+	var buf bytes.Buffer
+	if err := Write(&buf, cal, time.UTC); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), "RRULE:FREQ=MONTHLY;COUNT=4;BYDAY=1MO") {
+		t.Fatalf("advanced RRULE was not preserved on export:\n%s", buf.String())
+	}
+}
