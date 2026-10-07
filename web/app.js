@@ -295,6 +295,7 @@ function resetCalendarForm(){
   const form=$("#calendar-form");form.reset();form.color.value="#2f6fed";form.calendar_id.value="";state.editingCalendar=null;
   $("#calendar-form-eyebrow").textContent="New calendar";$("#calendar-form-title").textContent="Create a calendar";
   $("#delete-calendar").classList.add("hidden");$("#cancel-calendar-edit").classList.add("hidden");
+  $("#calendar-interop").classList.add("hidden");$("#calendar-interop-status").textContent="";$("#import-calendar-file").value="";
   $("#calendar-error").textContent="";$("#calendar-status").textContent="";
   renderCalendarPermissionChecks();
   [...$("#calendar-viewers").querySelectorAll("input"),...$("#calendar-editors").querySelectorAll("input")].forEach(i=>{if(i.value===state.me.id)i.checked=true});
@@ -305,6 +306,7 @@ async function beginCalendarEdit(id){
   form.calendar_id.value=cal.id;form.name.value=cal.name;form.color.value=cal.color;form.description.value=cal.description||"";
   $("#calendar-form-eyebrow").textContent="Edit calendar";$("#calendar-form-title").textContent=cal.name;
   $("#delete-calendar").classList.remove("hidden");$("#cancel-calendar-edit").classList.remove("hidden");
+  $("#calendar-interop").classList.remove("hidden");$("#calendar-interop-status").textContent="";$("#import-calendar-file").value="";
   $("#calendar-error").textContent="";$("#calendar-status").textContent="";
   renderCalendarPermissionChecks();
   try{
@@ -784,6 +786,32 @@ $("#calendar-form").addEventListener("submit",async e=>{
   }catch(err){$("#calendar-error").textContent=err.message}
 });
 $("#cancel-calendar-edit").addEventListener("click",resetCalendarForm);
+$("#export-calendar-ics").addEventListener("click",async()=>{
+  if(!state.editingCalendar)return;
+  $("#calendar-interop-status").textContent="Preparing iCalendar export…";
+  try{
+    await authenticatedDownload("/api/calendars/"+state.editingCalendar.id+"/export.ics",state.editingCalendar.name+".ics");
+    $("#calendar-interop-status").textContent="Calendar exported.";
+  }catch(err){$("#calendar-interop-status").textContent=err.message}
+});
+$("#import-calendar-ics").addEventListener("click",async()=>{
+  if(!state.editingCalendar)return;
+  const file=$("#import-calendar-file").files?.[0];
+  if(!file){$("#calendar-interop-status").textContent="Choose an .ics file first.";return}
+  const button=$("#import-calendar-ics");button.disabled=true;button.textContent="Importing…";$("#calendar-interop-status").textContent="Reading iCalendar events…";
+  try{
+    const form=new FormData();form.append("calendar",file,file.name);
+    const res=await fetch("/api/calendars/"+state.editingCalendar.id+"/import.ics",{
+      method:"POST",headers:{Authorization:"Bearer "+state.token},body:form
+    });
+    const body=await res.json().catch(()=>null);if(!res.ok)throw new Error(body?.error||"iCalendar import failed");
+    $("#calendar-interop-status").textContent=`Imported: ${body.created||0} new, ${body.updated||0} updated, ${body.exceptions||0} recurrence changes${body.skipped?" · "+body.skipped+" skipped":""}.`;
+    [state.categories,state.calendars]=await Promise.all([api("/api/categories"),api("/api/calendars")]);
+    await loadEvents();renderCategories();renderCalendars();renderEventControls();renderCalendar();renderAgenda();
+  }catch(err){$("#calendar-interop-status").textContent=err.message}
+  finally{button.disabled=false;button.textContent="Import .ics"}
+});
+
 $("#delete-calendar").addEventListener("click",async()=>{
   if(!state.editingCalendar||!confirm(`Delete "${state.editingCalendar.name}"? The calendar must be empty first.`))return;
   try{await api("/api/calendars/"+state.editingCalendar.id,{method:"DELETE"});state.calendars=await api("/api/calendars");resetCalendarForm();renderCalendars();renderCalendar();renderEventControls()}
