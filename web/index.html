@@ -143,7 +143,7 @@
             <div id="person-avatar-preview" class="avatar-preview large"><span>?</span></div>
             <div class="stack compact-stack">
               <label>Profile image<input id="person-avatar-file" type="file" accept="image/png,image/jpeg,image/webp"></label>
-              <div class="form-actions"><button id="remove-person-avatar" type="button" class="button secondary compact hidden">Remove image</button><span class="muted">JPG, PNG, or WebP. Up to 4 MB.</span></div>
+              <div class="form-actions"><button id="remove-person-avatar" type="button" class="button secondary compact hidden">Remove image</button><span class="muted">JPG, PNG, or WebP. Up to 10 MB.</span></div>
             </div>
           </div>
           <label>Name<input name="display_name" required maxlength="100"></label>
@@ -220,17 +220,57 @@
     </section>
 
     <section id="page-integrations" class="app-page hidden admin-only">
-      <div class="page-header"><div><p class="eyebrow">Connected services</p><h2>Integrations</h2><p class="muted">Connect CalDen to the services your household already uses.</p></div></div>
-      <div class="integration-layout">
-        <article class="panel integration-summary"><div class="integration-icon">M</div><div><h3>Monita</h3><p>Send household-wide event reminders through Monita.</p></div></article>
-        <form id="monita-form" class="panel stack">
-          <label class="toggle-row"><input name="enabled" type="checkbox"><span>Use Monita for family reminders</span></label>
-          <label>Monita server<input name="server_url" placeholder="https://notify.example.com"></label>
-          <label>Token<input name="token" type="password" autocomplete="off" placeholder="Your Monita token"></label>
-          <label>Default channel<input name="default_channel" placeholder="Family"></label>
-          <div class="form-actions"><button id="test-monita" type="button" class="button secondary">Send test</button><button type="submit" class="button">Save Monita</button></div>
-          <p id="monita-status" class="status-line"></p>
-        </form>
+      <div class="page-header">
+        <div><p class="eyebrow">Connected services</p><h2>Integrations</h2><p class="muted">Move existing schedules into CalDen and connect the services your household already uses.</p></div>
+      </div>
+      <div class="integration-stack">
+        <section class="panel integration-card google-migration-card">
+          <div class="integration-card-head">
+            <div class="integration-icon google-icon">G</div>
+            <div class="integration-card-copy">
+              <div class="integration-title-row"><h3>Google Calendar</h3><span class="integration-badge">Migration</span></div>
+              <p>Bring your existing Google Calendar setup into CalDen in one pass. Export all calendars from Google, upload the ZIP here, and CalDen creates or reuses the matching calendars and imports their events.</p>
+            </div>
+          </div>
+          <div class="google-import-grid">
+            <div class="migration-steps" aria-label="Google Calendar migration steps">
+              <article class="migration-step"><span>1</span><div><strong>Export from Google Calendar</strong><p>In Google Calendar, open Settings, choose <b>Import &amp; export</b>, then choose <b>Export</b>. Google downloads one ZIP containing your calendars.</p></div></article>
+              <article class="migration-step"><span>2</span><div><strong>Upload the ZIP to CalDen</strong><p>Drop the Google export below or choose it from your computer. A single .ics file also works when you only need one calendar.</p></div></article>
+              <article class="migration-step"><span>3</span><div><strong>Review the imported calendars</strong><p>New calendars start accessible to your administrator account. Use Calendars afterward to adjust family visibility and editing access.</p></div></article>
+            </div>
+            <div class="google-import-action">
+              <label id="google-import-drop" class="import-dropzone">
+                <input id="google-calendar-export" type="file" accept=".zip,.ics,application/zip,text/calendar">
+                <span class="import-drop-icon">↑</span>
+                <strong>Drop your Google Calendar export here</strong>
+                <span>or click to choose the .zip file</span>
+              </label>
+              <div id="google-import-file-summary" class="import-file-summary hidden"></div>
+              <label class="toggle-row google-reuse-row"><input id="google-import-reuse" type="checkbox" checked><span>Reuse an existing CalDen calendar when its name matches</span></label>
+              <div class="form-actions">
+                <button id="import-google-calendar" type="button" class="button" disabled>Import everything</button>
+              </div>
+              <p id="google-import-status" class="status-line"></p>
+              <div id="google-import-results" class="google-import-results hidden"></div>
+              <p class="import-privacy-note">The export is processed by your CalDen server. CalDen does not send the file to Google or another migration service.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel integration-card monita-integration-card">
+          <div class="integration-card-head">
+            <div class="integration-icon">M</div>
+            <div class="integration-card-copy"><h3>Monita</h3><p>Send household-wide event reminders through Monita.</p></div>
+          </div>
+          <form id="monita-form" class="stack integration-form">
+            <label class="toggle-row"><input name="enabled" type="checkbox"><span>Use Monita for family reminders</span></label>
+            <label>Monita server<input name="server_url" placeholder="https://notify.example.com"></label>
+            <label>Token<input name="token" type="password" autocomplete="off" placeholder="Your Monita token"></label>
+            <label>Default channel<input name="default_channel" placeholder="Family"></label>
+            <div class="form-actions"><button id="test-monita" type="button" class="button secondary">Send test</button><span class="grow"></span><button type="submit" class="button">Save Monita</button></div>
+            <p id="monita-status" class="status-line"></p>
+          </form>
+        </section>
       </div>
     </section>
 
@@ -335,7 +375,7 @@
               <div class="account-avatar-settings">
                 <div id="settings-avatar-preview" class="avatar-preview xlarge"><span>?</span></div>
                 <div class="stack compact-stack">
-                  <label>Profile image<input id="settings-avatar-file" type="file" accept="image/png,image/jpeg,image/webp"></label>
+                  <label>Profile image<input id="settings-avatar-file" type="file" accept="image/png,image/jpeg,image/webp"></label><span class="muted">JPG, PNG, or WebP. Up to 10 MB.</span>
                   <div class="form-actions"><button id="save-settings-avatar" type="button" class="button">Upload image</button><button id="remove-settings-avatar" type="button" class="button secondary">Remove</button></div>
                   <p id="settings-avatar-status" class="status-line"></p>
                 </div>
@@ -373,7 +413,7 @@
         <label class="toggle-row"><input name="all_day" type="checkbox"><span>All-day event</span></label>
 
         <section id="repeat-editor" class="repeat-editor">
-          <div><h3>Repeat</h3><p class="muted">Make this a repeating event without creating each date manually.</p></div>
+          <div><h3>Repeat</h3><p class="muted">Make this a repeating event without creating each date manually.</p><p id="advanced-recurrence-note" class="series-scope-note hidden">This repeat pattern was imported from another calendar and may use advanced rules. CalDen will preserve it unless you change the repeat controls below.</p></div>
           <label>Repeats
             <select name="repeat_frequency">
               <option value="">Does not repeat</option>
