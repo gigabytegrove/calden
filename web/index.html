@@ -565,6 +565,22 @@
     </div>
     <div id="bill-payment-assignment" class="bill-payment-assignment"></div>
     <div id="bill-payment-summary" class="bill-payment-summary"></div>
+    <section class="bill-allocation-section">
+      <div class="bill-section-head"><div><h3>Allocated funds</h3><p class="muted">Track money moved into the bill-pay account before the autopay actually comes out.</p></div></div>
+      <div id="bill-allocation-current" class="bill-allocation-current hidden"></div>
+      <div class="bill-allocation-fields">
+        <label>Amount allocated
+          <div class="money-input"><span>$</span><input id="bill-allocation-amount" type="number" min="0.01" max="9999999999.99" step="0.01" inputmode="decimal"></div>
+        </label>
+        <label>Allocated date<input id="bill-allocation-date" type="date"><span class="field-help">When the money was moved into the bill-pay account.</span></label>
+      </div>
+      <p id="bill-allocation-error" class="error"></p>
+      <div class="bill-allocation-actions">
+        <button id="bill-allocation-clear" type="button" class="button secondary hidden">Remove allocation</button>
+        <span class="grow"></span>
+        <button id="bill-allocation-save" type="button" class="button secondary">Mark allocated</button>
+      </div>
+    </section>
     <section class="bill-payment-history-section">
       <div class="bill-section-head"><div><h3>Payment history</h3><p class="muted">Each payment keeps its own payer, payment date, and optional cleared date.</p></div></div>
       <div id="bill-payment-history" class="bill-payment-history"></div>
