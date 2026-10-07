@@ -792,8 +792,8 @@ $("#person-form").addEventListener("submit",async e=>{
       await apiForm("/api/users/"+userID+"/avatar",data);
     }
     state.users=await api("/api/users");
-    $("#person-status").textContent=editing?"Person updated.":"Person added.";
     resetPersonForm();renderPeople();renderCalendarPermissionChecks();renderEventControls();
+    $("#person-status").textContent=editing?"Person updated.":"Person added.";
   }catch(err){$("#person-error").textContent=err.message}
 });
 $("#cancel-person-edit").addEventListener("click",resetPersonForm);
