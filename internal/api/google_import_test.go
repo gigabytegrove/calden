@@ -133,3 +133,51 @@ func TestChooseGoogleCalendarCandidateDoesNotGuessOnTie(t *testing.T) {
 		t.Fatalf("expected unique Bills match, got best=%#v score=%d ambiguous=%v", best, score, ambiguous)
 	}
 }
+
+
+func TestParseGoogleCalendarUploadDeduplicatesMovedEventByLatestRevision(t *testing.T) {
+	var archive bytes.Buffer
+	zw := zip.NewWriter(&archive)
+	files := map[string]string{
+		"Takeout/Calendar/Old Calendar.ics": "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nX-WR-CALNAME:Old Calendar\r\nBEGIN:VEVENT\r\nUID:moved@test\r\nDTSTART:20261007T140000Z\r\nDTEND:20261007T150000Z\r\nCREATED:20261001T120000Z\r\nLAST-MODIFIED:20261002T120000Z\r\nDTSTAMP:20261002T120000Z\r\nSUMMARY:Moved event\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+		"Takeout/Calendar/Current Calendar.ics": "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nX-WR-CALNAME:Current Calendar\r\nBEGIN:VEVENT\r\nUID:moved@test\r\nDTSTART:20261007T140000Z\r\nDTEND:20261007T150000Z\r\nCREATED:20261001T120000Z\r\nLAST-MODIFIED:20261006T120000Z\r\nDTSTAMP:20261006T120000Z\r\nSUMMARY:Moved event\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+	}
+	for name, content := range files {
+		entry, err := zw.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := entry.Write([]byte(content)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	bundles, err := parseGoogleCalendarUpload("takeout.zip", archive.Bytes(), time.UTC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(bundles) != 2 {
+		t.Fatalf("expected two calendars, got %d", len(bundles))
+	}
+	byName := map[string]googleCalendarBundle{}
+	for _, bundle := range bundles {
+		byName[bundle.Name] = bundle
+	}
+	old := byName["Old Calendar"]
+	current := byName["Current Calendar"]
+	if len(old.Calendar.Events) != 0 || old.SuppressedDuplicateEvents != 1 {
+		t.Fatalf("expected stale copy to be suppressed, got events=%d suppressed=%d", len(old.Calendar.Events), old.SuppressedDuplicateEvents)
+	}
+	if owner := old.SuppressedDuplicateUIDs["moved@test"]; owner != current.ExternalID {
+		t.Fatalf("expected duplicate owner %q, got %q", current.ExternalID, owner)
+	}
+	if len(current.Calendar.Events) != 1 || current.Calendar.Events[0].UID != "moved@test" {
+		t.Fatalf("expected latest copy to remain in current calendar: %#v", current.Calendar.Events)
+	}
+	if current.Calendar.Events[0].ModifiedAt.IsZero() {
+		t.Fatal("expected LAST-MODIFIED revision metadata to be parsed")
+	}
+}
