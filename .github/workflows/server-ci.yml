@@ -304,8 +304,9 @@ jobs:
           assert len(series) == 4, series
           assert all(e["is_recurring"] for e in series), series
           assert all(e["category_id"] == medical["id"] for e in series), series
-          assert all(e["color"].lower() == medical["color"].lower() for e in series), series
+          assert all(e["color"].lower() == family["color"].lower() for e in series), series
           assert all(e["calendar_color"].lower() == family["color"].lower() for e in series), series
+          assert all(e["category_color"].lower() == medical["color"].lower() for e in series), series
 
           second = series[1]
           original_second = second["occurrence_start"]
@@ -340,7 +341,8 @@ jobs:
           assert moved["title"] == "Moved recurring CI Event", moved
           assert moved["occurrence_start"] == original_second, moved
           assert moved["category_id"] == medical["id"], moved
-          assert moved["color"].lower() == medical["color"].lower(), moved
+          assert moved["color"].lower() == family["color"].lower(), moved
+          assert moved["category_color"].lower() == medical["color"].lower(), moved
 
           third_original = (start + dt.timedelta(days=2)).isoformat().replace("+00:00", "Z")
           request(f"/api/events/{series_id}/occurrences", "DELETE", {
