@@ -79,6 +79,7 @@ func New(cfg Config) http.Handler {
 	mux.Handle("PUT /api/events/{id}", s.auth(http.HandlerFunc(s.updateEvent)))
 	mux.Handle("DELETE /api/events/{id}", s.auth(http.HandlerFunc(s.deleteEvent)))
 	mux.Handle("PUT /api/bills/{id}/payment", s.auth(http.HandlerFunc(s.setBillPayment)))
+	mux.Handle("PUT /api/bills/{id}/allocation", s.auth(http.HandlerFunc(s.setBillAllocation)))
 	mux.Handle("POST /api/bills/{id}/payments", s.auth(http.HandlerFunc(s.addBillPayment)))
 	mux.Handle("PUT /api/bills/{id}/payments/{payment_id}", s.auth(http.HandlerFunc(s.updateBillPayment)))
 	mux.Handle("DELETE /api/bills/{id}/payments/{payment_id}", s.auth(http.HandlerFunc(s.deleteBillPayment)))
