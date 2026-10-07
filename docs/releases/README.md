@@ -1,0 +1,18 @@
+# CalDen release notes
+
+Release notes are retained as historical records. The current development release is **0.1.0-alpha11**.
+
+- [0.1.0-alpha11](v0.1.0-alpha11.md) — in-place Google duplicate repair; Bill Pay split payments, no-balance months, payment and cleared dates
+- [0.1.0-alpha10.1](v0.1.0-alpha10.1.md) — updater ordering correction and Alpha10 feature set
+- [0.1.0-alpha10](v0.1.0-alpha10.md) — initial Bill Pay payment history and Google duplicate detection
+- [0.1.0-alpha9.1](v0.1.0-alpha9.1.md) — updater bridge for Alpha9 installations
+- [0.1.0-alpha9](v0.1.0-alpha9.md)
+- [0.1.0-alpha8](v0.1.0-alpha8.md)
+- [0.1.0-alpha7](v0.1.0-alpha7.md)
+- [0.1.0-alpha6](v0.1.0-alpha6.md)
+- [0.1.0-alpha5](v0.1.0-alpha5.md)
+- [0.1.0-alpha4](v0.1.0-alpha4.md)
+- [0.1.0-alpha3](v0.1.0-alpha3.md)
+- [0.1.0-alpha2](v0.1.0-alpha2.md)
+
+For current Google migration and duplicate-repair behavior, use [Google Calendar migration and duplicate repair](../GOOGLE_CALENDAR.md), not older release-note instructions.
