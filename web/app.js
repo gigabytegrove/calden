@@ -22,7 +22,9 @@ const state={
   defaultDuration:[30,60,90,120].includes(savedDefaultDuration)?savedDefaultDuration:60,
   scrollNow:savedScrollNow,
   settingsTab:"general",
-  googleImportFile:null,
+  billMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1),
+  billEvents:[],
+  googleImportFile:null,googleImportPreview:null,
   updateInfo:null,updatePoll:null
 };
 
@@ -95,6 +97,13 @@ function previewAvatarFile(input,preview,status){
 }
 function formatDate(d,opts={month:"short",day:"numeric"}){return new Intl.DateTimeFormat(undefined,opts).format(d)}
 function formatTime(d){return new Intl.DateTimeFormat(undefined,{hour:"numeric",minute:"2-digit"}).format(d)}
+function money(value){return new Intl.NumberFormat(undefined,{style:"currency",currency:"USD"}).format(Number(value)||0)}
+function billCalendar(id){return state.calendars.find(cal=>cal.id===id&&cal.calendar_type==="bill_pay")}
+function isBillCalendar(id){return !!billCalendar(id)}
+function billAmountLabel(event){
+  if(event?.bill_amount===null||event?.bill_amount===undefined)return "";
+  return `${event.bill_amount_is_estimate?"~":""}${money(event.bill_amount)}`;
+}
 function clamp(n,min,max){return Math.min(max,Math.max(min,n))}
 function eventKey(e){return `${e.id}|${e.occurrence_start||e.starts_at}`}
 function findEventByKey(key){return state.events.find(e=>eventKey(e)===key)}
@@ -163,7 +172,9 @@ function renderApp(){
   setAvatarPreview($("#settings-avatar-preview"),state.me);
   $("#remove-settings-avatar")?.classList.toggle("hidden",!state.me.avatar_url);
   renderEventControls();
+  renderBillNavigation();
   renderCalendar();
+  renderBills();
   renderAgenda();
   renderPeople();
   renderCalendars();
@@ -178,12 +189,13 @@ function navigate(page,load=true){
   state.currentPage=page;
   $$(".app-page").forEach(el=>el.classList.toggle("hidden",el.id!==`page-${page}`));
   $$("[data-page]").forEach(el=>el.classList.toggle("active",el.dataset.page===page));
-  const titles={calendar:"Calendar",agenda:"Agenda",people:"People",calendars:"Calendars",categories:"Categories",notifications:"Notifications",integrations:"Integrations",updates:"Updates",backups:"Backups & Restore",activity:"Activity",settings:"Settings"};
+  const titles={calendar:"Calendar",bills:"Bill Pay",agenda:"Agenda",people:"People",calendars:"Calendars",categories:"Categories",notifications:"Notifications",integrations:"Integrations",updates:"Updates",backups:"Backups & Restore",activity:"Activity",settings:"Settings"};
   $("#page-title").textContent=titles[page]||"CalDen";
   $("#new-event").classList.toggle("hidden",!["calendar","agenda"].includes(page));
   $("#sidebar").classList.remove("open");
   if(!load)return;
   if(page==="notifications")renderNotifications();
+  if(page==="bills")loadBillMonth();
   if(page==="integrations"){loadMonita();setGoogleImportFile(state.googleImportFile);}
   if(page==="updates")loadUpdater();
   if(page==="backups")loadBackups();
