@@ -468,6 +468,7 @@ input:focus,select:focus,textarea:focus{border-color:#60a5fa;box-shadow:0 0 0 4p
 }
 .notification-inbox-icon.assigned{background:#dbeafe;color:#1d4ed8}
 .notification-inbox-icon.family{background:#ede9fe;color:#6d28d9}
+.notification-inbox-icon.bill{background:#e0e7ff;color:#3730a3}
 .notification-inbox-main{display:grid;gap:2px;min-width:0}
 .notification-inbox-kicker{font-size:.66rem;text-transform:uppercase;letter-spacing:.055em;color:#64748b;font-weight:800}
 .notification-inbox-main strong{font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -584,7 +585,7 @@ dialog::backdrop{background:rgba(15,23,42,.58);backdrop-filter:blur(2px)}
 .bill-payment-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
 .dialog-close{border:0;background:#f1f5f9;color:#475569;width:34px;height:34px;border-radius:9px;font-size:1.35rem;line-height:1;cursor:pointer;flex:none}
 .dialog-close:hover{background:#e2e8f0;color:#0f172a}
-.bill-payment-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.bill-payment-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
 .bill-payment-summary>div{display:grid;gap:3px;border:1px solid #e2e8f0;background:#f8fafc;border-radius:10px;padding:10px 11px;min-width:0}
 .bill-payment-summary span{font-size:.65rem;text-transform:uppercase;letter-spacing:.05em;color:#64748b;font-weight:800}
 .bill-payment-summary strong{font-size:.86rem;color:#0f172a;overflow:hidden;text-overflow:ellipsis}
@@ -598,8 +599,17 @@ dialog::backdrop{background:rgba(15,23,42,.58);backdrop-filter:blur(2px)}
 .danger-text{color:#b91c1c!important}
 .bill-no-balance-state{display:grid;gap:2px;padding:13px;background:#f0fdf4;color:#166534}.bill-no-balance-state span{font-size:.72rem}
 .bill-status-pill.partial{background:#fef3c7;color:#92400e;border:1px solid #fde68a}
+.bill-status-pill.allocated{background:#e0e7ff;color:#3730a3;border:1px solid #c7d2fe}
+.bill-status-pill.cleared{background:#dcfce7;color:#14532d;border:1px solid #86efac}
 .bill-status-pill.no-balance{background:#e0f2fe;color:#075985;border:1px solid #bae6fd}
-.bill-row.is-partial{background:#fffdf7}.bill-row.is-no_balance{background:#f8fcff}
+.bill-row.is-partial{background:#fffdf7}.bill-row.is-allocated{background:#fafaff}.bill-row.is-cleared{background:#f7fdf9}.bill-row.is-no_balance{background:#f8fcff}
+.bill-allocation-section{display:grid;gap:10px;border-top:1px solid #e2e8f0;padding-top:16px}
+.bill-allocation-fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+.bill-allocation-fields>*{min-width:0}
+.bill-allocation-fields input{width:100%;min-width:0;box-sizing:border-box}
+.bill-allocation-current{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid #c7d2fe;background:#eef2ff;border-radius:10px;padding:10px 12px;color:#3730a3}
+.bill-allocation-current strong{font-size:.82rem}.bill-allocation-current span{font-size:.7rem;color:#4f46e5;text-align:right}
+.bill-allocation-actions{display:flex;align-items:center;gap:10px}
 .bill-payment-entry-form{border-top:1px solid #e2e8f0;padding-top:16px}
 .bill-payment-entry-form .two>*{min-width:0}
 .bill-payment-entry-form input,.bill-payment-entry-form select{width:100%;min-width:0;box-sizing:border-box}
@@ -618,6 +628,9 @@ dialog::backdrop{background:rgba(15,23,42,.58);backdrop-filter:blur(2px)}
 .google-duplicate-example strong{font-size:.75rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.google-duplicate-example span{font-size:.66rem;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 @media(max-width:700px){
   .bill-payment-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .bill-allocation-fields{grid-template-columns:1fr}
+  .bill-allocation-current{display:grid}
+  .bill-allocation-current span{text-align:left}
   .bill-payment-history-row{grid-template-columns:1fr auto}.bill-payment-history-row>div:nth-child(2){grid-column:1/-1}.bill-payment-history-actions{grid-column:2;grid-row:1}
   .google-repair-head{display:grid}.google-duplicate-summary{grid-template-columns:1fr}.google-duplicate-summary .google-repair-clean{grid-column:auto}.google-duplicate-examples{grid-template-columns:1fr}
 }
