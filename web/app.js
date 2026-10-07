@@ -1032,37 +1032,89 @@ async function loadMonita(){
 
 function setGoogleImportFile(file){
   state.googleImportFile=file||null;
-  const summary=$("#google-import-file-summary"),button=$("#import-google-calendar"),status=$("#google-import-status");
-  if(!summary||!button)return;
+  state.googleImportPreview=null;
+  const summary=$("#google-import-file-summary"),review=$("#review-google-calendar"),importButton=$("#import-google-calendar"),status=$("#google-import-status");
+  const mapping=$("#google-import-mapping"),results=$("#google-import-results");
+  if(mapping){mapping.classList.add("hidden");mapping.innerHTML=""}
+  if(results){results.classList.add("hidden");results.innerHTML=""}
+  if(importButton){importButton.classList.add("hidden");importButton.disabled=true}
+  if(!summary||!review)return;
   if(!file){
-    summary.classList.add("hidden");summary.innerHTML="";button.disabled=true;
+    summary.classList.add("hidden");summary.innerHTML="";review.disabled=true;
+    if(status)status.textContent="";
     return;
   }
   const valid=/\.(zip|ics)$/i.test(file.name||"");
   summary.classList.remove("hidden");
   summary.innerHTML=`<div><strong>${escapeHTML(file.name||"Google Calendar export")}</strong><span>${humanSize(file.size||0)}</span></div><button id="clear-google-import-file" class="text-button" type="button">Clear</button>`;
-  button.disabled=!valid;
+  review.disabled=!valid;
   if(!valid)status.textContent="Choose the .zip file exported by Google Calendar, or an .ics file.";
-  else if(status.textContent.startsWith("Choose the"))status.textContent="";
+  else status.textContent="Review the export before importing. Nothing will be created yet.";
   $("#clear-google-import-file")?.addEventListener("click",()=>{
     const input=$("#google-calendar-export");if(input)input.value="";
-    setGoogleImportFile(null);$("#google-import-results")?.classList.add("hidden");
+    setGoogleImportFile(null);
   });
+}
+
+function googleMappingOptions(item){
+  const suggested=item.suggested_calendar_id||"";
+  const options=[
+    `<option value="__skip__" ${!suggested?"selected":""}>Skip this Google calendar</option>`,
+    `<option value="__create__">Create a new CalDen calendar</option>`
+  ];
+  state.calendars.forEach(cal=>{
+    const selected=cal.id===suggested?"selected":"";
+    const type=cal.calendar_type==="bill_pay"?" · Bill Pay":"";
+    options.push(`<option value="${cal.id}" ${selected}>${escapeHTML(cal.name)}${type}</option>`);
+  });
+  return options.join("");
+}
+
+function renderGoogleImportMapping(body){
+  const host=$("#google-import-mapping"),button=$("#import-google-calendar");
+  const items=body?.calendars||[];
+  state.googleImportPreview=items;
+  host.classList.remove("hidden");
+  if(!items.length){
+    host.innerHTML='<div class="empty-state"><strong>No calendars found</strong></div>';
+    button.classList.add("hidden");button.disabled=true;return;
+  }
+  host.innerHTML=`<div class="google-mapping-head"><div><strong>Review calendar mapping</strong><span>Nothing is imported until you confirm these choices.</span></div><span>${items.length} Google calendar${items.length===1?"":"s"}</span></div>
+    <div class="google-mapping-list">${items.map((item,index)=>{
+      const prior=item.previous_auto_created?" · previous import created a duplicate calendar":"";
+      return `<article class="google-mapping-row">
+        <div class="google-mapping-source"><strong>${escapeHTML(item.name)}</strong><small>${Number(item.event_count)||0} exported event${Number(item.event_count)===1?"":"s"}${escapeHTML(prior)}</small></div>
+        <label>Import into<select class="google-map-select" data-google-map-index="${index}">${googleMappingOptions(item)}</select></label>
+        <div class="google-match-reason ${item.match_score>=80?"match-good":""}"><strong>${item.match_score>=80?"Suggested match":"Review required"}</strong><span>${escapeHTML(item.match_reason||"Choose where this calendar belongs.")}</span></div>
+      </article>`;
+    }).join("")}</div>`;
+  button.classList.remove("hidden");button.disabled=false;
+}
+
+function collectGoogleMapping(){
+  const mapping={};
+  (state.googleImportPreview||[]).forEach((item,index)=>{
+    const select=$(`[data-google-map-index="${index}"]`);
+    mapping[item.external_id]=select?.value||"__skip__";
+  });
+  return mapping;
 }
 
 function renderGoogleImportResults(body){
   const host=$("#google-import-results");if(!host)return;
-  const calendars=body?.calendars||[];
+  const calendars=body?.calendars||[],warnings=body?.warnings||[];
   host.classList.remove("hidden");
   host.innerHTML=`<div class="google-import-summary">
-    <span>${Number(body?.calendar_count)||calendars.length} calendars</span>
+    <span>${Number(body?.calendar_count)||calendars.length} imported calendars</span>
     <span>${Number(body?.created)||0} new events</span>
     <span>${Number(body?.updated)||0} updated</span>
-    <span>${Number(body?.exceptions)||0} recurrence changes</span>
+    <span>${Number(body?.skipped_calendars)||0} skipped calendars</span>
+    <span>${Number(body?.cleaned_calendars)||0} old duplicates cleaned up</span>
   </div>`+calendars.map(item=>`<article class="google-import-calendar">
     <div><strong>${escapeHTML(item.name||"Imported calendar")}</strong><small>${Number(item.created)||0} new · ${Number(item.updated)||0} updated${item.skipped?" · "+Number(item.skipped)+" skipped":""}</small></div>
-    <span>${item.created_calendar?"Created calendar":"Matched calendar"}</span>
-  </article>`).join("");
+    <span>${item.created_calendar?"Created calendar":"Mapped to existing"}</span>
+  </article>`).join("")+
+  (warnings.length?`<div class="google-import-warnings"><strong>Kept for safety</strong>${warnings.map(warning=>`<span>${escapeHTML(warning)}</span>`).join("")}</div>`:"");
 }
 
 async function loadUpdater(){
