@@ -132,6 +132,9 @@ func (s *server) updateOccurrence(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "Could not save occurrence")
 		return
 	}
+	s.audit(r, "update_occurrence", "event", &parentID, "Changed one recurring occurrence", map[string]any{
+		"original_start": in.OriginalStart, "replacement_event_id": replacementID, "new_start": in.Event.StartsAt,
+	})
 	writeJSON(w, http.StatusOK, map[string]any{
 		"id": replacementID, "series_id": parentID, "original_start": in.OriginalStart,
 	})
@@ -194,6 +197,7 @@ func (s *server) deleteOccurrence(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "Could not cancel occurrence")
 		return
 	}
+	s.audit(r, "delete_occurrence", "event", &parentID, "Deleted one recurring occurrence", map[string]any{"original_start": in.OriginalStart})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -249,6 +253,7 @@ func (s *server) restoreOccurrence(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "Could not restore occurrence")
 		return
 	}
+	s.audit(r, "restore_occurrence", "event", &parentID, "Restored recurring occurrence", map[string]any{"original_start": in.OriginalStart})
 	w.WriteHeader(http.StatusNoContent)
 }
 
