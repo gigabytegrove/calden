@@ -300,14 +300,43 @@ func parseGoogleCalendarUpload(filename string, raw []byte, loc *time.Location) 
 
 func googleCalendarDisplayName(calendarName, filename string) string {
 	name := strings.TrimSpace(calendarName)
+	filenameLabel := googleCalendarFilenameLabel(filename)
+
+	// Google's generated Birthdays export can report the account email as
+	// X-WR-CALNAME even though the filename identifies it as Birthdays.
+	// Prefer that semantic filename label so it can be matched correctly.
+	if looksLikeCalendarEmail(name) && filenameLabel != "" && !looksLikeCalendarEmail(filenameLabel) {
+		name = filenameLabel
+	}
 	if name == "" {
-		name = strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename))
+		name = filenameLabel
 	}
 	name = strings.TrimSpace(name)
 	if name == "" {
 		name = "Imported Google Calendar"
 	}
 	return cleanText(name, 100)
+}
+
+func googleCalendarFilenameLabel(filename string) string {
+	base := strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename))
+	base = strings.TrimSpace(base)
+	if base == "" {
+		return ""
+	}
+	if underscore := strings.Index(base, "_"); underscore > 0 {
+		prefix := strings.TrimSpace(base[:underscore])
+		suffix := strings.TrimSpace(base[underscore+1:])
+		if prefix != "" && strings.Contains(suffix, "@") {
+			return prefix
+		}
+	}
+	return base
+}
+
+func looksLikeCalendarEmail(value string) bool {
+	value = strings.TrimSpace(value)
+	return value != "" && !strings.ContainsAny(value, " \t") && strings.Count(value, "@") == 1
 }
 
 func normalizeGoogleCalendarName(name string) string {
@@ -410,6 +439,32 @@ func (s *server) googleCalendarCandidates(ctx context.Context) ([]googleCalendar
 	return candidates, rows.Err()
 }
 
+func chooseGoogleCalendarCandidate(name string, candidates []googleCalendarCandidate) (*googleCalendarCandidate, int, string, bool) {
+	bestScore := 0
+	bestIndex := -1
+	bestReason := ""
+	ambiguous := false
+	for i := range candidates {
+		candidate := &candidates[i]
+		if candidate.Description == "Imported from Google Calendar" {
+			continue
+		}
+		score, reason := googleCalendarMatchScore(name, candidate.Name)
+		if score > bestScore {
+			bestScore = score
+			bestIndex = i
+			bestReason = reason
+			ambiguous = false
+		} else if score > 0 && score == bestScore {
+			ambiguous = true
+		}
+	}
+	if bestIndex < 0 {
+		return nil, 0, "", false
+	}
+	return &candidates[bestIndex], bestScore, bestReason, ambiguous
+}
+
 func (s *server) previewGoogleCalendarBundle(
 	ctx context.Context,
 	bundle googleCalendarBundle,
@@ -445,18 +500,14 @@ func (s *server) previewGoogleCalendarBundle(
 		}
 	}
 
-	bestScore := 0
-	var best *googleCalendarCandidate
-	bestReason := ""
-	for i := range candidates {
-		candidate := &candidates[i]
-		if candidate.Description == "Imported from Google Calendar" {
-			continue
+	best, bestScore, bestReason, ambiguous := chooseGoogleCalendarCandidate(bundle.Name, candidates)
+	if ambiguous && bestScore >= 80 {
+		item.MatchScore = bestScore
+		item.MatchReason = "Multiple existing calendars are equally plausible matches. Choose the destination manually."
+		if item.PreviousAutoCreated {
+			item.MatchReason += " The previous import-created duplicate will not be reused automatically."
 		}
-		score, reason := googleCalendarMatchScore(bundle.Name, candidate.Name)
-		if score > bestScore {
-			bestScore, best, bestReason = score, candidate, reason
-		}
+		return item, nil
 	}
 	if best != nil && bestScore >= 80 {
 		item.SuggestedCalendarID = &best.ID
@@ -470,11 +521,9 @@ func (s *server) previewGoogleCalendarBundle(
 		return item, nil
 	}
 
-	if item.PreviousCalendarID != nil {
-		item.SuggestedCalendarID = item.PreviousCalendarID
-		item.SuggestedCalendarName = item.PreviousCalendarName
+	if item.PreviousAutoCreated {
 		item.MatchScore = 75
-		item.MatchReason = "Previously auto-created by Google import; review this mapping"
+		item.MatchReason = "A previous import created a separate CalDen calendar. Choose an existing destination, create a new one deliberately, or skip it."
 	}
 	return item, nil
 }
@@ -568,26 +617,22 @@ func (s *server) bestGoogleCalendarMatchTx(ctx context.Context, tx pgx.Tx, name 
 	}
 	defer rows.Close()
 
-	bestScore := 0
-	var best uuid.UUID
+	candidates := []googleCalendarCandidate{}
 	for rows.Next() {
-		var id uuid.UUID
-		var candidateName string
-		if err := rows.Scan(&id, &candidateName); err != nil {
+		var candidate googleCalendarCandidate
+		if err := rows.Scan(&candidate.ID, &candidate.Name); err != nil {
 			return uuid.Nil, err
 		}
-		score, _ := googleCalendarMatchScore(name, candidateName)
-		if score > bestScore {
-			bestScore, best = score, id
-		}
+		candidates = append(candidates, candidate)
 	}
 	if err := rows.Err(); err != nil {
 		return uuid.Nil, err
 	}
-	if bestScore < 80 {
+	best, bestScore, _, ambiguous := chooseGoogleCalendarCandidate(name, candidates)
+	if best == nil || bestScore < 80 || ambiguous {
 		return uuid.Nil, nil
 	}
-	return best, nil
+	return best.ID, nil
 }
 
 func (s *server) cleanupOldGoogleCalendar(ctx context.Context, tx pgx.Tx, calendarID uuid.UUID) (bool, string, error) {
