@@ -27,7 +27,11 @@ func (s *server) me(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) listUsers(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.db.Query(r.Context(), `SELECT id,username,display_name,role,initials,avatar_url FROM users WHERE active=true ORDER BY display_name`)
+	query := `SELECT id,username,display_name,role,initials,avatar_url,active FROM users WHERE active=true ORDER BY display_name`
+	if currentActor(r).Role == "admin" {
+		query = `SELECT id,username,display_name,role,initials,avatar_url,active FROM users ORDER BY active DESC,display_name`
+	}
+	rows, err := s.db.Query(r.Context(), query)
 	if err != nil {
 		writeError(w, 500, "Could not load people")
 		return
@@ -38,13 +42,16 @@ func (s *server) listUsers(w http.ResponseWriter, r *http.Request) {
 		var id uuid.UUID
 		var username, name, role, ini string
 		var avatar *string
-		if rows.Scan(&id, &username, &name, &role, &ini, &avatar) == nil {
-			out = append(out, map[string]any{"id": id, "username": username, "display_name": name, "role": role, "initials": ini, "avatar_url": avatar})
+		var active bool
+		if rows.Scan(&id, &username, &name, &role, &ini, &avatar, &active) == nil {
+			out = append(out, map[string]any{
+				"id": id, "username": username, "display_name": name, "role": role,
+				"initials": ini, "avatar_url": avatar, "active": active,
+			})
 		}
 	}
 	writeJSON(w, 200, out)
 }
-
 func (s *server) createUser(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Username    string `json:"username"`
