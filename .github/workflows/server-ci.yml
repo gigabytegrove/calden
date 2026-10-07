@@ -298,6 +298,37 @@ jobs:
             const billRowText = await page.locator('#bill-list .bill-row').filter({ hasText: 'Electric CI Bill' }).innerText();
             if (!billRowText.includes('137.42')) throw new Error('Bill amount was not shown in Bill Pay.');
 
+            // Calendar deletion must allow an explicit destructive override when events exist.
+            await page.locator('.nav-item[data-page="calendars"]').click();
+            await page.locator('#page-calendars').waitFor({ state: 'visible' });
+            const calendarForm = page.locator('#calendar-form');
+            await calendarForm.locator('input[name="name"]').fill('Delete Me CI');
+            await calendarForm.locator('input[name="color"]').fill('#64748b');
+            await calendarForm.locator('textarea[name="description"]').fill('Calendar delete override verification');
+            await calendarForm.locator('button[type="submit"]').click();
+            await page.locator('#calendar-list').getByText('Delete Me CI', { exact: true }).waitFor({ state: 'visible' });
+
+            await page.locator('.nav-item[data-page="calendar"]').click();
+            await page.locator('#new-event').click();
+            await eventForm.locator('input[name="title"]').fill('Delete Me Event');
+            await eventForm.locator('select[name="calendar_id"]').selectOption({ label: 'Delete Me CI' });
+            await eventForm.locator('button[type="submit"]').click();
+            await page.locator('#event-dialog').waitFor({ state: 'hidden' });
+
+            await page.locator('.nav-item[data-page="calendars"]').click();
+            const deleteCard = page.locator('#calendar-list .management-card').filter({ hasText: 'Delete Me CI' });
+            await deleteCard.locator('.edit-calendar').click();
+            page.once('dialog', dialog => dialog.accept());
+            await page.locator('#delete-calendar').click();
+            await page.locator('#calendar-delete-dialog').waitFor({ state: 'visible' });
+            await page.locator('#calendar-delete-confirmation').fill('DELETE Delete Me CI');
+            if (await page.locator('#calendar-delete-confirm').isDisabled()) throw new Error('Typed calendar deletion did not unlock.');
+            await page.locator('#calendar-delete-confirm').click();
+            await page.locator('#calendar-delete-dialog').waitFor({ state: 'hidden' });
+            if (await page.locator('#calendar-list').getByText('Delete Me CI', { exact: true }).count()) {
+              throw new Error('Calendar with events was not deleted after typed confirmation.');
+            }
+
             await page.locator('.nav-item[data-page="categories"]').click();
             await page.locator('#page-categories').waitFor({ state: 'visible' });
             const categoryForm = page.locator('#category-form');
