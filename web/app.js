@@ -8,8 +8,8 @@ const savedHidden=JSON.parse(localStorage.getItem("calden_hidden_calendars")||"[
 
 const state={
   token:localStorage.getItem("calden_token")||"",
-  me:null,settings:null,users:[],calendars:[],events:[],
-  editingEvent:null,editingScope:"series",editingCalendar:null,editingUser:null,
+  me:null,settings:null,users:[],calendars:[],categories:[],events:[],
+  editingEvent:null,editingScope:"series",editingCalendar:null,editingCategory:null,editingUser:null,
   setupStep:0,currentPage:"calendar",
   viewDays:[1,7,14,30].includes(savedDays)?savedDays:7,
   anchorDate:startOfDay(new Date()),
@@ -81,7 +81,9 @@ async function boot(){
 }
 
 async function reloadSharedData(){
-  [state.users,state.calendars]=await Promise.all([api("/api/users"),api("/api/calendars")]);
+  [state.users,state.calendars,state.categories]=await Promise.all([
+    api("/api/users"),api("/api/calendars"),api("/api/categories")
+  ]);
   await loadEvents();
 }
 async function loadEvents(){
@@ -105,16 +107,17 @@ function renderApp(){
   renderAgenda();
   renderPeople();
   renderCalendars();
+  renderCategories();
   renderSettings();
 }
 
 function navigate(page,load=true){
-  const adminPages=new Set(["people","calendars","integrations","updates"]);
+  const adminPages=new Set(["people","calendars","categories","integrations","updates"]);
   if(adminPages.has(page)&&state.me?.role!=="admin")page="calendar";
   state.currentPage=page;
   $$(".app-page").forEach(el=>el.classList.toggle("hidden",el.id!==`page-${page}`));
   $$("[data-page]").forEach(el=>el.classList.toggle("active",el.dataset.page===page));
-  const titles={calendar:"Calendar",agenda:"Agenda",people:"People",calendars:"Calendars",notifications:"Notifications",integrations:"Integrations",updates:"Updates",settings:"Settings"};
+  const titles={calendar:"Calendar",agenda:"Agenda",people:"People",calendars:"Calendars",categories:"Categories",notifications:"Notifications",integrations:"Integrations",updates:"Updates",settings:"Settings"};
   $("#page-title").textContent=titles[page]||"CalDen";
   $("#new-event").classList.toggle("hidden",!["calendar","agenda"].includes(page));
   $("#sidebar").classList.remove("open");
@@ -125,6 +128,7 @@ function navigate(page,load=true){
 
 function renderEventControls(){
   $("#calendar-select").innerHTML='<option value="">Choose a calendar</option>'+state.calendars.filter(c=>c.can_edit).map(c=>`<option value="${c.id}">${escapeHTML(c.name)}</option>`).join("");
+  $("#category-select").innerHTML='<option value="">No category</option>'+state.categories.map(cat=>`<option value="${cat.id}">${escapeHTML(cat.name)}</option>`).join("");
   $("#people-picker").innerHTML=state.users.filter(u=>u.active!==false).map(personChoice).join("");
 }
 function personChoice(u){return `<label class="person-check"><input type="checkbox" name="assignee" value="${u.id}"><span><i class="avatar">${escapeHTML(u.initials)}</i>${escapeHTML(u.display_name)}</span></label>`}
@@ -310,6 +314,33 @@ async function beginCalendarEdit(id){
   }catch(err){$("#calendar-error").textContent=err.message}
 }
 
+function renderCategories(){
+  if(state.me.role!=="admin")return;
+  $("#category-list").innerHTML=state.categories.map(cat=>`<article class="management-card">
+    <span class="calendar-swatch" style="--cal:${safeColor(cat.color)}"></span>
+    <div class="management-copy"><strong>${escapeHTML(cat.name)}</strong><span>${escapeHTML(cat.description||"No description")}</span><small>Event color ${escapeHTML(cat.color)}</small></div>
+    <button class="button secondary compact edit-category" type="button" data-category-id="${cat.id}">Edit</button>
+  </article>`).join("")||'<div class="empty-state"><strong>No categories</strong><span>Create a category to color-code event types.</span></div>';
+  $("#category-list").querySelectorAll(".edit-category").forEach(b=>b.addEventListener("click",()=>beginCategoryEdit(b.dataset.categoryId)));
+}
+
+function resetCategoryForm(){
+  const form=$("#category-form");if(!form)return;
+  form.reset();form.color.value="#dc2626";form.category_id.value="";state.editingCategory=null;
+  $("#category-form-eyebrow").textContent="New category";$("#category-form-title").textContent="Create a category";
+  $("#delete-category").classList.add("hidden");$("#cancel-category-edit").classList.add("hidden");
+  $("#category-error").textContent="";$("#category-status").textContent="";
+}
+
+function beginCategoryEdit(id){
+  const cat=state.categories.find(item=>item.id===id);if(!cat)return;
+  state.editingCategory=cat;const form=$("#category-form");
+  form.category_id.value=cat.id;form.name.value=cat.name;form.color.value=cat.color;form.description.value=cat.description||"";
+  $("#category-form-eyebrow").textContent="Edit category";$("#category-form-title").textContent=cat.name;
+  $("#delete-category").classList.remove("hidden");$("#cancel-category-edit").classList.remove("hidden");
+  $("#category-error").textContent="";$("#category-status").textContent="";
+}
+
 function renderSettings(){
   const form=$("#general-settings-form");
   if(form){
@@ -405,12 +436,13 @@ function openEvent(existing=null,dateHint=null,scope="series"){
     const occurrenceScope=scope==="occurrence";
     const sourceTitle=occurrenceScope?existing.title:seriesValue(existing,"title",existing.title);
     const sourceCalendar=occurrenceScope?existing.calendar_id:seriesValue(existing,"calendar_id",existing.calendar_id);
+    const sourceCategory=occurrenceScope?existing.category_id:seriesValue(existing,"category_id",existing.category_id);
     const sourceLocation=occurrenceScope?existing.location:seriesValue(existing,"location",existing.location);
     const sourceNotes=occurrenceScope?existing.notes:seriesValue(existing,"notes",existing.notes);
     const sourceAllDay=occurrenceScope?existing.all_day:seriesValue(existing,"all_day",existing.all_day);
     const sourceAssignees=occurrenceScope?(existing.assignees||[]):(existing.series_assignees||existing.assignees||[]);
     const sourceReminders=occurrenceScope?(existing.reminders||[]):(existing.series_reminders||existing.reminders||[]);
-    form.event_id.value=existing.id;form.title.value=sourceTitle||"";form.calendar_id.value=sourceCalendar||"";
+    form.event_id.value=existing.id;form.title.value=sourceTitle||"";form.calendar_id.value=sourceCalendar||"";form.category_id.value=sourceCategory||"";
     form.starts_at.value=localInput(new Date(occurrenceScope?existing.starts_at:(existing.series_starts_at||existing.starts_at)));
     form.ends_at.value=localInput(new Date(occurrenceScope?existing.ends_at:(existing.series_ends_at||existing.ends_at)));
     form.all_day.checked=!!sourceAllDay;form.location.value=sourceLocation||"";form.notes.value=sourceNotes||"";
@@ -593,7 +625,7 @@ $("#event-form").addEventListener("submit",async e=>{
   const reminders=[],personal=fd.get("personal_reminder");
   if(personal)reminders.push({kind:"personal",provider:"android",minutes_before:Number(personal),destination:""});
   if(form.system_reminder_enabled.checked)reminders.push({kind:"system",provider:"monita",minutes_before:Number(fd.get("system_reminder")||1440),destination:""});
-  const payload={title:fd.get("title"),calendar_id:fd.get("calendar_id"),starts_at:new Date(fd.get("starts_at")).toISOString(),ends_at:new Date(fd.get("ends_at")).toISOString(),all_day:form.all_day.checked,location:fd.get("location"),notes:fd.get("notes"),assignee_ids:fd.getAll("assignee"),reminders,recurrence:recurrencePayload(form)};
+  const payload={title:fd.get("title"),calendar_id:fd.get("calendar_id"),category_id:fd.get("category_id")||null,starts_at:new Date(fd.get("starts_at")).toISOString(),ends_at:new Date(fd.get("ends_at")).toISOString(),all_day:form.all_day.checked,location:fd.get("location"),notes:fd.get("notes"),assignee_ids:fd.getAll("assignee"),reminders,recurrence:recurrencePayload(form)};
   let target="/api/events",method="POST",body=payload;
   if(state.editingEvent){
     if(state.editingEvent.is_recurring&&state.editingScope==="occurrence"){
@@ -657,6 +689,29 @@ $("#delete-calendar").addEventListener("click",async()=>{
   catch(err){$("#calendar-error").textContent=err.message}
 });
 
+$("#category-form").addEventListener("submit",async e=>{
+  e.preventDefault();const form=e.currentTarget;$("#category-error").textContent="";$("#category-status").textContent="";
+  const payload={name:form.name.value.trim(),color:form.color.value,icon:"tag",description:form.description.value.trim()};
+  try{
+    if(state.editingCategory){
+      await api("/api/categories/"+state.editingCategory.id,{method:"PUT",body:JSON.stringify(payload)});
+      $("#category-status").textContent="Category updated.";
+    }else{
+      await api("/api/categories",{method:"POST",body:JSON.stringify(payload)});
+      $("#category-status").textContent="Category created.";
+    }
+    state.categories=await api("/api/categories");resetCategoryForm();renderCategories();renderEventControls();await loadEvents();renderCalendar();renderAgenda();
+  }catch(err){$("#category-error").textContent=err.message}
+});
+$("#cancel-category-edit").addEventListener("click",resetCategoryForm);
+$("#delete-category").addEventListener("click",async()=>{
+  if(!state.editingCategory||!confirm(`Archive "${state.editingCategory.name}"? Existing events keep their category and color.`))return;
+  try{
+    await api("/api/categories/"+state.editingCategory.id,{method:"DELETE"});
+    state.categories=await api("/api/categories");resetCategoryForm();renderCategories();renderEventControls();await loadEvents();renderCalendar();renderAgenda();
+  }catch(err){$("#category-error").textContent=err.message}
+});
+
 $("#general-settings-form").addEventListener("submit",async e=>{
   e.preventDefault();const form=e.currentTarget;if(state.me.role!=="admin")return;
   $("#general-settings-status").textContent="";
@@ -699,4 +754,5 @@ $("#rollback-update").addEventListener("click",async()=>{
 
 resetPersonForm();
 resetCalendarForm();
+resetCategoryForm();
 boot().catch(err=>{console.error(err);showBootFailure()});
