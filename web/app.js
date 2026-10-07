@@ -118,6 +118,11 @@ function billPaidAmount(event){
   return null;
 }
 function canUpdateBill(event){return !!state.calendars.find(cal=>cal.id===event?.calendar_id&&cal.calendar_type==="bill_pay"&&cal.can_edit)}
+function billPaymentLabel(event){
+  if(!event?.bill_paid)return "";
+  const who=event.bill_paid_by?.display_name;
+  return who?`Paid by ${who}`:"Paid";
+}
 function clamp(n,min,max){return Math.min(max,Math.max(min,n))}
 function eventKey(e){return `${e.id}|${e.occurrence_start||e.starts_at}`}
 function findEventByKey(key){return state.events.find(e=>eventKey(e)===key)}
@@ -586,7 +591,7 @@ function renderTimeline(days){
       const left=item.column/item.columns*100,width=100/item.columns;
       const e=item.event;
       return `<button class="timed-event" data-event-key="${escapeAttr(eventKey(e))}" style="--cal:${safeColor(e.calendar_color||e.color)};--top:${top}%;--height:${height}%;--left:${left}%;--width:${width}%">
-        <strong>${escapeHTML(e.title)}</strong><span>${formatTime(new Date(e.starts_at))}${billAmountLabel(e)?" · "+escapeHTML(billAmountLabel(e)):""}${e.bill_payer?.display_name?" · "+escapeHTML(e.bill_payer.display_name):""}${e.category_name?" · "+escapeHTML(e.category_name):""}</span>${avatarMini(e)}
+        <strong>${escapeHTML(e.title)}</strong><span>${formatTime(new Date(e.starts_at))}${billAmountLabel(e)?" · "+escapeHTML(billAmountLabel(e)):""}${billPaymentLabel(e)?" · "+escapeHTML(billPaymentLabel(e)):""}${e.bill_payer?.display_name?" · "+escapeHTML(e.bill_payer.display_name):""}${e.category_name?" · "+escapeHTML(e.category_name):""}</span>${avatarMini(e)}
       </button>`;
     }).join("");
     const now=new Date(),nowMinutes=now.getHours()*60+now.getMinutes();
@@ -618,7 +623,7 @@ function renderDayGrid(days){
 
 function calendarEventBlock(e,compact=false){
   const time=e.all_day?"All day":formatTime(new Date(e.starts_at));
-  const meta=[time,billAmountLabel(e),e.bill_payer?.display_name,e.category_name].filter(Boolean).join(" · ");
+  const meta=[time,billAmountLabel(e),billPaymentLabel(e),e.bill_payer?.display_name,e.category_name].filter(Boolean).join(" · ");
   return `<button class="calendar-event ${compact?"compact":""}" data-event-key="${escapeAttr(eventKey(e))}" style="--cal:${safeColor(e.calendar_color||e.color)}">
     <span class="event-color"></span><span class="calendar-event-copy"><strong>${e.is_recurring?'<span class="repeat-mark" title="Repeating event">↻</span> ':""}${escapeHTML(e.title)}</strong><small>${escapeHTML(meta)}</small></span>${avatarMini(e)}
   </button>`;
