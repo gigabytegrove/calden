@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const maxAvatarBytes int64 = 4 << 20
+const maxAvatarBytes int64 = 10 << 20
 
 func (s *server) avatarMedia(w http.ResponseWriter, r *http.Request) {
 	name := filepath.Base(strings.TrimSpace(r.PathValue("name")))
@@ -24,7 +24,7 @@ func (s *server) avatarMedia(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.Header().Set("Cache-Control", "private, no-cache")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	http.ServeFile(w, r, path)
 }
@@ -43,7 +43,7 @@ func (s *server) uploadUserAvatar(w http.ResponseWriter, r *http.Request) {
 
 	r.Body = http.MaxBytesReader(w, r.Body, maxAvatarBytes+(512<<10))
 	if err := r.ParseMultipartForm(maxAvatarBytes); err != nil {
-		writeError(w, http.StatusRequestEntityTooLarge, "Profile image must be 4 MB or smaller")
+		writeError(w, http.StatusRequestEntityTooLarge, "Profile image must be 10 MB or smaller")
 		return
 	}
 	file, header, err := r.FormFile("avatar")
@@ -59,7 +59,7 @@ func (s *server) uploadUserAvatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if int64(len(content)) > maxAvatarBytes {
-		writeError(w, http.StatusRequestEntityTooLarge, "Profile image must be 4 MB or smaller")
+		writeError(w, http.StatusRequestEntityTooLarge, "Profile image must be 10 MB or smaller")
 		return
 	}
 	if len(content) < 16 {

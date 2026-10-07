@@ -10,7 +10,7 @@ CalDen is a self-hosted family calendar built for normal people, not calendar ad
 
 A calendar has its own color. A person has their own identity. The two never compete with each other.
 
-CalDen is currently in active development. The current development build is **0.1.0-alpha1**.
+CalDen is currently in active development. The current development build is **0.1.0-alpha6**.
 
 ## What CalDen does
 
@@ -67,6 +67,11 @@ The current development build includes:
 - event editing
 - event deletion
 - event notes and locations
+- real 1 Day, 7 Day, 14 Day, and 30 Day calendar views
+- recurring events with single-occurrence changes
+- standard iCalendar import/export
+- Google Calendar multi-calendar ZIP migration
+- profile images for family members
 - personal Android reminder records
 - Monita household reminder records
 - Monita connection settings

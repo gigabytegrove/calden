@@ -41,7 +41,7 @@ func (s *server) exportCalendarICS(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := s.db.Query(r.Context(), `SELECT
 		e.id,e.external_uid,e.title,e.notes,e.location,e.starts_at,e.ends_at,e.all_day,
-		cat.name,er.frequency,er.interval_value,er.weekdays,er.until_at,er.occurrence_count
+		cat.name,er.frequency,er.interval_value,er.weekdays,er.until_at,er.occurrence_count,COALESCE(er.raw_rule,'')
 		FROM events e
 		LEFT JOIN categories cat ON cat.id=e.category_id
 		LEFT JOIN event_recurrence er ON er.event_id=e.id
@@ -66,8 +66,9 @@ func (s *server) exportCalendarICS(w http.ResponseWriter, r *http.Request) {
 		var weekdaysRaw []byte
 		var until *time.Time
 		var count *int
+		var rawRule string
 		if rows.Scan(&id, &externalUID, &title, &notes, &location, &startAt, &endAt, &allDay,
-			&category, &frequency, &interval, &weekdaysRaw, &until, &count) != nil {
+			&category, &frequency, &interval, &weekdaysRaw, &until, &count, &rawRule) != nil {
 			continue
 		}
 		uid := id.String() + "@calden"
@@ -80,7 +81,7 @@ func (s *server) exportCalendarICS(w http.ResponseWriter, r *http.Request) {
 			_ = json.Unmarshal(weekdaysRaw, &weekdays)
 			rule = recurrence.Normalize(&recurrence.Rule{
 				Frequency: *frequency, Interval: *interval, Weekdays: weekdays,
-				Until: until, OccurrenceCount: count,
+				Until: until, OccurrenceCount: count, Raw: rawRule,
 			}, startAt)
 		}
 		base := calical.Event{
@@ -155,6 +156,13 @@ func (s *server) exportCalendarICS(w http.ResponseWriter, r *http.Request) {
 	s.audit(r, "export", "calendar", &calendarID, "Exported calendar "+calendarName, map[string]any{"format": "ics"})
 }
 
+type calendarImportResult struct {
+	Created    int
+	Updated    int
+	Exceptions int
+	Skipped    int
+}
+
 func (s *server) importCalendarICS(w http.ResponseWriter, r *http.Request) {
 	calendarID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
@@ -199,6 +207,31 @@ func (s *server) importCalendarICS(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(r.Context())
 
+	result, err := s.importParsedCalendar(r.Context(), tx, calendarID, parsed, currentActor(r))
+	if err != nil {
+		writeError(w, 500, "Could not import iCalendar file: "+err.Error())
+		return
+	}
+	if err = tx.Commit(r.Context()); err != nil {
+		writeError(w, 500, "Could not finish calendar import")
+		return
+	}
+
+	s.audit(r, "import", "calendar", &calendarID, "Imported iCalendar file "+filepath.Base(header.Filename), map[string]any{
+		"created": result.Created, "updated": result.Updated, "exceptions": result.Exceptions, "skipped": result.Skipped,
+	})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"created": result.Created, "updated": result.Updated, "exceptions": result.Exceptions, "skipped": result.Skipped,
+	})
+}
+
+func (s *server) importParsedCalendar(
+	ctx context.Context,
+	tx pgx.Tx,
+	calendarID uuid.UUID,
+	parsed calical.Calendar,
+	importActor actor,
+) (calendarImportResult, error) {
 	type group struct {
 		parent    *calical.Event
 		overrides []calical.Event
@@ -228,80 +261,79 @@ func (s *server) importCalendarICS(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	created, updated, exceptions, skipped := 0, 0, 0, 0
+	result := calendarImportResult{}
 	for _, uid := range order {
 		g := groups[uid]
 		if g.parent == nil {
-			skipped += len(g.overrides)
+			result.Skipped += len(g.overrides)
 			continue
 		}
 		parent := *g.parent
 		if parent.Cancelled {
-			skipped++
+			result.Skipped++
 			continue
 		}
-		categoryID, err := s.resolveImportCategory(r.Context(), tx, parent.Category, currentActor(r))
+		categoryID, err := s.resolveImportCategory(ctx, tx, parent.Category, importActor)
 		if err != nil {
-			writeError(w, 500, "Could not resolve imported category")
-			return
+			return result, fmt.Errorf("resolve category: %w", err)
 		}
 
 		var eventID uuid.UUID
-		err = tx.QueryRow(r.Context(), `SELECT id FROM events
+		err = tx.QueryRow(ctx, `SELECT id FROM events
 			WHERE calendar_id=$1 AND external_uid=$2 AND recurrence_parent_id IS NULL`, calendarID, uid).Scan(&eventID)
 		exists := err == nil
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			writeError(w, 500, "Could not check existing imported event")
-			return
+			return result, fmt.Errorf("check existing event: %w", err)
 		}
 		if !exists {
-			err = tx.QueryRow(r.Context(), `INSERT INTO events(
+			err = tx.QueryRow(ctx, `INSERT INTO events(
 				calendar_id,category_id,external_uid,title,notes,location,starts_at,ends_at,all_day,created_by
 			) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
 				calendarID, categoryID, uid, cleanText(parent.Summary, 200), cleanText(parent.Description, 5000),
-				cleanText(parent.Location, 500), parent.Start, parent.End, parent.AllDay, currentActor(r).ID).Scan(&eventID)
+				cleanText(parent.Location, 500), parent.Start, parent.End, parent.AllDay, importActor.ID).Scan(&eventID)
 			if err != nil {
-				writeError(w, 500, "Could not create imported event")
-				return
+				return result, fmt.Errorf("create imported event: %w", err)
 			}
-			created++
+			result.Created++
 		} else {
-			if _, err = tx.Exec(r.Context(), `UPDATE events SET category_id=$2,title=$3,notes=$4,location=$5,
+			if _, err = tx.Exec(ctx, `DELETE FROM event_occurrence_exceptions WHERE event_id=$1`, eventID); err != nil {
+				return result, fmt.Errorf("clear imported occurrence exceptions: %w", err)
+			}
+			if _, err = tx.Exec(ctx, `DELETE FROM events WHERE recurrence_parent_id=$1`, eventID); err != nil {
+				return result, fmt.Errorf("clear imported occurrence overrides: %w", err)
+			}
+			if _, err = tx.Exec(ctx, `UPDATE events SET category_id=$2,title=$3,notes=$4,location=$5,
 				starts_at=$6,ends_at=$7,all_day=$8,status='confirmed',updated_at=now()
 				WHERE id=$1`, eventID, categoryID, cleanText(parent.Summary, 200), cleanText(parent.Description, 5000),
 				cleanText(parent.Location, 500), parent.Start, parent.End, parent.AllDay); err != nil {
-				writeError(w, 500, "Could not update imported event")
-				return
+				return result, fmt.Errorf("update imported event: %w", err)
 			}
-			updated++
+			result.Updated++
 		}
 
-		if _, err = tx.Exec(r.Context(), `DELETE FROM event_recurrence WHERE event_id=$1`, eventID); err != nil {
-			writeError(w, 500, "Could not update imported recurrence")
-			return
+		if _, err = tx.Exec(ctx, `DELETE FROM event_recurrence WHERE event_id=$1`, eventID); err != nil {
+			return result, fmt.Errorf("update imported recurrence: %w", err)
 		}
 		if parent.Recurrence != nil {
 			rule := recurrence.Normalize(parent.Recurrence, parent.Start)
 			weekdays, _ := json.Marshal(rule.Weekdays)
-			if _, err = tx.Exec(r.Context(), `INSERT INTO event_recurrence(
-				event_id,frequency,interval_value,weekdays,until_at,occurrence_count
-			) VALUES($1,$2,$3,$4,$5,$6)`,
-				eventID, rule.Frequency, rule.Interval, weekdays, rule.Until, rule.OccurrenceCount); err != nil {
-				writeError(w, 500, "Could not save imported recurrence")
-				return
+			if _, err = tx.Exec(ctx, `INSERT INTO event_recurrence(
+				event_id,frequency,interval_value,weekdays,until_at,occurrence_count,raw_rule
+			) VALUES($1,$2,$3,$4,$5,$6,$7)`,
+				eventID, rule.Frequency, rule.Interval, weekdays, rule.Until, rule.OccurrenceCount, rule.Raw); err != nil {
+				return result, fmt.Errorf("save imported recurrence: %w", err)
 			}
 		}
 
 		for _, ex := range parent.ExDates {
-			if _, err = tx.Exec(r.Context(), `INSERT INTO event_occurrence_exceptions(
+			if _, err = tx.Exec(ctx, `INSERT INTO event_occurrence_exceptions(
 				event_id,original_start,cancelled,replacement_event_id,updated_at
 			) VALUES($1,$2,true,NULL,now())
 			ON CONFLICT(event_id,original_start) DO UPDATE SET cancelled=true,replacement_event_id=NULL,updated_at=now()`,
 				eventID, ex); err != nil {
-				writeError(w, 500, "Could not save imported exception")
-				return
+				return result, fmt.Errorf("save imported exception: %w", err)
 			}
-			exceptions++
+			result.Exceptions++
 		}
 
 		for _, override := range g.overrides {
@@ -309,76 +341,47 @@ func (s *server) importCalendarICS(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			if override.Cancelled {
-				if _, err = tx.Exec(r.Context(), `INSERT INTO event_occurrence_exceptions(
+				if _, err = tx.Exec(ctx, `INSERT INTO event_occurrence_exceptions(
 					event_id,original_start,cancelled,replacement_event_id,updated_at
 				) VALUES($1,$2,true,NULL,now())
 				ON CONFLICT(event_id,original_start) DO UPDATE SET cancelled=true,replacement_event_id=NULL,updated_at=now()`,
 					eventID, *override.RecurrenceID); err != nil {
-					writeError(w, 500, "Could not save cancelled imported occurrence")
-					return
+					return result, fmt.Errorf("save cancelled imported occurrence: %w", err)
 				}
-				exceptions++
+				result.Exceptions++
 				continue
 			}
 
-			overrideCategoryID, err := s.resolveImportCategory(r.Context(), tx, override.Category, currentActor(r))
+			overrideCategoryID, err := s.resolveImportCategory(ctx, tx, override.Category, importActor)
 			if err != nil {
-				writeError(w, 500, "Could not resolve imported occurrence category")
-				return
+				return result, fmt.Errorf("resolve imported occurrence category: %w", err)
 			}
 			if overrideCategoryID == nil {
 				overrideCategoryID = categoryID
 			}
 			var replacementID uuid.UUID
-			err = tx.QueryRow(r.Context(), `SELECT replacement_event_id FROM event_occurrence_exceptions
-				WHERE event_id=$1 AND original_start=$2 AND replacement_event_id IS NOT NULL`,
+			err = tx.QueryRow(ctx, `INSERT INTO events(
+				calendar_id,category_id,title,notes,location,starts_at,ends_at,all_day,created_by,
+				recurrence_parent_id,recurrence_original_start
+			) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+				calendarID, overrideCategoryID, cleanText(override.Summary, 200), cleanText(override.Description, 5000),
+				cleanText(override.Location, 500), override.Start, override.End, override.AllDay, importActor.ID,
 				eventID, *override.RecurrenceID).Scan(&replacementID)
-			if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-				writeError(w, 500, "Could not load imported occurrence override")
-				return
-			}
-			if replacementID == uuid.Nil {
-				err = tx.QueryRow(r.Context(), `INSERT INTO events(
-					calendar_id,category_id,title,notes,location,starts_at,ends_at,all_day,created_by,
-					recurrence_parent_id,recurrence_original_start
-				) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
-					calendarID, overrideCategoryID, cleanText(override.Summary, 200), cleanText(override.Description, 5000),
-					cleanText(override.Location, 500), override.Start, override.End, override.AllDay, currentActor(r).ID,
-					eventID, *override.RecurrenceID).Scan(&replacementID)
-			} else {
-				_, err = tx.Exec(r.Context(), `UPDATE events SET calendar_id=$2,category_id=$3,title=$4,notes=$5,location=$6,
-					starts_at=$7,ends_at=$8,all_day=$9,status='confirmed',updated_at=now() WHERE id=$1`,
-					replacementID, calendarID, overrideCategoryID, cleanText(override.Summary, 200),
-					cleanText(override.Description, 5000), cleanText(override.Location, 500),
-					override.Start, override.End, override.AllDay)
-			}
 			if err != nil {
-				writeError(w, 500, "Could not save imported occurrence override")
-				return
+				return result, fmt.Errorf("save imported occurrence override: %w", err)
 			}
-			if _, err = tx.Exec(r.Context(), `INSERT INTO event_occurrence_exceptions(
+			if _, err = tx.Exec(ctx, `INSERT INTO event_occurrence_exceptions(
 				event_id,original_start,cancelled,replacement_event_id,updated_at
 			) VALUES($1,$2,false,$3,now())
 			ON CONFLICT(event_id,original_start) DO UPDATE
 			SET cancelled=false,replacement_event_id=$3,updated_at=now()`,
 				eventID, *override.RecurrenceID, replacementID); err != nil {
-				writeError(w, 500, "Could not link imported occurrence override")
-				return
+				return result, fmt.Errorf("link imported occurrence override: %w", err)
 			}
-			exceptions++
+			result.Exceptions++
 		}
 	}
-
-	if err = tx.Commit(r.Context()); err != nil {
-		writeError(w, 500, "Could not finish calendar import")
-		return
-	}
-	s.audit(r, "import", "calendar", &calendarID, "Imported iCalendar file "+filepath.Base(header.Filename), map[string]any{
-		"created": created, "updated": updated, "exceptions": exceptions, "skipped": skipped,
-	})
-	writeJSON(w, http.StatusOK, map[string]any{
-		"created": created, "updated": updated, "exceptions": exceptions, "skipped": skipped,
-	})
+	return result, nil
 }
 
 func (s *server) canViewCalendar(r *http.Request, calendarID uuid.UUID) bool {

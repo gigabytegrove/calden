@@ -125,6 +125,9 @@ func formatDateTime(value time.Time) string {
 }
 
 func formatRule(rule recurrence.Rule) string {
+	if raw := strings.TrimSpace(strings.TrimPrefix(rule.Raw, "RRULE:")); raw != "" {
+		return raw
+	}
 	freq := strings.ToUpper(rule.Frequency)
 	parts := []string{"FREQ=" + freq}
 	if rule.Interval > 1 {
@@ -318,7 +321,7 @@ func parseTimeValue(value string, params map[string]string, defaultLoc *time.Loc
 }
 
 func parseRule(value string, start time.Time, loc *time.Location) (*recurrence.Rule, error) {
-	rule := &recurrence.Rule{Interval: 1}
+	rule := &recurrence.Rule{Interval: 1, Raw: strings.TrimSpace(value)}
 	for _, part := range strings.Split(value, ";") {
 		key, val, ok := strings.Cut(part, "=")
 		if !ok {

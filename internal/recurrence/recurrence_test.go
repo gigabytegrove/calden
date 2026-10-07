@@ -85,3 +85,18 @@ func TestUntilStopsSeries(t *testing.T) {
 		t.Fatalf("expected 3 occurrences through inclusive end date, got %d", len(got))
 	}
 }
+
+func TestRFC5545FirstMondayRule(t *testing.T) {
+	start := mustTime(t, "2026-10-05T09:00:00Z")
+	end := start.Add(time.Hour)
+	rule := &Rule{Raw: "FREQ=MONTHLY;COUNT=4;BYDAY=1MO"}
+	got := Expand(start, end, rule, start.Add(-time.Minute), start.AddDate(0, 5, 0), 100)
+	if len(got) != 4 {
+		t.Fatalf("expected 4 first-Monday occurrences, got %d: %#v", len(got), got)
+	}
+	for _, occurrence := range got {
+		if occurrence.Start.Weekday() != time.Monday || occurrence.Start.Day() > 7 {
+			t.Fatalf("expected first Monday, got %v", occurrence.Start)
+		}
+	}
+}

@@ -86,6 +86,7 @@ func New(cfg Config) http.Handler {
 	mux.Handle("GET /api/integrations/monita", s.auth(s.admin(http.HandlerFunc(s.getMonitaIntegration))))
 	mux.Handle("PUT /api/integrations/monita", s.auth(s.admin(http.HandlerFunc(s.saveMonitaIntegration))))
 	mux.Handle("POST /api/integrations/monita/test", s.auth(s.admin(http.HandlerFunc(s.testMonitaIntegration))))
+	mux.Handle("POST /api/integrations/google/import", s.auth(s.admin(http.HandlerFunc(s.importGoogleCalendarExport))))
 	mux.Handle("GET /api/system/update", s.auth(s.admin(http.HandlerFunc(s.updateCheck))))
 	mux.Handle("GET /api/system/update/status", s.auth(s.admin(http.HandlerFunc(s.updateStatus))))
 	mux.Handle("GET /api/system/update/preferences", s.auth(s.admin(http.HandlerFunc(s.updatePreferences))))
@@ -109,7 +110,7 @@ func securityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "no-referrer")
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data: https:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data: blob: https:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'")
 		next.ServeHTTP(w, r)
 	})
 }
