@@ -1152,6 +1152,11 @@ $$("[data-page]").forEach(b=>b.addEventListener("click",()=>navigate(b.dataset.p
 $("#mobile-menu").addEventListener("click",()=>$("#sidebar").classList.toggle("open"));
 $("#new-event").addEventListener("click",()=>openEvent());
 $("#nav-add").addEventListener("click",()=>openEvent());
+$("#add-bill")?.addEventListener("click",openBillEvent);
+$("#bill-prev")?.addEventListener("click",async()=>{state.billMonth=new Date(state.billMonth.getFullYear(),state.billMonth.getMonth()-1,1);await loadBillMonth()});
+$("#bill-next")?.addEventListener("click",async()=>{state.billMonth=new Date(state.billMonth.getFullYear(),state.billMonth.getMonth()+1,1);await loadBillMonth()});
+$("#bill-current")?.addEventListener("click",async()=>{const now=new Date();state.billMonth=new Date(now.getFullYear(),now.getMonth(),1);await loadBillMonth()});
+$("#event-form").calendar_id.addEventListener("change",updateBillEventUI);
 $("#calendar-strip").addEventListener("click",e=>{
   const b=e.target.closest("[data-calendar-id]");if(!b)return;
   const id=b.dataset.calendarId;if(state.hiddenCalendars.has(id))state.hiddenCalendars.delete(id);else state.hiddenCalendars.add(id);
@@ -1207,7 +1212,8 @@ $("#delete-event").addEventListener("click",async()=>{
     }
     if($("#event-dialog").open)$("#event-dialog").close();
     state.editingEvent=null;state.editingScope="series";state.preserveRawRecurrence=false;
-    await loadEvents();renderCalendar();renderAgenda();
+    await loadEvents();renderCalendar();renderAgenda();renderNotifications();
+    if(state.currentPage==="bills")await loadBillMonth();else renderBills();
   }catch(err){
     if(!$("#event-dialog").open)$("#event-dialog").showModal();
     $("#event-error").textContent=err.message;
