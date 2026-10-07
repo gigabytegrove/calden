@@ -669,7 +669,7 @@ function decorateNavigation(){
     activity:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5l3 2m6-3a9 9 0 1 1-3-6.7M18 2v4h4"/></svg>',
     settings:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm7-3.5 2-1-2-3-2 .5-1.5-1L15 5h-6l-.5 2.5-1.5 1L5 8l-2 3 2 1v2l-2 1 2 3 2-.5 1.5 1L9 21h6l.5-2.5 1.5-1 2 .5 2-3-2-1v-2Z"/></svg>'
   };
-  $(".primary-nav .nav-item").forEach(button=>{
+  document.querySelectorAll(".primary-nav .nav-item").forEach(button=>{
     if(button.querySelector(".nav-icon"))return;
     const icon=icons[button.dataset.page];
     if(!icon)return;
