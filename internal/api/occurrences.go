@@ -104,6 +104,10 @@ func (s *server) updateOccurrence(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if err = s.saveBillDetails(r.Context(), tx, replacementID, in.Event.CalendarID, in.Event); err != nil {
+		writeError(w, 400, "Could not save bill details")
+		return
+	}
 
 	if _, err = tx.Exec(r.Context(), `DELETE FROM reminders WHERE event_id=$1`, replacementID); err != nil {
 		writeError(w, 500, "Could not update occurrence reminders")

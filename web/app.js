@@ -22,7 +22,9 @@ const state={
   defaultDuration:[30,60,90,120].includes(savedDefaultDuration)?savedDefaultDuration:60,
   scrollNow:savedScrollNow,
   settingsTab:"general",
-  googleImportFile:null,
+  billMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1),
+  billEvents:[],
+  googleImportFile:null,googleImportPreview:null,
   updateInfo:null,updatePoll:null
 };
 
@@ -95,6 +97,13 @@ function previewAvatarFile(input,preview,status){
 }
 function formatDate(d,opts={month:"short",day:"numeric"}){return new Intl.DateTimeFormat(undefined,opts).format(d)}
 function formatTime(d){return new Intl.DateTimeFormat(undefined,{hour:"numeric",minute:"2-digit"}).format(d)}
+function money(value){return new Intl.NumberFormat(undefined,{style:"currency",currency:"USD"}).format(Number(value)||0)}
+function billCalendar(id){return state.calendars.find(cal=>cal.id===id&&cal.calendar_type==="bill_pay")}
+function isBillCalendar(id){return !!billCalendar(id)}
+function billAmountLabel(event){
+  if(event?.bill_amount===null||event?.bill_amount===undefined)return "";
+  return `${event.bill_amount_is_estimate?"~":""}${money(event.bill_amount)}`;
+}
 function clamp(n,min,max){return Math.min(max,Math.max(min,n))}
 function eventKey(e){return `${e.id}|${e.occurrence_start||e.starts_at}`}
 function findEventByKey(key){return state.events.find(e=>eventKey(e)===key)}
@@ -163,7 +172,9 @@ function renderApp(){
   setAvatarPreview($("#settings-avatar-preview"),state.me);
   $("#remove-settings-avatar")?.classList.toggle("hidden",!state.me.avatar_url);
   renderEventControls();
+  renderBillNavigation();
   renderCalendar();
+  renderBills();
   renderAgenda();
   renderPeople();
   renderCalendars();
@@ -178,12 +189,13 @@ function navigate(page,load=true){
   state.currentPage=page;
   $$(".app-page").forEach(el=>el.classList.toggle("hidden",el.id!==`page-${page}`));
   $$("[data-page]").forEach(el=>el.classList.toggle("active",el.dataset.page===page));
-  const titles={calendar:"Calendar",agenda:"Agenda",people:"People",calendars:"Calendars",categories:"Categories",notifications:"Notifications",integrations:"Integrations",updates:"Updates",backups:"Backups & Restore",activity:"Activity",settings:"Settings"};
+  const titles={calendar:"Calendar",bills:"Bill Pay",agenda:"Agenda",people:"People",calendars:"Calendars",categories:"Categories",notifications:"Notifications",integrations:"Integrations",updates:"Updates",backups:"Backups & Restore",activity:"Activity",settings:"Settings"};
   $("#page-title").textContent=titles[page]||"CalDen";
   $("#new-event").classList.toggle("hidden",!["calendar","agenda"].includes(page));
   $("#sidebar").classList.remove("open");
   if(!load)return;
   if(page==="notifications")renderNotifications();
+  if(page==="bills")loadBillMonth();
   if(page==="integrations"){loadMonita();setGoogleImportFile(state.googleImportFile);}
   if(page==="updates")loadUpdater();
   if(page==="backups")loadBackups();
@@ -194,7 +206,14 @@ function renderEventControls(){
   const editable=state.calendars.filter(c=>c.can_edit);
   $("#calendar-select").innerHTML='<option value="">Choose a calendar</option>'+editable.map(c=>`<option value="${c.id}">${escapeHTML(c.name)}</option>`).join("");
   $("#category-select").innerHTML='<option value="">No category</option>'+state.categories.map(cat=>`<option value="${cat.id}">${escapeHTML(cat.name)}</option>`).join("");
-  $("#people-picker").innerHTML=state.users.filter(u=>u.active!==false).map(personChoice).join("");
+  const activeUsers=state.users.filter(u=>u.active!==false);
+  $("#people-picker").innerHTML=activeUsers.map(personChoice).join("");
+  const billPayer=$("#bill-payer-select");
+  if(billPayer){
+    const selected=billPayer.value;
+    billPayer.innerHTML='<option value="">Not assigned</option>'+activeUsers.map(u=>`<option value="${u.id}">${escapeHTML(u.display_name)}</option>`).join("");
+    if(activeUsers.some(u=>u.id===selected))billPayer.value=selected;
+  }
 
   const categoryFilter=$("#calendar-category-filter");
   if(categoryFilter){
@@ -249,6 +268,104 @@ function renderCalendarFilters(){
   if(person)person.value=state.filters.person;
   if(search&&search.value!==state.filters.query)search.value=state.filters.query;
   $("#clear-calendar-filters")?.classList.toggle("hidden",!state.filters.category&&!state.filters.person&&!state.filters.query);
+}
+
+function renderBillNavigation(){
+  const visible=state.calendars.some(cal=>cal.calendar_type==="bill_pay");
+  document.querySelectorAll(".bill-nav").forEach(el=>el.classList.toggle("hidden",!visible));
+  if(!visible&&state.currentPage==="bills")navigate("calendar",false);
+}
+
+async function loadBillMonth(){
+  const start=new Date(state.billMonth.getFullYear(),state.billMonth.getMonth(),1);
+  const end=new Date(state.billMonth.getFullYear(),state.billMonth.getMonth()+1,1);
+  try{
+    const events=await api(`/api/events?from=${encodeURIComponent(start.toISOString())}&to=${encodeURIComponent(end.toISOString())}`);
+    state.billEvents=events.filter(event=>isBillCalendar(event.calendar_id));
+    renderBills();
+  }catch(err){
+    const host=$("#bill-list");
+    if(host)host.innerHTML=`<div class="empty-state"><strong>Could not load bills</strong><span>${escapeHTML(err.message)}</span></div>`;
+  }
+}
+
+function billGroupRows(events,keyFn,labelFn){
+  const groups=new Map();
+  events.forEach(event=>{
+    const key=keyFn(event),label=labelFn(event);
+    if(!groups.has(key))groups.set(key,{label,total:0,known:0,estimated:0,count:0,unpriced:0});
+    const group=groups.get(key);group.count++;
+    if(event.bill_amount===null||event.bill_amount===undefined){group.unpriced++;return}
+    const amount=Number(event.bill_amount)||0;group.total+=amount;
+    if(event.bill_amount_is_estimate)group.estimated+=amount;else group.known+=amount;
+  });
+  return [...groups.values()].sort((a,b)=>b.total-a.total||a.label.localeCompare(b.label));
+}
+
+function billBreakdownMarkup(rows){
+  if(!rows.length)return '<div class="bill-empty-small">No bills in this month.</div>';
+  return rows.map(row=>`<div class="bill-breakdown-row">
+    <div><strong>${escapeHTML(row.label)}</strong><small>${row.count} bill${row.count===1?"":"s"}${row.unpriced?" · "+row.unpriced+" without amount":""}</small></div>
+    <div><strong>${money(row.total)}</strong>${row.estimated?`<small>${money(row.estimated)} estimated</small>`:""}</div>
+  </div>`).join("");
+}
+
+function renderBills(){
+  const host=$("#bill-list"),summary=$("#bill-summary");
+  if(!host||!summary)return;
+  const billCalendars=state.calendars.filter(cal=>cal.calendar_type==="bill_pay");
+  renderBillNavigation();
+  if(!billCalendars.length){
+    $("#bill-month-label").textContent="";
+    summary.innerHTML="";
+    $("#bill-by-person").innerHTML='<div class="bill-empty-small">No bill pay calendars are visible to you.</div>';
+    $("#bill-by-calendar").innerHTML='<div class="bill-empty-small">No bill pay calendars are visible to you.</div>';
+    host.innerHTML='<div class="empty-state"><strong>No Bill Pay calendar</strong><span>An administrator can create a Bill Pay calendar and give you access.</span></div>';
+    $("#bill-count").textContent="";
+    return;
+  }
+
+  const start=new Date(state.billMonth.getFullYear(),state.billMonth.getMonth(),1);
+  $("#bill-month-label").textContent=formatDate(start,{month:"long",year:"numeric"});
+  const fallback=state.events.filter(event=>{
+    const d=new Date(event.starts_at);
+    return isBillCalendar(event.calendar_id)&&d.getFullYear()===start.getFullYear()&&d.getMonth()===start.getMonth();
+  });
+  const events=(state.currentPage==="bills"?state.billEvents:fallback).slice().sort((a,b)=>new Date(a.starts_at)-new Date(b.starts_at));
+
+  let known=0,estimated=0,unpriced=0;
+  events.forEach(event=>{
+    if(event.bill_amount===null||event.bill_amount===undefined){unpriced++;return}
+    if(event.bill_amount_is_estimate)estimated+=Number(event.bill_amount)||0;
+    else known+=Number(event.bill_amount)||0;
+  });
+  const total=known+estimated;
+  summary.innerHTML=`
+    <article class="bill-stat"><span>Expected this month</span><strong>${money(total)}</strong><small>known + estimated bills</small></article>
+    <article class="bill-stat"><span>Known amounts</span><strong>${money(known)}</strong><small>fixed or confirmed amounts</small></article>
+    <article class="bill-stat"><span>Estimated</span><strong>${money(estimated)}</strong><small>variable bills marked as estimates</small></article>
+    <article class="bill-stat"><span>Due</span><strong>${events.length}</strong><small>${unpriced?unpriced+" without an amount":"all amounts entered"}</small></article>`;
+
+  const byPerson=billGroupRows(events,event=>event.bill_payer?.id||"__unassigned__",event=>event.bill_payer?.display_name||"Unassigned");
+  const byCalendar=billGroupRows(events,event=>event.calendar_id,event=>event.calendar_name||"Bill calendar");
+  $("#bill-by-person").innerHTML=billBreakdownMarkup(byPerson);
+  $("#bill-by-calendar").innerHTML=billBreakdownMarkup(byCalendar);
+  $("#bill-count").textContent=events.length+" bill"+(events.length===1?"":"s");
+
+  host.innerHTML=events.length?events.map(event=>{
+    const due=new Date(event.starts_at),amount=billAmountLabel(event);
+    const payer=event.bill_payer?.display_name||"Not assigned";
+    return `<button type="button" class="bill-row" data-event-key="${escapeAttr(eventKey(event))}">
+      <span class="bill-due"><strong>${formatDate(due,{month:"short",day:"numeric"})}</strong><small>${event.all_day?"Due date":formatTime(due)}</small></span>
+      <span class="bill-row-main"><strong>${escapeHTML(event.title)}</strong><small>${escapeHTML(event.calendar_name||"Bills")} · ${escapeHTML(payer)}</small></span>
+      <span class="bill-row-amount ${event.bill_amount_is_estimate?"estimated":""}"><strong>${amount?escapeHTML(amount):"Amount not set"}</strong><small>${event.bill_amount_is_estimate?"Estimated":"Amount due"}</small></span>
+    </button>`;
+  }).join(""):'<div class="empty-state"><strong>Nothing due this month</strong><span>Add a bill or move to another month.</span></div>';
+  host.querySelectorAll("[data-event-key]").forEach(button=>button.addEventListener("click",()=>{
+    const key=button.dataset.eventKey;
+    const event=events.find(item=>eventKey(item)===key);
+    if(event)requestEventEdit(event);
+  }));
 }
 
 function renderCalendar(){
@@ -326,7 +443,7 @@ function renderTimeline(days){
       const left=item.column/item.columns*100,width=100/item.columns;
       const e=item.event;
       return `<button class="timed-event" data-event-key="${escapeAttr(eventKey(e))}" style="--cal:${safeColor(e.calendar_color||e.color)};--top:${top}%;--height:${height}%;--left:${left}%;--width:${width}%">
-        <strong>${escapeHTML(e.title)}</strong><span>${formatTime(new Date(e.starts_at))}${e.category_name?" · "+escapeHTML(e.category_name):""}</span>${avatarMini(e)}
+        <strong>${escapeHTML(e.title)}</strong><span>${formatTime(new Date(e.starts_at))}${billAmountLabel(e)?" · "+escapeHTML(billAmountLabel(e)):""}${e.bill_payer?.display_name?" · "+escapeHTML(e.bill_payer.display_name):""}${e.category_name?" · "+escapeHTML(e.category_name):""}</span>${avatarMini(e)}
       </button>`;
     }).join("");
     const now=new Date(),nowMinutes=now.getHours()*60+now.getMinutes();
@@ -358,7 +475,7 @@ function renderDayGrid(days){
 
 function calendarEventBlock(e,compact=false){
   const time=e.all_day?"All day":formatTime(new Date(e.starts_at));
-  const meta=[time,e.category_name].filter(Boolean).join(" · ");
+  const meta=[time,billAmountLabel(e),e.bill_payer?.display_name,e.category_name].filter(Boolean).join(" · ");
   return `<button class="calendar-event ${compact?"compact":""}" data-event-key="${escapeAttr(eventKey(e))}" style="--cal:${safeColor(e.calendar_color||e.color)}">
     <span class="event-color"></span><span class="calendar-event-copy"><strong>${e.is_recurring?'<span class="repeat-mark" title="Repeating event">↻</span> ':""}${escapeHTML(e.title)}</strong><small>${escapeHTML(meta)}</small></span>${avatarMini(e)}
   </button>`;
@@ -415,7 +532,7 @@ function eventCard(e){
   const start=new Date(e.starts_at),end=new Date(e.ends_at);
   return `<button class="agenda-event" data-event-key="${escapeAttr(eventKey(e))}" style="--cal:${safeColor(e.calendar_color||e.color)}">
     <span class="agenda-color"></span><span class="agenda-date"><strong>${formatDate(start,{month:"short",day:"numeric"})}</strong><small>${e.all_day?"All day":formatTime(start)}</small></span>
-    <span class="agenda-main"><strong>${e.is_recurring?'<span class="repeat-mark" title="Repeating event">↻</span> ':""}${escapeHTML(e.title)}</strong><small>${escapeHTML(e.calendar_name)}${e.location?" · "+escapeHTML(e.location):""}${e.all_day?"":` · ends ${escapeHTML(formatTime(end))}`}</small></span>
+    <span class="agenda-main"><strong>${e.is_recurring?'<span class="repeat-mark" title="Repeating event">↻</span> ':""}${escapeHTML(e.title)}${billAmountLabel(e)?` · ${escapeHTML(billAmountLabel(e))}`:""}</strong><small>${escapeHTML(e.calendar_name)}${e.bill_payer?.display_name?" · payer "+escapeHTML(e.bill_payer.display_name):""}${e.location?" · "+escapeHTML(e.location):""}${e.all_day?"":` · ends ${escapeHTML(formatTime(end))}`}</small></span>
     ${avatarMini(e)}
   </button>`;
 }
@@ -510,7 +627,7 @@ function renderCalendars(){
   if(state.me.role!=="admin")return;
   $("#calendar-list").innerHTML=state.calendars.map(c=>`<article class="management-card">
     <span class="calendar-swatch" style="--cal:${safeColor(c.color)}"></span>
-    <div class="management-copy"><strong>${escapeHTML(c.name)}</strong><span>${escapeHTML(c.description||"No description")}</span><small>${c.can_edit?"Editable":"View only"}</small></div>
+    <div class="management-copy"><strong>${escapeHTML(c.name)}</strong><span>${escapeHTML(c.description||"No description")}</span><small>${c.calendar_type==="bill_pay"?"Bill Pay · ":""}${c.can_edit?"Editable":"View only"}</small></div>
     <button class="button secondary compact edit-calendar" type="button" data-calendar-id="${c.id}">Edit</button>
   </article>`).join("")||'<div class="empty-state"><strong>No calendars</strong><span>Create your first calendar.</span></div>';
   $("#calendar-list").querySelectorAll(".edit-calendar").forEach(b=>b.addEventListener("click",()=>beginCalendarEdit(b.dataset.calendarId)));
@@ -523,7 +640,7 @@ function renderCalendarPermissionChecks(){
   $("#calendar-viewers").innerHTML=checks;$("#calendar-editors").innerHTML=checks;
 }
 function resetCalendarForm(){
-  const form=$("#calendar-form");form.reset();form.color.value="#2f6fed";form.calendar_id.value="";state.editingCalendar=null;
+  const form=$("#calendar-form");form.reset();form.color.value="#2f6fed";form.calendar_type.value="standard";form.calendar_id.value="";state.editingCalendar=null;
   $("#calendar-form-eyebrow").textContent="New calendar";$("#calendar-form-title").textContent="Create a calendar";
   $("#delete-calendar").classList.add("hidden");$("#cancel-calendar-edit").classList.add("hidden");
   $("#calendar-interop").classList.add("hidden");$("#calendar-interop-status").textContent="";$("#import-calendar-file").value="";
@@ -534,7 +651,7 @@ function resetCalendarForm(){
 async function beginCalendarEdit(id){
   const cal=state.calendars.find(c=>c.id===id);if(!cal)return;
   state.editingCalendar=cal;const form=$("#calendar-form");
-  form.calendar_id.value=cal.id;form.name.value=cal.name;form.color.value=cal.color;form.description.value=cal.description||"";
+  form.calendar_id.value=cal.id;form.name.value=cal.name;form.calendar_type.value=cal.calendar_type||"standard";form.color.value=cal.color;form.description.value=cal.description||"";
   $("#calendar-form-eyebrow").textContent="Edit calendar";$("#calendar-form-title").textContent=cal.name;
   $("#delete-calendar").classList.remove("hidden");$("#cancel-calendar-edit").classList.remove("hidden");
   $("#calendar-interop").classList.remove("hidden");$("#calendar-interop-status").textContent="";$("#import-calendar-file").value="";
@@ -716,6 +833,22 @@ function collectReminders(){
   return reminders;
 }
 
+function updateBillEventUI(){
+  const form=$("#event-form"),bill=isBillCalendar(form.calendar_id.value);
+  $("#bill-event-details")?.classList.toggle("hidden",!bill);
+  if(!bill){
+    form.bill_amount.value="";
+    form.bill_amount_is_estimate.checked=false;
+    form.bill_payer_user_id.value="";
+  }
+}
+function openBillEvent(){
+  const cal=state.calendars.find(item=>item.calendar_type==="bill_pay"&&item.can_edit);
+  if(!cal){alert("You do not have a Bill Pay calendar you can edit.");return}
+  openEvent();
+  const form=$("#event-form");form.calendar_id.value=cal.id;updateBillEventUI();
+}
+
 function openEvent(existing=null,dateHint=null,scope="series"){
   if(!state.calendars.some(c=>c.can_edit)){
     if(state.me.role==="admin"){navigate("calendars");return}
@@ -746,6 +879,12 @@ function openEvent(existing=null,dateHint=null,scope="series"){
     form.starts_at.value=localInput(new Date(occurrenceScope?existing.starts_at:(existing.series_starts_at||existing.starts_at)));
     form.ends_at.value=localInput(new Date(occurrenceScope?existing.ends_at:(existing.series_ends_at||existing.ends_at)));
     form.all_day.checked=!!sourceAllDay;form.location.value=sourceLocation||"";form.notes.value=sourceNotes||"";
+    const sourceBillAmount=occurrenceScope?existing.bill_amount:seriesValue(existing,"bill_amount",existing.bill_amount);
+    const sourceBillEstimate=occurrenceScope?existing.bill_amount_is_estimate:seriesValue(existing,"bill_amount_is_estimate",existing.bill_amount_is_estimate);
+    const sourceBillPayer=occurrenceScope?existing.bill_payer:seriesValue(existing,"bill_payer",existing.bill_payer);
+    form.bill_amount.value=sourceBillAmount===null||sourceBillAmount===undefined?"":String(sourceBillAmount);
+    form.bill_amount_is_estimate.checked=!!sourceBillEstimate;
+    form.bill_payer_user_id.value=sourceBillPayer?.id||"";
     const recurrence=occurrenceScope?null:(existing.recurrence||null);
     state.preserveRawRecurrence=!!recurrence?.raw;
     $("#advanced-recurrence-note")?.classList.toggle("hidden",!state.preserveRawRecurrence);
@@ -774,9 +913,11 @@ function openEvent(existing=null,dateHint=null,scope="series"){
     const preferred=editable.find(cal=>cal.id===state.defaultCalendar)||editable[0];
     if(preferred)form.calendar_id.value=preferred.id;
     form.repeat_frequency.value="";form.repeat_interval.value="1";form.repeat_end_type.value="never";form.repeat_count.value="10";
+    form.bill_amount.value="";form.bill_amount_is_estimate.checked=false;form.bill_payer_user_id.value="";
     [...form.querySelectorAll('input[name="repeat_weekday"]')].forEach(i=>i.checked=false);
     renderReminderEditor([]);
   }
+  updateBillEventUI();
   updateRepeatUI();
   $("#event-error").textContent="";$("#event-dialog").showModal();
 }
@@ -891,37 +1032,89 @@ async function loadMonita(){
 
 function setGoogleImportFile(file){
   state.googleImportFile=file||null;
-  const summary=$("#google-import-file-summary"),button=$("#import-google-calendar"),status=$("#google-import-status");
-  if(!summary||!button)return;
+  state.googleImportPreview=null;
+  const summary=$("#google-import-file-summary"),review=$("#review-google-calendar"),importButton=$("#import-google-calendar"),status=$("#google-import-status");
+  const mapping=$("#google-import-mapping"),results=$("#google-import-results");
+  if(mapping){mapping.classList.add("hidden");mapping.innerHTML=""}
+  if(results){results.classList.add("hidden");results.innerHTML=""}
+  if(importButton){importButton.classList.add("hidden");importButton.disabled=true}
+  if(!summary||!review)return;
   if(!file){
-    summary.classList.add("hidden");summary.innerHTML="";button.disabled=true;
+    summary.classList.add("hidden");summary.innerHTML="";review.disabled=true;
+    if(status)status.textContent="";
     return;
   }
   const valid=/\.(zip|ics)$/i.test(file.name||"");
   summary.classList.remove("hidden");
   summary.innerHTML=`<div><strong>${escapeHTML(file.name||"Google Calendar export")}</strong><span>${humanSize(file.size||0)}</span></div><button id="clear-google-import-file" class="text-button" type="button">Clear</button>`;
-  button.disabled=!valid;
+  review.disabled=!valid;
   if(!valid)status.textContent="Choose the .zip file exported by Google Calendar, or an .ics file.";
-  else if(status.textContent.startsWith("Choose the"))status.textContent="";
+  else status.textContent="Review the export before importing. Nothing will be created yet.";
   $("#clear-google-import-file")?.addEventListener("click",()=>{
     const input=$("#google-calendar-export");if(input)input.value="";
-    setGoogleImportFile(null);$("#google-import-results")?.classList.add("hidden");
+    setGoogleImportFile(null);
   });
+}
+
+function googleMappingOptions(item){
+  const suggested=item.suggested_calendar_id||"";
+  const options=[
+    `<option value="__skip__" ${!suggested?"selected":""}>Skip this Google calendar</option>`,
+    `<option value="__create__">Create a new CalDen calendar</option>`
+  ];
+  state.calendars.forEach(cal=>{
+    const selected=cal.id===suggested?"selected":"";
+    const type=cal.calendar_type==="bill_pay"?" · Bill Pay":"";
+    options.push(`<option value="${cal.id}" ${selected}>${escapeHTML(cal.name)}${type}</option>`);
+  });
+  return options.join("");
+}
+
+function renderGoogleImportMapping(body){
+  const host=$("#google-import-mapping"),button=$("#import-google-calendar");
+  const items=body?.calendars||[];
+  state.googleImportPreview=items;
+  host.classList.remove("hidden");
+  if(!items.length){
+    host.innerHTML='<div class="empty-state"><strong>No calendars found</strong></div>';
+    button.classList.add("hidden");button.disabled=true;return;
+  }
+  host.innerHTML=`<div class="google-mapping-head"><div><strong>Review calendar mapping</strong><span>Nothing is imported until you confirm these choices.</span></div><span>${items.length} Google calendar${items.length===1?"":"s"}</span></div>
+    <div class="google-mapping-list">${items.map((item,index)=>{
+      const prior=item.previous_auto_created?" · previous import created a duplicate calendar":"";
+      return `<article class="google-mapping-row">
+        <div class="google-mapping-source"><strong>${escapeHTML(item.name)}</strong><small>${Number(item.event_count)||0} exported event${Number(item.event_count)===1?"":"s"}${escapeHTML(prior)}</small></div>
+        <label>Import into<select class="google-map-select" data-google-map-index="${index}">${googleMappingOptions(item)}</select></label>
+        <div class="google-match-reason ${item.match_score>=80?"match-good":""}"><strong>${item.match_score>=80?"Suggested match":"Review required"}</strong><span>${escapeHTML(item.match_reason||"Choose where this calendar belongs.")}</span></div>
+      </article>`;
+    }).join("")}</div>`;
+  button.classList.remove("hidden");button.disabled=false;
+}
+
+function collectGoogleMapping(){
+  const mapping={};
+  (state.googleImportPreview||[]).forEach((item,index)=>{
+    const select=$(`[data-google-map-index="${index}"]`);
+    mapping[item.external_id]=select?.value||"__skip__";
+  });
+  return mapping;
 }
 
 function renderGoogleImportResults(body){
   const host=$("#google-import-results");if(!host)return;
-  const calendars=body?.calendars||[];
+  const calendars=body?.calendars||[],warnings=body?.warnings||[];
   host.classList.remove("hidden");
   host.innerHTML=`<div class="google-import-summary">
-    <span>${Number(body?.calendar_count)||calendars.length} calendars</span>
+    <span>${Number(body?.calendar_count)||calendars.length} imported calendars</span>
     <span>${Number(body?.created)||0} new events</span>
     <span>${Number(body?.updated)||0} updated</span>
-    <span>${Number(body?.exceptions)||0} recurrence changes</span>
+    <span>${Number(body?.skipped_calendars)||0} skipped calendars</span>
+    <span>${Number(body?.cleaned_calendars)||0} old duplicates cleaned up</span>
   </div>`+calendars.map(item=>`<article class="google-import-calendar">
     <div><strong>${escapeHTML(item.name||"Imported calendar")}</strong><small>${Number(item.created)||0} new · ${Number(item.updated)||0} updated${item.skipped?" · "+Number(item.skipped)+" skipped":""}</small></div>
-    <span>${item.created_calendar?"Created calendar":"Matched calendar"}</span>
-  </article>`).join("");
+    <span>${item.created_calendar?"Created calendar":"Mapped to existing"}</span>
+  </article>`).join("")+
+  (warnings.length?`<div class="google-import-warnings"><strong>Kept for safety</strong>${warnings.map(warning=>`<span>${escapeHTML(warning)}</span>`).join("")}</div>`:"");
 }
 
 async function loadUpdater(){
@@ -1011,6 +1204,11 @@ $$("[data-page]").forEach(b=>b.addEventListener("click",()=>navigate(b.dataset.p
 $("#mobile-menu").addEventListener("click",()=>$("#sidebar").classList.toggle("open"));
 $("#new-event").addEventListener("click",()=>openEvent());
 $("#nav-add").addEventListener("click",()=>openEvent());
+$("#add-bill")?.addEventListener("click",openBillEvent);
+$("#bill-prev")?.addEventListener("click",async()=>{state.billMonth=new Date(state.billMonth.getFullYear(),state.billMonth.getMonth()-1,1);await loadBillMonth()});
+$("#bill-next")?.addEventListener("click",async()=>{state.billMonth=new Date(state.billMonth.getFullYear(),state.billMonth.getMonth()+1,1);await loadBillMonth()});
+$("#bill-current")?.addEventListener("click",async()=>{const now=new Date();state.billMonth=new Date(now.getFullYear(),now.getMonth(),1);await loadBillMonth()});
+$("#event-form").calendar_id.addEventListener("change",updateBillEventUI);
 $("#calendar-strip").addEventListener("click",e=>{
   const b=e.target.closest("[data-calendar-id]");if(!b)return;
   const id=b.dataset.calendarId;if(state.hiddenCalendars.has(id))state.hiddenCalendars.delete(id);else state.hiddenCalendars.add(id);
@@ -1066,7 +1264,8 @@ $("#delete-event").addEventListener("click",async()=>{
     }
     if($("#event-dialog").open)$("#event-dialog").close();
     state.editingEvent=null;state.editingScope="series";state.preserveRawRecurrence=false;
-    await loadEvents();renderCalendar();renderAgenda();
+    await loadEvents();renderCalendar();renderAgenda();renderNotifications();
+    if(state.currentPage==="bills")await loadBillMonth();else renderBills();
   }catch(err){
     if(!$("#event-dialog").open)$("#event-dialog").showModal();
     $("#event-error").textContent=err.message;
@@ -1075,7 +1274,9 @@ $("#delete-event").addEventListener("click",async()=>{
 $("#event-form").addEventListener("submit",async e=>{
   e.preventDefault();const form=e.currentTarget,fd=new FormData(form);$("#event-error").textContent="";
   const reminders=collectReminders();
-  const payload={title:fd.get("title"),calendar_id:fd.get("calendar_id"),category_id:fd.get("category_id")||null,starts_at:new Date(fd.get("starts_at")).toISOString(),ends_at:new Date(fd.get("ends_at")).toISOString(),all_day:form.all_day.checked,location:fd.get("location"),notes:fd.get("notes"),assignee_ids:fd.getAll("assignee"),reminders,recurrence:recurrencePayload(form)};
+  const billActive=isBillCalendar(fd.get("calendar_id"));
+  const billRaw=String(fd.get("bill_amount")||"").trim();
+  const payload={title:fd.get("title"),calendar_id:fd.get("calendar_id"),category_id:fd.get("category_id")||null,starts_at:new Date(fd.get("starts_at")).toISOString(),ends_at:new Date(fd.get("ends_at")).toISOString(),all_day:form.all_day.checked,location:fd.get("location"),notes:fd.get("notes"),assignee_ids:fd.getAll("assignee"),reminders,recurrence:recurrencePayload(form),bill_amount:billActive&&billRaw!==""?Number(billRaw):null,bill_amount_is_estimate:billActive&&form.bill_amount_is_estimate.checked,bill_payer_user_id:billActive&&form.bill_payer_user_id.value?form.bill_payer_user_id.value:null};
   let target="/api/events",method="POST",body=payload;
   if(state.editingEvent){
     if(state.editingEvent.is_recurring&&state.editingScope==="occurrence"){
@@ -1089,7 +1290,8 @@ $("#event-form").addEventListener("submit",async e=>{
   try{
     await api(target,{method,body:JSON.stringify(body)});
     $("#event-dialog").close();state.editingEvent=null;state.editingScope="series";state.preserveRawRecurrence=false;
-    await loadEvents();renderCalendar();renderAgenda();
+    await loadEvents();renderCalendar();renderAgenda();renderNotifications();
+    if(state.currentPage==="bills")await loadBillMonth();else renderBills();
   }
   catch(err){$("#event-error").textContent=err.message}
 });
@@ -1146,7 +1348,7 @@ $("#calendar-form").addEventListener("submit",async e=>{
   const editors=[...$("#calendar-editors").querySelectorAll("input:checked")].map(i=>i.value);
   editors.forEach(id=>{if(!visible.includes(id))visible.push(id)});
   if(!visible.includes(state.me.id))visible.push(state.me.id);if(!editors.includes(state.me.id))editors.push(state.me.id);
-  const payload={name:fd.get("name"),color:fd.get("color"),icon:"calendar",description:fd.get("description")};
+  const payload={name:fd.get("name"),color:fd.get("color"),icon:fd.get("calendar_type")==="bill_pay"?"receipt":"calendar",description:fd.get("description"),calendar_type:fd.get("calendar_type")||"standard"};
   try{
     if(state.editingCalendar){
       const id=state.editingCalendar.id;
@@ -1157,7 +1359,7 @@ $("#calendar-form").addEventListener("submit",async e=>{
       await api("/api/calendars",{method:"POST",body:JSON.stringify({...payload,visible_to:visible,editable_by:editors})});
       $("#calendar-status").textContent="Calendar created.";
     }
-    state.calendars=await api("/api/calendars");resetCalendarForm();renderCalendars();renderCalendar();renderEventControls();
+    state.calendars=await api("/api/calendars");resetCalendarForm();renderCalendars();renderBillNavigation();renderBills();renderCalendar();renderEventControls();
   }catch(err){$("#calendar-error").textContent=err.message}
 });
 $("#cancel-calendar-edit").addEventListener("click",resetCalendarForm);
@@ -1189,7 +1391,7 @@ $("#import-calendar-ics").addEventListener("click",async()=>{
 
 $("#delete-calendar").addEventListener("click",async()=>{
   if(!state.editingCalendar||!confirm(`Delete "${state.editingCalendar.name}"? The calendar must be empty first.`))return;
-  try{await api("/api/calendars/"+state.editingCalendar.id,{method:"DELETE"});state.calendars=await api("/api/calendars");resetCalendarForm();renderCalendars();renderCalendar();renderEventControls()}
+  try{await api("/api/calendars/"+state.editingCalendar.id,{method:"DELETE"});state.calendars=await api("/api/calendars");resetCalendarForm();renderCalendars();renderBillNavigation();renderBills();renderCalendar();renderEventControls()}
   catch(err){$("#calendar-error").textContent=err.message}
 });
 
@@ -1293,27 +1495,48 @@ googleImportDrop?.addEventListener("drop",e=>{
   e.preventDefault();googleImportDrop.classList.remove("drag-over");
   const file=e.dataTransfer?.files?.[0];if(file)setGoogleImportFile(file);
 });
+$("#review-google-calendar")?.addEventListener("click",async()=>{
+  const file=state.googleImportFile||googleImportInput?.files?.[0];
+  const status=$("#google-import-status"),button=$("#review-google-calendar"),results=$("#google-import-results");
+  if(!file){status.textContent="Choose your Google Calendar export first.";return}
+  button.disabled=true;button.textContent="Reviewing…";status.textContent="Comparing Google calendars with the calendars already in CalDen…";
+  results.classList.add("hidden");results.innerHTML="";
+  try{
+    const form=new FormData();form.append("archive",file,file.name);
+    const res=await fetch("/api/integrations/google/preview",{method:"POST",headers:{Authorization:"Bearer "+state.token},body:form});
+    const body=await res.json().catch(()=>null);
+    if(!res.ok)throw new Error(body?.error||"Could not review Google Calendar export");
+    renderGoogleImportMapping(body);
+    status.textContent=`Found ${body.calendar_count||0} Google calendar${Number(body.calendar_count)===1?"":"s"}. Review each destination below before importing.`;
+  }catch(err){
+    status.textContent=err.message;
+  }finally{
+    button.disabled=false;button.textContent="Review calendars";
+  }
+});
 $("#import-google-calendar")?.addEventListener("click",async()=>{
   const file=state.googleImportFile||googleImportInput?.files?.[0];
   const status=$("#google-import-status"),button=$("#import-google-calendar"),results=$("#google-import-results");
   if(!file){status.textContent="Choose your Google Calendar export first.";return}
-  button.disabled=true;button.textContent="Importing…";status.textContent="Reading calendars and importing events…";
+  if(!state.googleImportPreview?.length){status.textContent="Review the calendars before importing.";return}
+  button.disabled=true;button.textContent="Importing…";status.textContent="Importing the calendar mapping you approved…";
   results.classList.add("hidden");results.innerHTML="";
   try{
     const form=new FormData();
     form.append("archive",file,file.name);
-    form.append("reuse_by_name",String($("#google-import-reuse")?.checked!==false));
+    form.append("calendar_mapping",JSON.stringify(collectGoogleMapping()));
     const res=await fetch("/api/integrations/google/import",{method:"POST",headers:{Authorization:"Bearer "+state.token},body:form});
     const body=await res.json().catch(()=>null);
     if(!res.ok)throw new Error(body?.error||"Google Calendar import failed");
-    status.textContent=`Imported ${body.calendar_count||0} calendars: ${body.created||0} new events, ${body.updated||0} updated${body.skipped?" · "+body.skipped+" skipped":""}.`;
+    const cleanup=Number(body.cleaned_calendars)||0;
+    status.textContent=`Imported ${body.calendar_count||0} calendar${Number(body.calendar_count)===1?"":"s"}: ${body.created||0} new events, ${body.updated||0} updated${cleanup?" · "+cleanup+" old duplicate calendar"+(cleanup===1?"":"s")+" removed":""}.`;
     renderGoogleImportResults(body);
     await reloadSharedData();
-    renderCalendars();renderCategories();renderEventControls();renderCalendar();renderAgenda();renderNotifications();renderSettings();
+    renderCalendars();renderCategories();renderBillNavigation();renderBills();renderEventControls();renderCalendar();renderAgenda();renderNotifications();renderSettings();
   }catch(err){
     status.textContent=err.message;
   }finally{
-    button.disabled=false;button.textContent="Import everything";
+    button.disabled=false;button.textContent="Import selected calendars";
   }
 });
 
