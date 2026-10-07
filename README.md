@@ -10,7 +10,7 @@ CalDen is a self-hosted family calendar built for normal people, not calendar ad
 
 A calendar has its own color. A person has their own identity. The two never compete with each other.
 
-CalDen is currently in active development. The current development build is **0.1.0-alpha10.1**.
+CalDen is currently in active development. The current development build is **0.1.0-alpha11**.
 
 ## What CalDen does
 
@@ -46,7 +46,7 @@ The assigned person's icon or initials appear with the event.
 
 Personal reminders can stay on the person's phone. Household reminders can be sent through Monita.
 
-For example, a green **Bills** calendar can contain an Internet Bill assigned to Brad and an Electric Bill assigned to Jen. Both events stay green because they belong to Bills, while the person icon shows who is responsible for each one. When a bill is paid, CalDen records that specific occurrence as paid and records who actually paid it, even when that person is different from the assigned payer.
+For example, a green **Bills** calendar can contain an Internet Bill assigned to Brad and an Electric Bill assigned to Jen. Both events stay green because they belong to Bills, while the person icon shows who is responsible for each one. Bill activity is tracked per occurrence: a month can have no balance, one payment, or several split/partial payments, each with its actual payer, payment date, and optional cleared date.
 
 ## Current features
 
@@ -59,7 +59,7 @@ The current development build includes:
 - multiple user accounts
 - administrator, family member, and restricted member account types
 - multiple calendars
-- Bill Pay calendars with amount, estimate, assigned payer, per-month paid status, actual payer, actual amount paid, and household breakdowns
+- Bill Pay calendars with expected amount, assigned payer, no-balance months, partial/split payments, actual payer, payment date, optional cleared date, and household breakdowns
 - calendar colors
 - calendar visibility controls
 - calendar editing permissions
@@ -75,7 +75,7 @@ The current development build includes:
 - real 1 Day, 7 Day, 14 Day, and 30 Day calendar views
 - recurring events with single-occurrence changes
 - standard iCalendar import/export
-- Google Calendar ZIP migration with preview, explicit calendar mapping, safe duplicate-calendar cleanup, and revision-aware duplicate-event suppression/repair
+- Google Calendar ZIP migration with preview and explicit mapping, plus an in-place repair tool for duplicate Google-imported event rows already stored in CalDen
 - profile images for family members
 - personal Android reminder records
 - Monita household reminder records
@@ -414,7 +414,7 @@ The current version is intended for active testing and development. Database mig
 Current version:
 
 ```text
-0.1.0-alpha10.1
+0.1.0-alpha11
 ```
 
 ## Project layout
