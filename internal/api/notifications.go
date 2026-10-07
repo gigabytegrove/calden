@@ -89,7 +89,6 @@ func (s *server) listNotifications(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	items := []map[string]any{}
-	unread := 0
 	for rows.Next() {
 		var id uuid.UUID
 		var eventID *uuid.UUID
@@ -106,9 +105,6 @@ func (s *server) listNotifications(w http.ResponseWriter, r *http.Request) {
 		); err != nil {
 			continue
 		}
-		if readAt == nil {
-			unread++
-		}
 		items = append(items, map[string]any{
 			"id": id, "event_id": eventID, "kind": kind, "title": title, "message": message,
 			"read_at": readAt, "created_at": createdAt,
@@ -118,6 +114,11 @@ func (s *server) listNotifications(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := rows.Err(); err != nil {
 		writeError(w, 500, "Could not finish loading notifications")
+		return
+	}
+	var unread int
+	if err := s.db.QueryRow(r.Context(), `SELECT count(*) FROM notifications WHERE user_id=$1 AND read_at IS NULL`, a.ID).Scan(&unread); err != nil {
+		writeError(w, 500, "Could not count unread notifications")
 		return
 	}
 	writeJSON(w, 200, map[string]any{"items": items, "unread": unread})
