@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="web/calden-logo.svg" alt="CalDen" width="520">
+  <img src="web/calden-logo-official.webp" alt="CalDen" width="520">
 </p>
 
 <h1 align="center">CalDen</h1>
@@ -52,7 +52,10 @@ For example, a green **Bills** calendar can contain an Internet Bill assigned to
 
 The current development build includes:
 
-- first-run administrator setup
+- guided first-run setup wizard
+- automatic persistent database credential generation
+- family name and time-zone setup
+- starter calendar selection
 - multiple user accounts
 - administrator, family member, and restricted member account types
 - multiple calendars
@@ -88,27 +91,15 @@ git clone https://github.com/gigabytegrove/calden.git
 cd calden
 ```
 
-### 2. Create your settings file
+### 2. Start CalDen
 
-```bash
-cp .env.example .env
-```
-
-Open `.env` and change:
-
-```env
-CALDEN_DB_PASSWORD=CHANGE-ME-TO-A-LONG-RANDOM-PASSWORD
-```
-
-Use a long random password. You normally do not need to change the other values.
-
-### 3. Start CalDen
+CalDen does not require you to create a database password or edit an environment file for a normal installation. On the first start, Docker generates a private random database password and keeps it in the persistent `calden-secrets` volume.
 
 ```bash
 docker compose up -d --build
 ```
 
-### 4. Open CalDen
+### 3. Open CalDen
 
 By default:
 
@@ -116,9 +107,9 @@ By default:
 http://YOUR-SERVER-IP:8787
 ```
 
-The first time CalDen opens, it will ask you to create the first administrator account.
+The first time CalDen opens, a guided setup wizard walks you through your family name, time zone, first administrator account, and starter calendars. When setup finishes, CalDen opens with useful calendars already in place.
 
-From there you can add family members, create calendars, decide who can see each calendar, and start adding events.
+You can then add family members, change calendar access, connect Monita, and start scheduling.
 
 ## Docker Compose example
 
@@ -174,11 +165,7 @@ ghcr.io/gigabytegrove/calden:latest
 
 and does not require a local Dockerfile.
 
-Set this environment variable in Dokploy before deploying:
-
-```env
-CALDEN_DB_PASSWORD=CHANGE-ME-TO-A-LONG-RANDOM-PASSWORD
-```
+No environment variables are required for a new Dokploy installation. The database password is generated automatically and persisted in the `calden-secrets` volume.
 
 You can optionally change the exposed port:
 
@@ -304,6 +291,7 @@ Persistent Docker volumes:
 ```text
 calden-db
 calden-data
+calden-secrets
 ```
 
 PostgreSQL is not published to the host by default.
@@ -340,14 +328,14 @@ Docker Compose uses this endpoint to confirm that the application is responding.
 
 ## Environment settings
 
-Most installations only need to set the database password.
+A normal Docker installation needs no environment settings. The options below are available when you want to customize the deployment.
 
 | Setting | Default | Purpose |
 | --- | --- | --- |
 | `CALDEN_PORT` | `8787` | Port exposed on the Docker host |
 | `CALDEN_DB_NAME` | `calden` | PostgreSQL database name |
 | `CALDEN_DB_USER` | `calden` | PostgreSQL username |
-| `CALDEN_DB_PASSWORD` | none | PostgreSQL password; required by Compose |
+| `CALDEN_DB_PASSWORD` | automatically generated | Optional manual PostgreSQL password override |
 | `CALDEN_DB_HOST` | `localhost` outside Compose | Database hostname |
 | `CALDEN_DB_PORT` | `5432` | Database port |
 | `CALDEN_DB_SSLMODE` | `disable` | Database TLS mode |
@@ -366,15 +354,11 @@ This commonly happens with Dokploy **Docker Raw** deployments.
 
 Use `docker-compose.dokploy.yml`, or change the Dokploy application to a Git-source deployment.
 
-### CalDen will not start because CALDEN_DB_PASSWORD is missing
+### Database password
 
-Set a database password in `.env` or in your deployment platform:
+New installations generate the database password automatically. It is stored in the persistent `calden-secrets` volume and reused across restarts and upgrades.
 
-```env
-CALDEN_DB_PASSWORD=a-long-random-password
-```
-
-Then redeploy.
+If you are migrating an older installation that already has a manually configured PostgreSQL password, set `CALDEN_DB_PASSWORD` to that existing password before the first start of the migrated Compose stack.
 
 ### The database is not ready yet
 
