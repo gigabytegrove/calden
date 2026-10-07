@@ -29,7 +29,7 @@ The repair flow:
 
 1. scans the existing CalDen database for multiple imported parent events sharing the same Google UID
 2. shows the duplicate groups and redundant CalDen copies it found
-3. asks for the original Google export
+3. asks for the current Google export
 4. uses that export only as a reference to determine which stored CalDen copy is canonical/current
 5. previews how many groups can be repaired safely
 6. requires typed confirmation
@@ -52,7 +52,7 @@ When a redundant event row is consolidated into the surviving event, CalDen pres
 
 CalDen does not guess when it cannot establish a safe canonical destination.
 
-If the original export does not provide enough information to identify which stored event should survive, that duplicate group is left unchanged and reported for review.
+If the current export does not provide enough information to identify which stored event should survive, that duplicate group is left unchanged and reported for review.
 
 Backups are still recommended before any bulk repair operation.
 
