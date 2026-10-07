@@ -1,11 +1,14 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/gigabytegrove/calden/internal/recurrence"
 )
 
 type eventInput struct {
@@ -17,6 +20,7 @@ type eventInput struct {
 	EndsAt      time.Time   `json:"ends_at"`
 	AllDay      bool        `json:"all_day"`
 	AssigneeIDs []uuid.UUID `json:"assignee_ids"`
+	Recurrence *recurrence.Rule `json:"recurrence,omitempty"`
 	Reminders   []struct {
 		Kind          string `json:"kind"`
 		Provider      string `json:"provider"`
@@ -44,6 +48,15 @@ func validateEventInput(in eventInput) string {
 	}
 	if in.StartsAt.IsZero() || in.EndsAt.IsZero() || in.EndsAt.Before(in.StartsAt) {
 		return "Check the event date and time"
+	}
+	if in.Recurrence != nil {
+		in.Recurrence = recurrence.Normalize(in.Recurrence, in.StartsAt)
+		if err := recurrence.Validate(in.Recurrence); err != nil {
+			return err.Error()
+		}
+		if in.Recurrence.Until != nil && in.Recurrence.Until.Before(in.StartsAt) {
+			return "Repeat end date must be after the event starts"
+		}
 	}
 	for _, rm := range in.Reminders {
 		if rm.Kind != "personal" && rm.Kind != "system" {
@@ -106,6 +119,20 @@ func (s *server) updateEvent(w http.ResponseWriter, r *http.Request) {
 	for _, uid := range in.AssigneeIDs {
 		if _, err = tx.Exec(r.Context(), `INSERT INTO event_assignees(event_id,user_id) VALUES($1,$2)`, id, uid); err != nil {
 			writeError(w, 400, "One of the selected people is invalid")
+			return
+		}
+	}
+
+	if _, err = tx.Exec(r.Context(), "DELETE FROM event_recurrence WHERE event_id=$1", id); err != nil {
+		writeError(w, 500, "Could not update repeat settings")
+		return
+	}
+	if in.Recurrence != nil {
+		rule := recurrence.Normalize(in.Recurrence, in.StartsAt)
+		weekdays, _ := json.Marshal(rule.Weekdays)
+		if _, err = tx.Exec(r.Context(), `INSERT INTO event_recurrence(event_id,frequency,interval_value,weekdays,until_at,occurrence_count)
+			VALUES($1,$2,$3,$4,$5,$6)`, id, rule.Frequency, rule.Interval, weekdays, rule.Until, rule.OccurrenceCount); err != nil {
+			writeError(w, 400, "Could not save repeat settings")
 			return
 		}
 	}
