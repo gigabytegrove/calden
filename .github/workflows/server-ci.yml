@@ -123,10 +123,31 @@ jobs:
           print(json.dumps({"settings":settings,"calendars":calendars},indent=2))
           PY
 
+      - name: Stop source-build test stack
+        run: docker compose down -v
+
+      - name: Test the actual Docker Raw deployment path
+        run: |
+          docker compose -p calden-raw-smoke -f docker-compose.dokploy.yml up -d --build
+          for i in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:8787/api/health >/tmp/raw-health.json; then
+              cat /tmp/raw-health.json
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose -p calden-raw-smoke -f docker-compose.dokploy.yml ps
+          docker compose -p calden-raw-smoke -f docker-compose.dokploy.yml logs
+          exit 1
+
       - name: Show container logs on failure
         if: failure()
-        run: docker compose logs
+        run: |
+          docker compose logs || true
+          docker compose -p calden-raw-smoke -f docker-compose.dokploy.yml logs || true
 
-      - name: Stop test stack
+      - name: Stop test stacks
         if: always()
-        run: docker compose down -v
+        run: |
+          docker compose down -v || true
+          docker compose -p calden-raw-smoke -f docker-compose.dokploy.yml down -v || true
