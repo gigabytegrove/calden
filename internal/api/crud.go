@@ -153,6 +153,12 @@ func (s *server) updateEvent(w http.ResponseWriter, r *http.Request) {
 			writeError(w, 500, "Could not move no-balance status with the event")
 			return
 		}
+		if _, err = tx.Exec(r.Context(), `UPDATE bill_allocations
+			SET occurrence_start=$3,updated_at=now()
+			WHERE event_id=$1 AND occurrence_start=$2`, id, oldStart, in.StartsAt); err != nil {
+			writeError(w, 500, "Could not move bill allocation with the event")
+			return
+		}
 	}
 
 	if _, err = tx.Exec(r.Context(), "DELETE FROM event_recurrence WHERE event_id=$1", id); err != nil {
