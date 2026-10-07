@@ -126,7 +126,7 @@ function renderApp(){
   $("#sidebar-role").textContent=roleLabel(state.me.role);
   $("#sidebar-avatar").innerHTML=state.me.avatar_url?`<img src="${escapeAttr(state.me.avatar_url)}" alt="">`:escapeHTML(state.me.initials||"?");
   $$(".admin-only").forEach(el=>el.classList.toggle("hidden",state.me.role!=="admin"));
-  $(".admin-settings")?.classList.toggle("hidden",state.me.role!=="admin");
+  $$(".admin-settings").forEach(el=>el.classList.toggle("hidden",state.me.role!=="admin"));
   $("#settings-account-name").textContent=state.me.display_name;
   $("#settings-account-username").textContent=state.me.username;
   $("#settings-account-role").textContent=roleLabel(state.me.role);
@@ -223,7 +223,7 @@ function renderCalendarFilters(){
 
 function renderCalendar(){
   const label=$("#calendar-range-label");
-  $$(".view-switcher button").forEach(b=>b.classList.toggle("active",Number(b.dataset.days)===state.viewDays));
+  $$$(".view-switcher button").forEach(b=>b.classList.toggle("active",Number(b.dataset.days)===state.viewDays));
   $("#calendar-strip").innerHTML=state.calendars.map(cal=>{
     const hidden=state.hiddenCalendars.has(cal.id);
     return `<button class="calendar-pill ${hidden?"calendar-hidden":""}" data-calendar-id="${cal.id}" aria-pressed="${!hidden}">
@@ -547,7 +547,7 @@ function beginCategoryEdit(id){
 function activateSettingsTab(tab){
   if(tab==="general"&&state.me?.role!=="admin")tab="calendar";
   state.settingsTab=tab;
-  $$(".settings-nav-item").forEach(button=>button.classList.toggle("active",button.dataset.settingsTab===tab));
+  $$$(".settings-nav-item").forEach(button=>button.classList.toggle("active",button.dataset.settingsTab===tab));
   $$("[data-settings-pane]").forEach(pane=>pane.classList.toggle("hidden",pane.dataset.settingsPane!==tab));
 }
 function renderSettings(){
@@ -938,13 +938,12 @@ $$("[data-page]").forEach(b=>b.addEventListener("click",()=>navigate(b.dataset.p
 $("#mobile-menu").addEventListener("click",()=>$("#sidebar").classList.toggle("open"));
 $("#new-event").addEventListener("click",()=>openEvent());
 $("#nav-add").addEventListener("click",()=>openEvent());
-$$("#calendar-strip").forEach(()=>{});
 $("#calendar-strip").addEventListener("click",e=>{
   const b=e.target.closest("[data-calendar-id]");if(!b)return;
   const id=b.dataset.calendarId;if(state.hiddenCalendars.has(id))state.hiddenCalendars.delete(id);else state.hiddenCalendars.add(id);
   localStorage.setItem("calden_hidden_calendars",JSON.stringify([...state.hiddenCalendars]));renderCalendar();renderAgenda();renderSettings();
 });
-$(".view-switcher button").forEach(b=>b.addEventListener("click",async()=>{
+$$(".view-switcher button").forEach(b=>b.addEventListener("click",async()=>{
   state.viewDays=Number(b.dataset.days);localStorage.setItem("calden_view_days",String(state.viewDays));
   await loadEvents();renderCalendar();renderAgenda();
 }));
@@ -960,7 +959,7 @@ $("#clear-calendar-filters").addEventListener("click",()=>{
 $("#agenda-search").addEventListener("input",renderAgenda);
 $("#notification-kind-filter").addEventListener("change",renderNotifications);
 $("#refresh-notifications").addEventListener("click",async()=>{await loadEvents();renderNotifications()});
-$("#event-dialog [data-close-event]").forEach(b=>b.addEventListener("click",()=>$("#event-dialog").close()));
+$$("#event-dialog [data-close-event]").forEach(b=>b.addEventListener("click",()=>$("#event-dialog").close()));
 $("#add-personal-reminder").addEventListener("click",()=>addReminderRow("personal"));
 $("#add-system-reminder").addEventListener("click",()=>addReminderRow("system"));
 $("#event-form").repeat_frequency.addEventListener("change",updateRepeatUI);
@@ -1133,7 +1132,7 @@ $("#delete-category").addEventListener("click",async()=>{
   }catch(err){$("#category-error").textContent=err.message}
 });
 
-$(".settings-nav-item").forEach(button=>button.addEventListener("click",()=>activateSettingsTab(button.dataset.settingsTab)));
+$$(".settings-nav-item").forEach(button=>button.addEventListener("click",()=>activateSettingsTab(button.dataset.settingsTab)));
 $("#display-settings-form").addEventListener("submit",e=>{
   e.preventDefault();
   state.defaultCalendar=$("#settings-default-calendar").value;
