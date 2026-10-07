@@ -311,8 +311,26 @@ jobs:
             await page.locator('#event-dialog').waitFor({ state: 'hidden' });
             await page.locator('#bill-list').getByText('Electric CI Bill', { exact: true }).waitFor({ state: 'visible' });
             await page.locator('#bill-list').getByText('Second User', { exact: false }).waitFor({ state: 'visible' });
-            const billRowText = await page.locator('#bill-list .bill-row').filter({ hasText: 'Electric CI Bill' }).innerText();
+            let billRow = page.locator('#bill-list .bill-row').filter({ hasText: 'Electric CI Bill' });
+            let billRowText = await billRow.innerText();
             if (!billRowText.includes('137.42')) throw new Error('Bill amount was not shown in Bill Pay.');
+
+            // The assigned payer and actual payer are intentionally separate.
+            await billRow.locator('.bill-payment-action').click();
+            await page.locator('#bill-payment-dialog').waitFor({ state: 'visible' });
+            await page.locator('#bill-payment-person').selectOption({ label: 'Test Admin' });
+            await page.locator('#bill-payment-amount').fill('140.11');
+            await page.locator('#bill-payment-save').click();
+            await page.locator('#bill-payment-dialog').waitFor({ state: 'hidden' });
+            billRow = page.locator('#bill-list .bill-row').filter({ hasText: 'Electric CI Bill' });
+            billRowText = await billRow.innerText();
+            if (!billRowText.includes('Paid') || !billRowText.includes('Test Admin') || !billRowText.includes('140.11')) {
+              throw new Error('Bill payment status did not show the actual payer and paid amount: ' + billRowText);
+            }
+            const paidBreakdownText = await page.locator('#bill-paid-by-person').innerText();
+            if (!paidBreakdownText.includes('Test Admin') || !paidBreakdownText.includes('140.11')) {
+              throw new Error('Paid-by-person breakdown did not include the actual payment.');
+            }
 
             // Calendar deletion must allow an explicit destructive override when events exist.
             await page.locator('.nav-item[data-page="calendars"]').click();
@@ -392,6 +410,110 @@ jobs:
             await browser.close();
           })();
           NODE
+
+      - name: Verify per-occurrence bill payment history
+        run: |
+          python - <<'PY'
+          import datetime as dt
+          import json
+          import urllib.parse
+          import urllib.request
+
+          base = "http://127.0.0.1:8787"
+
+          def request(path, method="GET", payload=None, token=None):
+              headers = {"Content-Type": "application/json"}
+              if token:
+                  headers["Authorization"] = "Bearer " + token
+              data = None if payload is None else json.dumps(payload).encode()
+              req = urllib.request.Request(base + path, data=data, headers=headers, method=method)
+              with urllib.request.urlopen(req) as response:
+                  if response.status == 204:
+                      return None
+                  return json.load(response)
+
+          token = request("/api/login", "POST", {
+              "username": "testadmin",
+              "password": "test-password-123",
+          })["token"]
+          me = request("/api/me", token=token)
+          users = request("/api/users", token=token)
+          second = next(u for u in users if u["username"] == "seconduser")
+          bills = next(c for c in request("/api/calendars", token=token) if c["name"] == "Bills")
+
+          start = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=3)).replace(
+              hour=16, minute=0, second=0, microsecond=0
+          )
+          end = start + dt.timedelta(minutes=30)
+          created = request("/api/events", "POST", {
+              "calendar_id": bills["id"],
+              "category_id": None,
+              "title": "Recurring Payment CI",
+              "notes": "",
+              "location": "",
+              "starts_at": start.isoformat().replace("+00:00", "Z"),
+              "ends_at": end.isoformat().replace("+00:00", "Z"),
+              "all_day": False,
+              "assignee_ids": [],
+              "bill_amount": 88.50,
+              "bill_amount_is_estimate": True,
+              "bill_payer_user_id": second["id"],
+              "reminders": [],
+              "recurrence": {
+                  "frequency": "monthly",
+                  "interval": 1,
+                  "weekdays": [],
+                  "until": None,
+                  "occurrence_count": 2,
+              },
+          }, token)
+          event_id = created["id"]
+
+          window_from = (start - dt.timedelta(days=1)).isoformat().replace("+00:00", "Z")
+          window_to = (start + dt.timedelta(days=70)).isoformat().replace("+00:00", "Z")
+          events = request(
+              "/api/events?from=" + urllib.parse.quote(window_from) + "&to=" + urllib.parse.quote(window_to),
+              token=token,
+          )
+          occurrences = [e for e in events if e["id"] == event_id]
+          assert len(occurrences) == 2, occurrences
+          first, second_occurrence = occurrences
+
+          request(f"/api/bills/{event_id}/payment", "PUT", {
+              "occurrence_start": first["occurrence_start"],
+              "paid": True,
+              "paid_by_user_id": me["id"],
+              "amount_paid": 91.27,
+          }, token)
+
+          events = request(
+              "/api/events?from=" + urllib.parse.quote(window_from) + "&to=" + urllib.parse.quote(window_to),
+              token=token,
+          )
+          occurrences = [e for e in events if e["id"] == event_id]
+          first = next(e for e in occurrences if e["occurrence_start"] == first["occurrence_start"])
+          later = next(e for e in occurrences if e["occurrence_start"] == second_occurrence["occurrence_start"])
+          assert first["bill_paid"] is True, first
+          assert abs(first["bill_amount_paid"] - 91.27) < 0.001, first
+          assert first["bill_paid_by"]["id"] == me["id"], first
+          assert first["bill_payer"]["id"] == second["id"], first
+          assert later["bill_paid"] is False, later
+          assert later["bill_paid_by"] is None, later
+
+          request(f"/api/bills/{event_id}/payment", "PUT", {
+              "occurrence_start": first["occurrence_start"],
+              "paid": False,
+          }, token)
+          events = request(
+              "/api/events?from=" + urllib.parse.quote(window_from) + "&to=" + urllib.parse.quote(window_to),
+              token=token,
+          )
+          first = next(e for e in events if e["id"] == event_id and e["occurrence_start"] == first["occurrence_start"])
+          assert first["bill_paid"] is False, first
+
+          request(f"/api/events/{event_id}", "DELETE", token=token)
+          print("Per-occurrence bill payment history test passed.")
+          PY
 
       - name: Verify event assignment and whole-family notifications
         run: |
