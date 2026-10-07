@@ -1269,7 +1269,9 @@ $("#delete-event").addEventListener("click",async()=>{
     }
     if($("#event-dialog").open)$("#event-dialog").close();
     state.editingEvent=null;state.editingScope="series";state.preserveRawRecurrence=false;
-    await loadEvents();renderCalendar();renderAgenda();renderNotifications();
+    state.calendars=await api("/api/calendars");
+    await loadEvents();
+    renderCalendars();renderBillNavigation();renderEventControls();renderCalendar();renderAgenda();renderNotifications();
     if(state.currentPage==="bills")await loadBillMonth();else renderBills();
   }catch(err){
     if(!$("#event-dialog").open)$("#event-dialog").showModal();
@@ -1295,7 +1297,9 @@ $("#event-form").addEventListener("submit",async e=>{
   try{
     await api(target,{method,body:JSON.stringify(body)});
     $("#event-dialog").close();state.editingEvent=null;state.editingScope="series";state.preserveRawRecurrence=false;
-    await loadEvents();renderCalendar();renderAgenda();renderNotifications();
+    state.calendars=await api("/api/calendars");
+    await loadEvents();
+    renderCalendars();renderBillNavigation();renderEventControls();renderCalendar();renderAgenda();renderNotifications();
     if(state.currentPage==="bills")await loadBillMonth();else renderBills();
   }
   catch(err){$("#event-error").textContent=err.message}
