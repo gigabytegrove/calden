@@ -331,9 +331,6 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			displayColor := calendarColor
-			if categoryColor != nil && *categoryColor != "" {
-				displayColor = *categoryColor
-			}
 			out = append(out, map[string]any{
 				"id": id, "series_id": id, "calendar_id": calID, "category_id": categoryID,
 				"category_name": categoryName, "category_color": categoryColor, "calendar_color": calendarColor,
@@ -414,13 +411,7 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 		}, parentStart)
 
 		replacementDisplayColor := replacementCalendarColor
-		if replacementCategoryColor != nil && *replacementCategoryColor != "" {
-			replacementDisplayColor = *replacementCategoryColor
-		}
 		parentDisplayColor := parentCalendarColor
-		if parentCategoryColor != nil && *parentCategoryColor != "" {
-			parentDisplayColor = *parentCategoryColor
-		}
 		out = append(out, map[string]any{
 			"id": parentID, "series_id": parentID, "replacement_event_id": replacementID,
 			"calendar_id": replacementCalID, "category_id": replacementCategoryID,
