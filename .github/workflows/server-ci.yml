@@ -1217,7 +1217,7 @@ jobs:
               token,
               {"reuse_by_name":"true"},
           )
-          replacement_calendar=next(c for c in json_request("/api/calendars",token=token) if c["name"]=="Replacement Bills")
+          replacement_calendar=next(c for c in json_request("/api/calendars",token=token) if c["id"]==imported_current["calendars"][0]["calendar_id"])
 
           stale_ics=(
               "BEGIN:VCALENDAR\r\n"
