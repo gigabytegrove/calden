@@ -318,7 +318,6 @@ jobs:
             await page.locator('.nav-item[data-page="calendars"]').click();
             const deleteCard = page.locator('#calendar-list .management-card').filter({ hasText: 'Delete Me CI' });
             await deleteCard.locator('.edit-calendar').click();
-            page.once('dialog', dialog => dialog.accept());
             await page.locator('#delete-calendar').click();
             await page.locator('#calendar-delete-dialog').waitFor({ state: 'visible' });
             await page.locator('#calendar-delete-confirmation').fill('DELETE Delete Me CI');
