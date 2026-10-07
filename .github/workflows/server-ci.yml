@@ -251,6 +251,8 @@ jobs:
 
           calendars = request("/api/calendars", token=token)
           family = next(c for c in calendars if c["name"] == "Family")
+          categories = request("/api/categories", token=token)
+          medical = next(c for c in categories if c["name"] == "Medical")
 
           start = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=1)).replace(
               hour=14, minute=0, second=0, microsecond=0
@@ -259,6 +261,7 @@ jobs:
 
           created = request("/api/events", "POST", {
               "calendar_id": family["id"],
+              "category_id": medical["id"],
               "title": "Recurring CI Event",
               "notes": "recurrence verification",
               "location": "Test Room",
@@ -286,6 +289,9 @@ jobs:
           series = [e for e in events if e["id"] == series_id]
           assert len(series) == 4, series
           assert all(e["is_recurring"] for e in series), series
+          assert all(e["category_id"] == medical["id"] for e in series), series
+          assert all(e["color"].lower() == medical["color"].lower() for e in series), series
+          assert all(e["calendar_color"].lower() == family["color"].lower() for e in series), series
 
           second = series[1]
           original_second = second["occurrence_start"]
@@ -296,6 +302,7 @@ jobs:
               "original_start": original_second,
               "event": {
                   "calendar_id": family["id"],
+                  "category_id": medical["id"],
                   "title": "Moved recurring CI Event",
                   "notes": "one occurrence only",
                   "location": "Moved Room",
@@ -318,6 +325,8 @@ jobs:
           moved = next(e for e in series if e.get("is_occurrence_override"))
           assert moved["title"] == "Moved recurring CI Event", moved
           assert moved["occurrence_start"] == original_second, moved
+          assert moved["category_id"] == medical["id"], moved
+          assert moved["color"].lower() == medical["color"].lower(), moved
 
           third_original = (start + dt.timedelta(days=2)).isoformat().replace("+00:00", "Z")
           request(f"/api/events/{series_id}/occurrences", "DELETE", {
