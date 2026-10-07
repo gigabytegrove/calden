@@ -385,6 +385,7 @@ type googleStoredImportEvent struct {
 	End        time.Time
 	AllDay     bool
 	Frequency  string
+	Interval   int
 }
 
 func normalizeGoogleEventTitle(value string) string {
@@ -411,6 +412,16 @@ func googleExportEventFrequency(event calical.Event) string {
 	return strings.ToLower(strings.TrimSpace(event.Recurrence.Frequency))
 }
 
+func googleExportEventInterval(event calical.Event) int {
+	if event.Recurrence == nil {
+		return 0
+	}
+	if event.Recurrence.Interval < 1 {
+		return 1
+	}
+	return event.Recurrence.Interval
+}
+
 func googleEventDurationClose(aStart, aEnd, bStart, bEnd time.Time) bool {
 	left := aEnd.Sub(aStart)
 	right := bEnd.Sub(bStart)
@@ -432,7 +443,7 @@ func googleLikelyReplacement(stored googleStoredImportEvent, current calical.Eve
 		return false
 	}
 	if storedRecurring {
-		return stored.Frequency == currentFrequency
+		return stored.Frequency == currentFrequency && stored.Interval == googleExportEventInterval(current)
 	}
 	if !googleEventDurationClose(stored.Start, stored.End, current.Start, current.End) {
 		return false
@@ -496,7 +507,7 @@ func (s *server) googleStaleReplacementCandidates(
 	candidates := []googleStaleReplacementCandidate{}
 	for calendarID, uids := range currentUIDs {
 		rows, err := tx.Query(ctx, `SELECT e.id,e.external_uid,e.title,e.starts_at,e.ends_at,e.all_day,
-			COALESCE(er.frequency,'')
+			COALESCE(er.frequency,''),COALESCE(er.interval_value,0)
 			FROM events e
 			LEFT JOIN event_recurrence er ON er.event_id=e.id
 			WHERE e.calendar_id=$1
@@ -510,7 +521,7 @@ func (s *server) googleStaleReplacementCandidates(
 		for rows.Next() {
 			var event googleStoredImportEvent
 			event.CalendarID = calendarID
-			if err := rows.Scan(&event.ID, &event.UID, &event.Title, &event.Start, &event.End, &event.AllDay, &event.Frequency); err != nil {
+			if err := rows.Scan(&event.ID, &event.UID, &event.Title, &event.Start, &event.End, &event.AllDay, &event.Frequency, &event.Interval); err != nil {
 				rows.Close()
 				return nil, err
 			}
