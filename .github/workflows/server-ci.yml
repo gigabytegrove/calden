@@ -978,6 +978,25 @@ jobs:
               with urllib.request.urlopen(req) as response:
                   return json.load(response)
 
+          def ical_multipart(calendar_id, ics_payload, token):
+              boundary="----CalDenICalCI"+uuid.uuid4().hex
+              body=(
+                  f"--{boundary}\r\n"
+                  'Content-Disposition: form-data; name="calendar"; filename="stale.ics"\r\n'
+                  "Content-Type: text/calendar\r\n\r\n"
+              ).encode()+ics_payload+f"\r\n--{boundary}--\r\n".encode()
+              req=urllib.request.Request(
+                  base+f"/api/calendars/{calendar_id}/import.ics",
+                  data=body,
+                  headers={
+                      "Authorization":"Bearer "+token,
+                      "Content-Type":f"multipart/form-data; boundary={boundary}",
+                  },
+                  method="POST",
+              )
+              with urllib.request.urlopen(req) as response:
+                  return json.loads(response.read())
+
           token=json_request("/api/login","POST",{"username":"testadmin","password":"test-password-123"})["token"]
 
           now=dt.datetime.now(dt.timezone.utc)
@@ -1167,6 +1186,82 @@ jobs:
           calendars_after={c["id"]:c["name"] for c in json_request("/api/calendars",token=token)}
           assert calendars_after == calendars_before, (calendars_before,calendars_after)
 
+          # Existing CalDen duplicates can also have different Google UIDs.
+          # This is the real stale-series case: an older imported monthly series is still
+          # stored on the 6th while the current Google export contains the replacement
+          # series on the 7th. Repair must remove the stale row without deleting the calendar.
+          replacement_path="Takeout/Calendar/Replacement Bills.ics"
+          replacement_title="Colquitt EMC - House CI"
+          current_uid="colquitt-current@test"
+          stale_uid="colquitt-stale@test"
+          current_ics=(
+              "BEGIN:VCALENDAR\r\n"
+              "VERSION:2.0\r\n"
+              "X-WR-CALNAME:Replacement Bills\r\n"
+              "BEGIN:VEVENT\r\n"
+              f"UID:{current_uid}\r\n"
+              "DTSTART;VALUE=DATE:20260207\r\n"
+              "DTEND;VALUE=DATE:20260208\r\n"
+              "RRULE:FREQ=MONTHLY;INTERVAL=1\r\n"
+              f"SUMMARY:{replacement_title}\r\n"
+              "END:VEVENT\r\n"
+              "END:VCALENDAR\r\n"
+          )
+          replacement_archive=io.BytesIO()
+          with zipfile.ZipFile(replacement_archive,"w",zipfile.ZIP_DEFLATED) as z:
+              z.writestr(replacement_path,current_ics)
+          replacement_payload=replacement_archive.getvalue()
+          imported_current=google_multipart(
+              "/api/integrations/google/import",
+              replacement_payload,
+              token,
+              {"reuse_by_name":"true"},
+          )
+          replacement_calendar=next(c for c in json_request("/api/calendars",token=token) if c["name"]=="Replacement Bills")
+
+          stale_ics=(
+              "BEGIN:VCALENDAR\r\n"
+              "VERSION:2.0\r\n"
+              "BEGIN:VEVENT\r\n"
+              f"UID:{stale_uid}\r\n"
+              "DTSTART;VALUE=DATE:20260206\r\n"
+              "DTEND;VALUE=DATE:20260207\r\n"
+              "RRULE:FREQ=MONTHLY;INTERVAL=1\r\n"
+              f"SUMMARY:{replacement_title}\r\n"
+              "END:VEVENT\r\n"
+              "END:VCALENDAR\r\n"
+          ).encode()
+          ical_multipart(replacement_calendar["id"],stale_ics,token)
+
+          october_from=urllib.parse.quote("2026-10-05T00:00:00Z")
+          october_to=urllib.parse.quote("2026-10-09T00:00:00Z")
+          before_repair=json_request(f"/api/events?from={october_from}&to={october_to}",token=token)
+          before_repair=[e for e in before_repair if e["title"]==replacement_title]
+          assert len(before_repair)==2, before_repair
+          before_days=sorted(e["starts_at"][:10] for e in before_repair)
+          assert before_days==["2026-10-06","2026-10-07"], before_days
+
+          changed_uid_preview=google_multipart(
+              "/api/integrations/google/duplicates/preview",
+              replacement_payload,
+              token,
+          )
+          assert changed_uid_preview["replacement_repairable_groups"] >= 1, changed_uid_preview
+          assert any(x["title"]==replacement_title for x in changed_uid_preview["replacement_examples"]), changed_uid_preview
+
+          changed_uid_repair=google_multipart(
+              "/api/integrations/google/duplicates/repair",
+              replacement_payload,
+              token,
+          )
+          assert changed_uid_repair["replacement_removed"] >= 1, changed_uid_repair
+
+          after_repair=json_request(f"/api/events?from={october_from}&to={october_to}",token=token)
+          after_repair=[e for e in after_repair if e["title"]==replacement_title]
+          assert len(after_repair)==1, after_repair
+          assert after_repair[0]["starts_at"][:10]=="2026-10-07", after_repair
+          assert any(c["id"]==replacement_calendar["id"] for c in json_request("/api/calendars",token=token))
+
           print(json.dumps({
               "first":first,
               "second":second,
@@ -1176,6 +1271,8 @@ jobs:
               "duplicate_scan":duplicate_scan,
               "duplicate_preview":repair_preview,
               "duplicate_repair":repaired_duplicates,
+              "changed_uid_preview":changed_uid_preview,
+              "changed_uid_repair":changed_uid_repair,
           },indent=2))
           PY
 
