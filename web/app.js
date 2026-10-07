@@ -272,7 +272,7 @@ function renderCalendarFilters(){
 
 function renderBillNavigation(){
   const visible=state.calendars.some(cal=>cal.calendar_type==="bill_pay");
-  $(".bill-nav").forEach(el=>el.classList.toggle("hidden",!visible));
+  document.querySelectorAll(".bill-nav").forEach(el=>el.classList.toggle("hidden",!visible));
   if(!visible&&state.currentPage==="bills")navigate("calendar",false);
 }
 
