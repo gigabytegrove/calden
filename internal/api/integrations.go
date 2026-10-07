@@ -78,6 +78,9 @@ func (s *server) saveMonitaIntegration(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "Could not save Monita settings")
 		return
 	}
+	s.audit(r, "update", "integration", nil, "Updated Monita integration", map[string]any{
+		"enabled": in.Enabled, "server_url": in.ServerURL, "default_channel": in.DefaultChannel,
+	})
 	writeJSON(w, 200, map[string]bool{"saved": true})
 }
 
@@ -91,6 +94,7 @@ func (s *server) testMonitaIntegration(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 502, "Monita did not accept the test reminder: "+err.Error())
 		return
 	}
+	s.audit(r, "test", "integration", nil, "Sent Monita connection test", nil)
 	writeJSON(w, 200, map[string]bool{"sent": true})
 }
 
