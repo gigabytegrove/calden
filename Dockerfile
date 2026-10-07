@@ -15,8 +15,9 @@ COPY . .
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
+    VERSION="$(cat VERSION)" && \
     CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
-    go build -trimpath -ldflags="-s -w" -o /out/calden ./cmd/calden
+    go build -trimpath -ldflags="-s -w -X main.version=$VERSION" -o /out/calden ./cmd/calden
 
 FROM alpine:3.22
 
