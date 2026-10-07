@@ -13,12 +13,15 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
+
+	"github.com/gigabytegrove/calden/internal/updater"
 )
 
 type Config struct {
 	DB        *pgxpool.Pool
 	JWTSecret []byte
 	WebDir    string
+	DataDir   string
 	Version   string
 }
 
@@ -26,7 +29,9 @@ type server struct {
 	db        *pgxpool.Pool
 	jwtSecret []byte
 	webDir    string
+	dataDir   string
 	version   string
+	updater   *updater.Manager
 }
 
 type actor struct {
@@ -39,7 +44,8 @@ type contextKey string
 const actorKey contextKey = "actor"
 
 func New(cfg Config) http.Handler {
-	s := &server{db: cfg.DB, jwtSecret: cfg.JWTSecret, webDir: cfg.WebDir, version: cfg.Version}
+	s := &server{db: cfg.DB, jwtSecret: cfg.JWTSecret, webDir: cfg.WebDir, dataDir: cfg.DataDir, version: cfg.Version}
+	s.updater = updater.New(cfg.DataDir, cfg.Version)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", s.health)
 	mux.HandleFunc("GET /api/setup/status", s.setupStatus)
@@ -65,6 +71,12 @@ func New(cfg Config) http.Handler {
 	mux.Handle("GET /api/integrations/monita", s.auth(s.admin(http.HandlerFunc(s.getMonitaIntegration))))
 	mux.Handle("PUT /api/integrations/monita", s.auth(s.admin(http.HandlerFunc(s.saveMonitaIntegration))))
 	mux.Handle("POST /api/integrations/monita/test", s.auth(s.admin(http.HandlerFunc(s.testMonitaIntegration))))
+	mux.Handle("GET /api/system/update", s.auth(s.admin(http.HandlerFunc(s.updateCheck))))
+	mux.Handle("GET /api/system/update/status", s.auth(s.admin(http.HandlerFunc(s.updateStatus))))
+	mux.Handle("GET /api/system/update/preferences", s.auth(s.admin(http.HandlerFunc(s.updatePreferences))))
+	mux.Handle("PUT /api/system/update/preferences", s.auth(s.admin(http.HandlerFunc(s.saveUpdatePreferences))))
+	mux.Handle("POST /api/system/update/install", s.auth(s.admin(http.HandlerFunc(s.installUpdate))))
+	mux.Handle("POST /api/system/update/rollback", s.auth(s.admin(http.HandlerFunc(s.rollbackUpdate))))
 	mux.Handle("/", s.static())
 	return securityHeaders(mux)
 }
