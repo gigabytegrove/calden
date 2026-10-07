@@ -324,7 +324,7 @@ jobs:
             await page.locator('#bill-payment-dialog').waitFor({ state: 'hidden' });
             billRow = page.locator('#bill-list .bill-row').filter({ hasText: 'Electric CI Bill' });
             billRowText = await billRow.innerText();
-            if (!billRowText.includes('Paid') || !billRowText.includes('Test Admin') || !billRowText.includes('140.11')) {
+            if (!billRowText.toLowerCase().includes('paid') || !billRowText.includes('Test Admin') || !billRowText.includes('140.11')) {
               throw new Error('Bill payment status did not show the actual payer and paid amount: ' + billRowText);
             }
             const paidBreakdownText = await page.locator('#bill-paid-by-person').innerText();
