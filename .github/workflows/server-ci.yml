@@ -226,6 +226,11 @@ jobs:
             await page.locator('#general-settings-form button[type="submit"]').click();
             await page.locator('#general-settings-status').getByText('Household settings saved.').waitFor({ state: 'visible' });
 
+            await page.locator('.nav-item[data-page="activity"]').click();
+            await page.locator('#page-activity').waitFor({ state: 'visible' });
+            await page.locator('#activity-list').getByText('Created category Travel', { exact: true }).waitFor({ state: 'visible' });
+            await page.locator('#activity-list').getByText('Updated household settings', { exact: true }).waitFor({ state: 'visible' });
+
             if (errors.length) throw new Error(errors.join('\n'));
             console.log('Signed-in CalDen product smoke test passed.');
             await browser.close();
