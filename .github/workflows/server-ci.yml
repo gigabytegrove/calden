@@ -40,3 +40,93 @@ jobs:
 
       - name: Build
         run: go build ./cmd/calden
+
+  compose-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Validate Compose files with no environment variables
+        run: |
+          env -i PATH="$PATH" HOME="$HOME" docker compose -f compose.yaml config >/dev/null
+          env -i PATH="$PATH" HOME="$HOME" docker compose -f docker-compose.example.yml config >/dev/null
+          env -i PATH="$PATH" HOME="$HOME" docker compose -f docker-compose.dokploy.yml config >/dev/null
+
+      - name: Start a completely blank CalDen install
+        run: docker compose up -d --build
+
+      - name: Wait for CalDen
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8787/api/health >/tmp/health.json; then
+              cat /tmp/health.json
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose ps
+          docker compose logs
+          exit 1
+
+      - name: Verify first-run state
+        run: |
+          python - <<'PY'
+          import json, urllib.request
+          with urllib.request.urlopen("http://127.0.0.1:8787/api/setup/status") as r:
+              body=json.load(r)
+          assert body["needs_setup"] is True, body
+          assert body["setup_version"] == 1, body
+          print(body)
+          PY
+
+      - name: Complete setup and verify starter calendars
+        run: |
+          python - <<'PY'
+          import json, urllib.request
+
+          base="http://127.0.0.1:8787"
+          payload={
+              "household_name":"CalDen Test Family",
+              "timezone":"America/New_York",
+              "display_name":"Test Admin",
+              "username":"testadmin",
+              "password":"test-password-123",
+              "starter_calendars":["family","bills","appointments"],
+          }
+
+          req=urllib.request.Request(
+              base+"/api/setup",
+              data=json.dumps(payload).encode(),
+              headers={"Content-Type":"application/json"},
+              method="POST",
+          )
+          with urllib.request.urlopen(req) as r:
+              setup=json.load(r)
+
+          token=setup["token"]
+          headers={"Authorization":"Bearer "+token}
+
+          req=urllib.request.Request(base+"/api/settings/general",headers=headers)
+          with urllib.request.urlopen(req) as r:
+              settings=json.load(r)
+          assert settings["household_name"] == "CalDen Test Family", settings
+          assert settings["timezone"] == "America/New_York", settings
+
+          req=urllib.request.Request(base+"/api/calendars",headers=headers)
+          with urllib.request.urlopen(req) as r:
+              calendars=json.load(r)
+
+          names={c["name"] for c in calendars}
+          assert names == {"Family","Bills","Appointments"}, calendars
+          assert all(c["can_edit"] for c in calendars), calendars
+          print(json.dumps({"settings":settings,"calendars":calendars},indent=2))
+          PY
+
+      - name: Show container logs on failure
+        if: failure()
+        run: docker compose logs
+
+      - name: Stop test stack
+        if: always()
+        run: docker compose down -v
