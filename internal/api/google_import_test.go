@@ -75,3 +75,27 @@ func TestParseGoogleCalendarUploadRejectsNonCalendarFile(t *testing.T) {
 		t.Fatal("expected non-calendar upload to be rejected")
 	}
 }
+
+
+func TestGoogleCalendarMatchScore(t *testing.T) {
+	tests := []struct {
+		importName   string
+		existingName string
+		minScore     int
+	}{
+		{importName: "Family Calendar", existingName: "Family", minScore: 90},
+		{importName: "Bill Pay Calendar", existingName: "Bills", minScore: 90},
+		{importName: "Birthdays", existingName: "Birthday Calendar", minScore: 90},
+		{importName: "Appointments Calendar", existingName: "Appointments", minScore: 90},
+	}
+	for _, tc := range tests {
+		score, _ := googleCalendarMatchScore(tc.importName, tc.existingName)
+		if score < tc.minScore {
+			t.Fatalf("expected %q to match %q with score >= %d, got %d", tc.importName, tc.existingName, tc.minScore, score)
+		}
+	}
+
+	if score, _ := googleCalendarMatchScore("Work", "Birthdays"); score != 0 {
+		t.Fatalf("unrelated calendars should not match, got %d", score)
+	}
+}

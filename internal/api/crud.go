@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -20,8 +21,11 @@ type eventInput struct {
 	StartsAt    time.Time   `json:"starts_at"`
 	EndsAt      time.Time   `json:"ends_at"`
 	AllDay      bool        `json:"all_day"`
-	AssigneeIDs []uuid.UUID `json:"assignee_ids"`
-	Recurrence *recurrence.Rule `json:"recurrence,omitempty"`
+	AssigneeIDs          []uuid.UUID      `json:"assignee_ids"`
+	BillAmount           *float64         `json:"bill_amount,omitempty"`
+	BillAmountIsEstimate bool             `json:"bill_amount_is_estimate,omitempty"`
+	BillPayerUserID      *uuid.UUID       `json:"bill_payer_user_id,omitempty"`
+	Recurrence           *recurrence.Rule `json:"recurrence,omitempty"`
 	Reminders   []struct {
 		Kind          string `json:"kind"`
 		Provider      string `json:"provider"`
@@ -49,6 +53,11 @@ func validateEventInput(in eventInput) string {
 	}
 	if in.StartsAt.IsZero() || in.EndsAt.IsZero() || in.EndsAt.Before(in.StartsAt) {
 		return "Check the event date and time"
+	}
+	if in.BillAmount != nil {
+		if math.IsNaN(*in.BillAmount) || math.IsInf(*in.BillAmount, 0) || *in.BillAmount < 0 || *in.BillAmount > 9999999999.99 {
+			return "Check the bill amount"
+		}
 	}
 	if in.Recurrence != nil {
 		in.Recurrence = recurrence.Normalize(in.Recurrence, in.StartsAt)
@@ -123,6 +132,10 @@ func (s *server) updateEvent(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if err = s.saveBillDetails(r.Context(), tx, id, in.CalendarID, in); err != nil {
+		writeError(w, 400, "Could not save bill details")
+		return
+	}
 
 	if _, err = tx.Exec(r.Context(), "DELETE FROM event_recurrence WHERE event_id=$1", id); err != nil {
 		writeError(w, 500, "Could not update repeat settings")
@@ -190,10 +203,11 @@ func (s *server) updateCalendar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in struct {
-		Name        string `json:"name"`
-		Color       string `json:"color"`
-		Icon        string `json:"icon"`
-		Description string `json:"description"`
+		Name         string `json:"name"`
+		Color        string `json:"color"`
+		Icon         string `json:"icon"`
+		Description  string `json:"description"`
+		CalendarType string `json:"calendar_type"`
 	}
 	if decode(r, &in) != nil || strings.TrimSpace(in.Name) == "" || !validColor(in.Color) {
 		writeError(w, 400, "Check the calendar details")
@@ -202,8 +216,15 @@ func (s *server) updateCalendar(w http.ResponseWriter, r *http.Request) {
 	if in.Icon == "" {
 		in.Icon = "calendar"
 	}
-	tag, err := s.db.Exec(r.Context(), `UPDATE calendars SET name=$2,color=$3,icon=$4,description=$5,updated_at=now() WHERE id=$1`,
-		id, cleanText(in.Name, 100), in.Color, cleanText(in.Icon, 40), cleanText(in.Description, 500))
+	if in.CalendarType == "" {
+		in.CalendarType = "standard"
+	}
+	if in.CalendarType != "standard" && in.CalendarType != "bill_pay" {
+		writeError(w, 400, "Choose a valid calendar type")
+		return
+	}
+	tag, err := s.db.Exec(r.Context(), `UPDATE calendars SET name=$2,color=$3,icon=$4,description=$5,calendar_type=$6,updated_at=now() WHERE id=$1`,
+		id, cleanText(in.Name, 100), in.Color, cleanText(in.Icon, 40), cleanText(in.Description, 500), in.CalendarType)
 	if err != nil {
 		writeError(w, 500, "Could not update calendar")
 		return
