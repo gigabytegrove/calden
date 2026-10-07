@@ -69,6 +69,58 @@ jobs:
           docker compose logs
           exit 1
 
+      - name: Set up browser test
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Chromium test runtime
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+
+      - name: Verify the first-run wizard in a real browser
+        run: |
+          node <<'NODE'
+          const { chromium } = require('playwright');
+
+          (async () => {
+            const browser = await chromium.launch({ headless: true });
+            const page = await browser.newPage();
+            const errors = [];
+
+            page.on('pageerror', err => errors.push('PAGE ERROR: ' + err.message));
+            page.on('console', msg => {
+              if (msg.type() === 'error') errors.push('CONSOLE ERROR: ' + msg.text());
+            });
+
+            await page.goto('http://127.0.0.1:8787', { waitUntil: 'networkidle' });
+            await page.locator('#setup-form').waitFor({ state: 'visible' });
+
+            const heading = await page.locator('#setup-form h1').first().textContent();
+            if (heading?.trim() !== 'Set up your family calendar') {
+              throw new Error('Unexpected setup heading: ' + heading);
+            }
+
+            const logoLoaded = await page.locator('.brand-logo').first().evaluate(img =>
+              img.complete && img.naturalWidth > 0 && img.naturalHeight > 0
+            );
+            if (!logoLoaded) throw new Error('Official CalDen logo did not load');
+
+            const bootStatusVisible = await page.locator('#boot-status').isVisible();
+            if (bootStatusVisible) {
+              throw new Error('Startup status did not clear: ' + await page.locator('#boot-status').textContent());
+            }
+
+            if (errors.length) {
+              throw new Error(errors.join('\n'));
+            }
+
+            console.log('Browser setup wizard smoke test passed.');
+            await browser.close();
+          })();
+          NODE
+
       - name: Verify first-run state
         run: |
           python - <<'PY'
