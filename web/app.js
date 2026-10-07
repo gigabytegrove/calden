@@ -112,18 +112,19 @@ function renderApp(){
 }
 
 function navigate(page,load=true){
-  const adminPages=new Set(["people","calendars","categories","integrations","updates"]);
+  const adminPages=new Set(["people","calendars","categories","integrations","updates","activity"]);
   if(adminPages.has(page)&&state.me?.role!=="admin")page="calendar";
   state.currentPage=page;
   $$(".app-page").forEach(el=>el.classList.toggle("hidden",el.id!==`page-${page}`));
   $$("[data-page]").forEach(el=>el.classList.toggle("active",el.dataset.page===page));
-  const titles={calendar:"Calendar",agenda:"Agenda",people:"People",calendars:"Calendars",categories:"Categories",notifications:"Notifications",integrations:"Integrations",updates:"Updates",settings:"Settings"};
+  const titles={calendar:"Calendar",agenda:"Agenda",people:"People",calendars:"Calendars",categories:"Categories",notifications:"Notifications",integrations:"Integrations",updates:"Updates",activity:"Activity",settings:"Settings"};
   $("#page-title").textContent=titles[page]||"CalDen";
   $("#new-event").classList.toggle("hidden",!["calendar","agenda"].includes(page));
   $("#sidebar").classList.remove("open");
   if(!load)return;
   if(page==="integrations")loadMonita();
   if(page==="updates")loadUpdater();
+  if(page==="activity")loadActivity();
 }
 
 function renderEventControls(){
@@ -478,6 +479,44 @@ function openEvent(existing=null,dateHint=null,scope="series"){
   $("#event-error").textContent="";$("#event-dialog").showModal();
 }
 
+function activityVerb(item){
+  const labels={
+    create:"Created",update:"Updated",delete:"Deleted",archive:"Archived",deactivate:"Deactivated",
+    permissions:"Changed access for",update_occurrence:"Changed one occurrence of",
+    delete_occurrence:"Deleted one occurrence of",restore_occurrence:"Restored one occurrence of",
+    preferences:"Changed preferences for",install:"Started update",rollback:"Started rollback",test:"Tested"
+  };
+  return labels[item.action]||item.action.replaceAll("_"," ");
+}
+function activityEntityLabel(type){
+  return ({event:"event",calendar:"calendar",category:"category",user:"person",settings:"household settings",integration:"integration",update:"CalDen"})[type]||type;
+}
+async function loadActivity(){
+  if(state.me.role!=="admin")return;
+  const host=$("#activity-list");host.innerHTML='<div class="empty-state"><strong>Loading activity…</strong></div>';
+  const filter=$("#activity-filter").value;
+  try{
+    const items=await api("/api/activity?limit=250"+(filter?"&entity_type="+encodeURIComponent(filter):""));
+    host.innerHTML=items.length?items.map(activityRow).join(""):'<div class="empty-state"><strong>No activity yet</strong><span>Changes made in CalDen will appear here.</span></div>';
+  }catch(err){
+    host.innerHTML=`<div class="empty-state"><strong>Could not load activity</strong><span>${escapeHTML(err.message)}</span></div>`;
+  }
+}
+function activityRow(item){
+  const actor=item.actor||{};
+  const date=new Date(item.created_at);
+  const actorName=actor.display_name||"System";
+  const initials=actor.initials||"•";
+  const summary=item.summary||`${activityVerb(item)} ${activityEntityLabel(item.entity_type)}`;
+  return `<article class="activity-entry">
+    <div class="activity-avatar">${escapeHTML(initials)}</div>
+    <div class="activity-copy">
+      <div><strong>${escapeHTML(actorName)}</strong> <span>${escapeHTML(summary)}</span></div>
+      <small>${escapeHTML(formatDate(date,{weekday:"short",month:"short",day:"numeric",year:"numeric"}))} at ${escapeHTML(formatTime(date))} · ${escapeHTML(item.entity_type)}</small>
+    </div>
+  </article>`;
+}
+
 async function loadMonita(){
   if(state.me.role!=="admin")return;
   try{
@@ -732,6 +771,8 @@ $("#test-monita").addEventListener("click",async()=>{
   catch(err){$("#monita-status").textContent=err.message}
 });
 
+$("#activity-filter").addEventListener("change",loadActivity);
+$("#refresh-activity").addEventListener("click",loadActivity);
 $("#check-updates").addEventListener("click",loadUpdater);
 $("#save-update-prefs").addEventListener("click",async()=>{
   $("#update-pref-status").textContent="";
