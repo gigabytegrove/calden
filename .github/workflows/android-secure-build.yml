@@ -29,7 +29,17 @@ jobs:
           openssl pkey -in /tmp/calden-android-private.pem -pubout -out /tmp/calden-android-public.pem >/dev/null 2>&1
           chmod 600 /tmp/calden-android-private.pem
           printf 'CALDEN_ANDROID_PUBLIC_KEY_B64=%s\n' "$(base64 -w0 /tmp/calden-android-public.pem)"
+          mkdir -p /tmp/android-public-key
+          cp /tmp/calden-android-public.pem /tmp/android-public-key/public.pem
           echo "Waiting for encrypted Android source handoff..."
+
+      - name: Publish one-use public key
+        uses: actions/upload-artifact@v4
+        with:
+          name: CalDen-Android-One-Use-Public-Key
+          path: /tmp/android-public-key/public.pem
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Wait for encrypted source handoff
         shell: bash
