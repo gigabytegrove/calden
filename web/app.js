@@ -887,20 +887,25 @@ $$("#calendar-strip").forEach(()=>{});
 $("#calendar-strip").addEventListener("click",e=>{
   const b=e.target.closest("[data-calendar-id]");if(!b)return;
   const id=b.dataset.calendarId;if(state.hiddenCalendars.has(id))state.hiddenCalendars.delete(id);else state.hiddenCalendars.add(id);
-  localStorage.setItem("calden_hidden_calendars",JSON.stringify([...state.hiddenCalendars]));renderCalendar();renderAgenda();
+  localStorage.setItem("calden_hidden_calendars",JSON.stringify([...state.hiddenCalendars]));renderCalendar();renderAgenda();renderSettings();
 });
-$$(".view-switcher button").forEach(b=>b.addEventListener("click",()=>{
-  state.viewDays=Number(b.dataset.days);localStorage.setItem("calden_view_days",String(state.viewDays));renderCalendar();
+$(".view-switcher button").forEach(b=>b.addEventListener("click",async()=>{
+  state.viewDays=Number(b.dataset.days);localStorage.setItem("calden_view_days",String(state.viewDays));
+  await loadEvents();renderCalendar();renderAgenda();
 }));
-$("#calendar-prev").addEventListener("click",()=>{state.anchorDate=addDays(state.anchorDate,-state.viewDays);renderCalendar()});
-$("#calendar-next").addEventListener("click",()=>{state.anchorDate=addDays(state.anchorDate,state.viewDays);renderCalendar()});
-$("#calendar-today").addEventListener("click",()=>{state.anchorDate=startOfDay(new Date());renderCalendar()});
-$("#calendar-view").addEventListener("dblclick",e=>{
-  const cell=e.target.closest(".day-cell");if(cell)openEvent(null,new Date(cell.dataset.date));
+$("#calendar-prev").addEventListener("click",async()=>{state.anchorDate=addDays(state.anchorDate,-state.viewDays);await loadEvents();renderCalendar();renderAgenda()});
+$("#calendar-next").addEventListener("click",async()=>{state.anchorDate=addDays(state.anchorDate,state.viewDays);await loadEvents();renderCalendar();renderAgenda()});
+$("#calendar-today").addEventListener("click",async()=>{state.anchorDate=startOfDay(new Date());await loadEvents();renderCalendar();renderAgenda()});
+$("#calendar-category-filter").addEventListener("change",e=>{state.filters.category=e.target.value;renderCalendar();renderAgenda()});
+$("#calendar-person-filter").addEventListener("change",e=>{state.filters.person=e.target.value;renderCalendar();renderAgenda()});
+$("#calendar-search").addEventListener("input",e=>{state.filters.query=e.target.value.trim();renderCalendar();renderAgenda()});
+$("#clear-calendar-filters").addEventListener("click",()=>{
+  state.filters={category:"",person:"",query:""};renderCalendar();renderAgenda();
 });
 $("#agenda-search").addEventListener("input",renderAgenda);
-$$("#event-dialog [data-close-event]").forEach(b=>b.addEventListener("click",()=>$("#event-dialog").close()));
-$("#event-form").system_reminder_enabled.addEventListener("change",e=>$("#system-reminder-time").classList.toggle("hidden",!e.target.checked));
+$("#event-dialog [data-close-event]").forEach(b=>b.addEventListener("click",()=>$("#event-dialog").close()));
+$("#add-personal-reminder").addEventListener("click",()=>addReminderRow("personal"));
+$("#add-system-reminder").addEventListener("click",()=>addReminderRow("system"));
 $("#event-form").repeat_frequency.addEventListener("change",updateRepeatUI);
 $("#event-form").repeat_interval.addEventListener("input",updateRepeatUI);
 $("#event-form").repeat_end_type.addEventListener("change",updateRepeatUI);
@@ -1071,12 +1076,39 @@ $("#delete-category").addEventListener("click",async()=>{
   }catch(err){$("#category-error").textContent=err.message}
 });
 
+$(".settings-nav-item").forEach(button=>button.addEventListener("click",()=>activateSettingsTab(button.dataset.settingsTab)));
+$("#display-settings-form").addEventListener("submit",e=>{
+  e.preventDefault();
+  state.defaultCalendar=$("#settings-default-calendar").value;
+  state.defaultDuration=Number($("#settings-default-duration").value)||60;
+  state.scrollNow=$("#settings-scroll-now").checked;
+  localStorage.setItem("calden_default_calendar",state.defaultCalendar);
+  localStorage.setItem("calden_default_duration",String(state.defaultDuration));
+  localStorage.setItem("calden_scroll_now",String(state.scrollNow));
+  $("#display-settings-status").textContent="Display settings saved.";
+  renderCalendar();
+});
+$("#reset-display-settings").addEventListener("click",()=>{
+  state.defaultCalendar="";state.defaultDuration=60;state.scrollNow=true;
+  localStorage.removeItem("calden_default_calendar");
+  localStorage.removeItem("calden_default_duration");
+  localStorage.removeItem("calden_scroll_now");
+  state.hiddenCalendars.clear();
+  localStorage.setItem("calden_hidden_calendars","[]");
+  $("#display-settings-status").textContent="Display settings reset.";
+  renderSettings();renderCalendar();renderAgenda();
+});
+
 $("#general-settings-form").addEventListener("submit",async e=>{
   e.preventDefault();const form=e.currentTarget;if(state.me.role!=="admin")return;
   $("#general-settings-status").textContent="";
   const payload={household_name:form.household_name.value.trim(),timezone:form.timezone.value.trim(),week_start:form.week_start.value,default_view:Number(form.default_view.value)};
-  try{state.settings=await api("/api/settings/general",{method:"PUT",body:JSON.stringify(payload)});$("#household-label").textContent=state.settings.household_name;$("#general-settings-status").textContent="Household settings saved."}
-  catch(err){$("#general-settings-status").textContent=err.message}
+  try{
+    state.settings=await api("/api/settings/general",{method:"PUT",body:JSON.stringify(payload)});
+    $("#household-label").textContent=state.settings.household_name;
+    $("#general-settings-status").textContent="Household settings saved.";
+    renderCalendar();
+  }catch(err){$("#general-settings-status").textContent=err.message}
 });
 
 
