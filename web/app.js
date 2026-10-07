@@ -466,7 +466,7 @@ function renderCategories(){
   if(state.me.role!=="admin")return;
   $("#category-list").innerHTML=state.categories.map(cat=>`<article class="management-card">
     <span class="calendar-swatch" style="--cal:${safeColor(cat.color)}"></span>
-    <div class="management-copy"><strong>${escapeHTML(cat.name)}</strong><span>${escapeHTML(cat.description||"No description")}</span><small>Event color ${escapeHTML(cat.color)}</small></div>
+    <div class="management-copy"><strong>${escapeHTML(cat.name)}</strong><span>${escapeHTML(cat.description||"No description")}</span><small>Category marker ${escapeHTML(cat.color)}</small></div>
     <button class="button secondary compact edit-category" type="button" data-category-id="${cat.id}">Edit</button>
   </article>`).join("")||'<div class="empty-state"><strong>No categories</strong><span>Create a category to color-code event types.</span></div>';
   $("#category-list").querySelectorAll(".edit-category").forEach(b=>b.addEventListener("click",()=>beginCategoryEdit(b.dataset.categoryId)));
@@ -599,7 +599,7 @@ function addReminderRow(kind,reminder={}){
   const host=personal?$("#personal-reminders-list"):$("#system-reminders-list");
   const minutes=Number(reminder.minutes_before||(personal?30:1440));
   const row=document.createElement("div");
-  row.className="reminder-row";
+  row.className=personal?"reminder-row":"reminder-row system-row";
   row.dataset.kind=kind;
   row.innerHTML=`<select class="reminder-minutes" aria-label="${personal?"Personal":"Household"} reminder time">${reminderMinutesOptions(minutes)}</select>
     ${personal?"":`<input class="reminder-destination" maxlength="200" placeholder="Monita channel (optional)" value="${escapeAttr(reminder.destination||"")}">`}
