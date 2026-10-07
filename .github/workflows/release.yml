@@ -1,0 +1,82 @@
+name: Publish CalDen Release
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "VERSION"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+
+      - name: Read version
+        id: version
+        shell: bash
+        run: |
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          test -n "$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if [[ "$VERSION" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build update bundles
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          mkdir -p dist
+
+          for ARCH in amd64 arm64; do
+            WORK="dist/work-$ARCH"
+            mkdir -p "$WORK/web"
+            CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH"               go build -trimpath -ldflags="-s -w -X main.version=$VERSION"               -o "$WORK/calden" ./cmd/calden
+            cp -R web/. "$WORK/web/"
+            tar -C "$WORK" -czf "dist/calden-linux-$ARCH.tar.gz" calden web
+          done
+
+          cd dist
+          sha256sum calden-linux-amd64.tar.gz calden-linux-arm64.tar.gz > SHA256SUMS
+
+      - name: Create or update GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="v$VERSION"
+          NOTES_FILE="docs/releases/$TAG.md"
+          if [ ! -f "$NOTES_FILE" ]; then
+            NOTES_FILE="docs/releases/v$VERSION.md"
+          fi
+          if [ ! -f "$NOTES_FILE" ]; then
+            printf '# CalDen %s\n\nRolling CalDen development release.\n' "$VERSION" > /tmp/release-notes.md
+            NOTES_FILE=/tmp/release-notes.md
+          fi
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "CalDen $VERSION" --notes-file "$NOTES_FILE"
+          else
+            EXTRA=()
+            if [ "$PRERELEASE" = "true" ]; then EXTRA+=(--prerelease); fi
+            gh release create "$TAG" --target "${GITHUB_SHA}" --title "CalDen $VERSION" --notes-file "$NOTES_FILE" "${EXTRA[@]}"
+          fi
+
+          gh release upload "$TAG"             dist/calden-linux-amd64.tar.gz             dist/calden-linux-arm64.tar.gz             dist/SHA256SUMS             --clobber
