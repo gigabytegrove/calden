@@ -95,3 +95,9 @@ dialog{border:0;padding:0;width:min(900px,calc(100% - 28px));max-height:92vh;box
 
 .repeat-editor{border:1px solid #e1e5eb;background:#fafbfc;padding:14px;border-radius:7px;display:grid;gap:12px}.repeat-editor h3{margin-bottom:3px}.repeat-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.inline-fields{display:grid;grid-template-columns:90px 1fr;gap:8px;align-items:center}.inline-fields span{font-size:.86rem;color:#657184}.repeat-options fieldset{grid-column:1/-1}.weekday-picker{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}.weekday-picker label{position:relative}.weekday-picker input{position:absolute;opacity:0;pointer-events:none}.weekday-picker span{display:block;text-align:center;border:1px solid #d3dae3;background:#fff;padding:7px 3px;border-radius:5px;font-size:.72rem;cursor:pointer}.weekday-picker input:checked+span{background:#263349;color:#fff;border-color:#263349}.repeat-mark{color:#617084;font-weight:900}
 @media(max-width:620px){.repeat-options{grid-template-columns:1fr}.weekday-picker{grid-template-columns:repeat(4,1fr)}}
+
+.series-scope-note{margin:-4px 0 16px;padding:10px 12px;border-left:3px solid #637084;background:#f5f7f9;color:#566176;font-size:.83rem;line-height:1.4}
+.scope-dialog{width:min(520px,calc(100% - 28px));border:0;padding:0;border-radius:10px;box-shadow:0 24px 80px rgba(16,24,40,.23)}
+.scope-dialog-body{padding:22px}.scope-dialog-body h2{margin-bottom:8px}.scope-dialog-body>p:not(.eyebrow){color:#657184;line-height:1.5;margin-bottom:20px}
+.scope-dialog-actions{display:flex;align-items:center;gap:8px;border-top:1px solid #e6e9ee;padding-top:16px}
+@media(max-width:620px){.scope-dialog-actions{flex-wrap:wrap}.scope-dialog-actions .grow{display:none}.scope-dialog-actions .button{flex:1 1 100%}}
