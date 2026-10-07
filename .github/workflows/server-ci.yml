@@ -315,21 +315,34 @@ jobs:
             let billRowText = await billRow.innerText();
             if (!billRowText.includes('137.42')) throw new Error('Bill amount was not shown in Bill Pay.');
 
-            // The assigned payer and actual payer are intentionally separate.
+            // The assigned payer and actual payer are intentionally separate, and split payments stay separate.
             await billRow.locator('.bill-payment-action').click();
             await page.locator('#bill-payment-dialog').waitFor({ state: 'visible' });
+            const paymentDialogFits = await page.locator('#bill-payment-dialog').evaluate(el => el.scrollWidth <= el.clientWidth + 1);
+            if (!paymentDialogFits) throw new Error('Bill payment modal has a horizontal scrollbar.');
             await page.locator('#bill-payment-person').selectOption({ label: 'Test Admin' });
-            await page.locator('#bill-payment-amount').fill('140.11');
+            await page.locator('#bill-payment-amount').fill('60.00');
+            await page.locator('#bill-payment-date').fill('2026-10-05');
+            await page.locator('#bill-payment-settles').uncheck();
             await page.locator('#bill-payment-save').click();
+            await page.locator('#bill-payment-history').getByText('$60.00', { exact: true }).waitFor({ state: 'visible' });
+            await page.locator('#bill-payment-person').selectOption({ label: 'Second User' });
+            await page.locator('#bill-payment-amount').fill('80.11');
+            await page.locator('#bill-payment-date').fill('2026-10-06');
+            await page.locator('#bill-cleared-date').fill('2026-10-07');
+            await page.locator('#bill-payment-settles').check();
+            await page.locator('#bill-payment-save').click();
+            await page.locator('#bill-payment-history').getByText('$80.11', { exact: true }).waitFor({ state: 'visible' });
+            await page.locator('#bill-payment-cancel').click();
             await page.locator('#bill-payment-dialog').waitFor({ state: 'hidden' });
             billRow = page.locator('#bill-list .bill-row').filter({ hasText: 'Electric CI Bill' });
             billRowText = await billRow.innerText();
-            if (!billRowText.toLowerCase().includes('paid') || !billRowText.includes('Test Admin') || !billRowText.includes('140.11')) {
-              throw new Error('Bill payment status did not show the actual payer and paid amount: ' + billRowText);
+            if (!billRowText.toLowerCase().includes('paid') || !billRowText.includes('140.11')) {
+              throw new Error('Bill payment status did not show split paid total: ' + billRowText);
             }
             const paidBreakdownText = await page.locator('#bill-paid-by-person').innerText();
-            if (!paidBreakdownText.includes('Test Admin') || !paidBreakdownText.includes('140.11')) {
-              throw new Error('Paid-by-person breakdown did not include the actual payment.');
+            if (!paidBreakdownText.includes('Test Admin') || !paidBreakdownText.includes('60.00') || !paidBreakdownText.includes('Second User') || !paidBreakdownText.includes('80.11')) {
+              throw new Error('Paid-by-person breakdown did not include both split payments.');
             }
 
             // Calendar deletion must allow an explicit destructive override when events exist.
@@ -411,7 +424,7 @@ jobs:
           })();
           NODE
 
-      - name: Verify per-occurrence bill payment history
+      - name: Verify split bill payments, dates, clearing, and no-balance months
         run: |
           python - <<'PY'
           import datetime as dt
@@ -438,7 +451,7 @@ jobs:
           })["token"]
           me = request("/api/me", token=token)
           users = request("/api/users", token=token)
-          second = next(u for u in users if u["username"] == "seconduser")
+          second_user = next(u for u in users if u["username"] == "seconduser")
           bills = next(c for c in request("/api/calendars", token=token) if c["name"] == "Bills")
 
           start = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=3)).replace(
@@ -455,9 +468,9 @@ jobs:
               "ends_at": end.isoformat().replace("+00:00", "Z"),
               "all_day": False,
               "assignee_ids": [],
-              "bill_amount": 88.50,
+              "bill_amount": 91.27,
               "bill_amount_is_estimate": True,
-              "bill_payer_user_id": second["id"],
+              "bill_payer_user_id": second_user["id"],
               "reminders": [],
               "recurrence": {
                   "frequency": "monthly",
@@ -477,42 +490,63 @@ jobs:
           )
           occurrences = [e for e in events if e["id"] == event_id]
           assert len(occurrences) == 2, occurrences
-          first, second_occurrence = occurrences
+          first, later = occurrences
 
-          request(f"/api/bills/{event_id}/payment", "PUT", {
+          first_payment = request(f"/api/bills/{event_id}/payments", "POST", {
               "occurrence_start": first["occurrence_start"],
-              "paid": True,
               "paid_by_user_id": me["id"],
-              "amount_paid": 91.27,
+              "amount_paid": 30.00,
+              "paid_on": "2026-10-05",
+              "cleared_on": "",
+              "settles_bill": False,
           }, token)
+          assert first_payment["bill_payment_status"] == "partial", first_payment
+          assert abs(first_payment["bill_amount_paid"] - 30.00) < 0.001, first_payment
+          assert first_payment["bill_payment_count"] == 1, first_payment
 
-          events = request(
-              "/api/events?from=" + urllib.parse.quote(window_from) + "&to=" + urllib.parse.quote(window_to),
-              token=token,
-          )
-          occurrences = [e for e in events if e["id"] == event_id]
-          first = next(e for e in occurrences if e["occurrence_start"] == first["occurrence_start"])
-          later = next(e for e in occurrences if e["occurrence_start"] == second_occurrence["occurrence_start"])
-          assert first["bill_paid"] is True, first
-          assert abs(first["bill_amount_paid"] - 91.27) < 0.001, first
-          assert first["bill_paid_by"]["id"] == me["id"], first
-          assert first["bill_payer"]["id"] == second["id"], first
-          assert later["bill_paid"] is False, later
-          assert later["bill_paid_by"] is None, later
-
-          request(f"/api/bills/{event_id}/payment", "PUT", {
+          second_payment = request(f"/api/bills/{event_id}/payments", "POST", {
               "occurrence_start": first["occurrence_start"],
-              "paid": False,
+              "paid_by_user_id": second_user["id"],
+              "amount_paid": 61.27,
+              "paid_on": "2026-10-06",
+              "cleared_on": "2026-10-07",
+              "settles_bill": True,
           }, token)
+          assert second_payment["bill_payment_status"] == "paid", second_payment
+          assert abs(second_payment["bill_amount_paid"] - 91.27) < 0.001, second_payment
+          assert second_payment["bill_payment_count"] == 2, second_payment
+          assert second_payment["bill_paid_on"] == "2026-10-06", second_payment
+          assert second_payment["bill_cleared_on"] == "2026-10-07", second_payment
+          assert second_payment["bill_paid_by"]["id"] == second_user["id"], second_payment
+
           events = request(
               "/api/events?from=" + urllib.parse.quote(window_from) + "&to=" + urllib.parse.quote(window_to),
               token=token,
           )
           first = next(e for e in events if e["id"] == event_id and e["occurrence_start"] == first["occurrence_start"])
-          assert first["bill_paid"] is False, first
+          later = next(e for e in events if e["id"] == event_id and e["occurrence_start"] == later["occurrence_start"])
+          assert first["bill_payment_status"] == "paid", first
+          assert len(first["bill_payments"]) == 2, first
+          assert first["bill_payer"]["id"] == second_user["id"], first
+          assert later["bill_payment_status"] == "due", later
+          assert later["bill_payment_count"] == 0, later
+
+          no_balance = request(f"/api/bills/{event_id}/no-balance", "PUT", {
+              "occurrence_start": later["occurrence_start"],
+              "no_balance": True,
+          }, token)
+          assert no_balance["bill_payment_status"] == "no_balance", no_balance
+          assert no_balance["bill_no_balance"] is True, no_balance
+          assert no_balance["bill_payment_count"] == 0, no_balance
+
+          reopened = request(f"/api/bills/{event_id}/no-balance", "PUT", {
+              "occurrence_start": later["occurrence_start"],
+              "no_balance": False,
+          }, token)
+          assert reopened["bill_payment_status"] == "due", reopened
 
           request(f"/api/events/{event_id}", "DELETE", token=token)
-          print("Per-occurrence bill payment history test passed.")
+          print("Split payments, payment/cleared dates, and no-balance occurrence test passed.")
           PY
 
       - name: Verify event assignment and whole-family notifications
@@ -1028,10 +1062,9 @@ jobs:
           assert len(repaired_events) == 1, repaired_events
           assert repaired_events[0]["calendar_id"] == family["id"], repaired_events
 
-          # Google exports can repeat the same UID in multiple calendar files after
-          # an event was moved. Reproduce the old CalDen behavior first by giving
-          # both copies identical/no revision metadata, then prove a subsequent
-          # import uses LAST-MODIFIED to keep the current copy and removes the stale one.
+          # Reproduce the old CalDen bug: one logical Google UID was imported into
+          # two CalDen calendars. The repair path must remove only the redundant
+          # database event row; it must not delete calendars or re-import events.
           moved_day=family_day+dt.timedelta(days=4)
           moved_start=moved_day.replace(hour=17,minute=0,second=0,microsecond=0)
           moved_end=moved_start+dt.timedelta(hours=1)
@@ -1072,6 +1105,7 @@ jobs:
           duplicate_events=json_request(f"/api/events?from={moved_from}&to={moved_to}",token=token)
           duplicate_events=[e for e in duplicate_events if e["title"]=="Google Moved Duplicate CI"]
           assert len(duplicate_events) == 2, duplicate_events
+          calendars_before={c["id"]:c["name"] for c in json_request("/api/calendars",token=token)}
 
           corrected_archive=io.BytesIO()
           with zipfile.ZipFile(corrected_archive,"w",zipfile.ZIP_DEFLATED) as z:
@@ -1079,23 +1113,23 @@ jobs:
               z.writestr(current_path,moved_calendar("Google Current","20261006T120000Z"))
           corrected_payload=corrected_archive.getvalue()
 
-          duplicate_preview=google_multipart("/api/integrations/google/preview",corrected_payload,token)
-          assert duplicate_preview["duplicate_events_suppressed"] == 1, duplicate_preview
-          old_preview=next(item for item in duplicate_preview["calendars"] if item["name"]=="Google Old")
-          current_preview=next(item for item in duplicate_preview["calendars"] if item["name"]=="Google Current")
-          assert old_preview["event_count"] == 0, old_preview
-          assert old_preview["duplicate_events_suppressed"] == 1, old_preview
-          assert current_preview["event_count"] == 1, current_preview
+          duplicate_scan=json_request("/api/integrations/google/duplicates",token=token)
+          assert duplicate_scan["duplicate_groups"] >= 1, duplicate_scan
+          assert duplicate_scan["extra_copies"] >= 1, duplicate_scan
 
-          reconciled=google_multipart("/api/integrations/google/import",corrected_payload,token,{"reuse_by_name":"true"})
-          assert reconciled["duplicate_events_suppressed"] == 1, reconciled
-          assert reconciled["duplicate_events_reconciled"] == 1, reconciled
+          repair_preview=google_multipart("/api/integrations/google/duplicates/preview",corrected_payload,token)
+          assert repair_preview["export_repairable_groups"] >= 1, repair_preview
+
+          repaired_duplicates=google_multipart("/api/integrations/google/duplicates/repair",corrected_payload,token)
+          assert repaired_duplicates["removed_copies"] >= 1, repaired_duplicates
 
           duplicate_events=json_request(f"/api/events?from={moved_from}&to={moved_to}",token=token)
           duplicate_events=[e for e in duplicate_events if e["title"]=="Google Moved Duplicate CI"]
           assert len(duplicate_events) == 1, duplicate_events
           current_calendar=next(c for c in json_request("/api/calendars",token=token) if c["name"]=="Google Current")
           assert duplicate_events[0]["calendar_id"] == current_calendar["id"], duplicate_events
+          calendars_after={c["id"]:c["name"] for c in json_request("/api/calendars",token=token)}
+          assert calendars_after == calendars_before, (calendars_before,calendars_after)
 
           print(json.dumps({
               "first":first,
@@ -1103,8 +1137,9 @@ jobs:
               "advanced_occurrences":len(monday),
               "preview_match":match,
               "repair":repaired,
-              "duplicate_preview":duplicate_preview,
-              "duplicate_repair":reconciled,
+              "duplicate_scan":duplicate_scan,
+              "duplicate_preview":repair_preview,
+              "duplicate_repair":repaired_duplicates,
           },indent=2))
           PY
 
