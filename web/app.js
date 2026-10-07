@@ -1,5 +1,5 @@
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
-const state={token:localStorage.getItem("calden_token")||"",me:null,users:[],calendars:[],events:[],editingEvent:null};
+const state={token:localStorage.getItem("calden_token")||"",me:null,settings:null,users:[],calendars:[],events:[],editingEvent:null,setupStep:0};
 
 async function api(path,options={}){
   const headers={"Content-Type":"application/json",...(options.headers||{})};
@@ -11,7 +11,21 @@ async function api(path,options={}){
 }
 function setToken(token){state.token=token||"";if(token)localStorage.setItem("calden_token",token);else localStorage.removeItem("calden_token")}
 function formJSON(form){return Object.fromEntries(new FormData(form).entries())}
-function showAuth(which){$("#app").classList.add("hidden");$("#auth").classList.remove("hidden");$("#setup-form").classList.toggle("hidden",which!=="setup");$("#login-form").classList.toggle("hidden",which!=="login")}
+function showAuth(which){
+  $("#app").classList.add("hidden");
+  $("#auth").classList.remove("hidden");
+  $("#setup-form").classList.toggle("hidden",which!=="setup");
+  $("#login-form").classList.toggle("hidden",which!=="login");
+  $("#auth-card").classList.toggle("setup-mode",which==="setup");
+  $("#auth-error").textContent="";
+  if(which==="setup"){
+    const zone=Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC";
+    const form=$("#setup-form");
+    form.timezone.value=zone;
+    $("#setup-timezone").textContent=zone.replaceAll("_"," ");
+    setSetupStep(0);
+  }
+}
 
 async function boot(){
   const setup=await api("/api/setup/status");
@@ -19,6 +33,7 @@ async function boot(){
   if(!state.token){showAuth("login");return}
   try{
     state.me=await api("/api/me");
+    state.settings=await api("/api/settings/general");
     await reloadSharedData();
     render();
   }catch(e){setToken("");showAuth("login")}
@@ -35,6 +50,7 @@ async function loadEvents(){
 function render(){
   $("#auth").classList.add("hidden");$("#app").classList.remove("hidden");
   $("#me").textContent=state.me.display_name;
+  $("#household-label").textContent=state.settings?.household_name||"";
   $("#manage").classList.toggle("hidden",state.me.role!=="admin");
   $("#today-label").textContent=new Intl.DateTimeFormat(undefined,{weekday:"long",month:"long",day:"numeric"}).format(new Date());
   $("#calendar-strip").innerHTML=state.calendars.map(c=>`<button class="calendar-pill"><span class="dot" style="--cal:${safeColor(c.color)}"></span>${escapeHTML(c.name)}</button>`).join("");
@@ -93,12 +109,93 @@ async function openManage(){
     }catch{}
   }
 }
+function setSetupStep(step){
+  state.setupStep=Math.max(0,Math.min(3,step));
+  $(".setup-step").forEach(s=>s.classList.toggle("hidden",Number(s.dataset.step)!==state.setupStep));
+  $(".setup-dot").forEach(d=>d.classList.toggle("active",Number(d.dataset.dot)<=state.setupStep));
+  $("#setup-back").classList.toggle("hidden",state.setupStep===0);
+  $("#setup-next").classList.toggle("hidden",state.setupStep===3);
+  $("#setup-finish").classList.toggle("hidden",state.setupStep!==3);
+  if(state.setupStep===3) updateSetupSummary();
+}
+
+function setupStepValid(){
+  const form=$("#setup-form");
+  $("#auth-error").textContent="";
+  if(state.setupStep===0){
+    if(!form.household_name.value.trim()){
+      $("#auth-error").textContent="Give your family calendar a name.";
+      form.household_name.focus();
+      return false;
+    }
+  }
+  if(state.setupStep===1){
+    if(!form.display_name.value.trim()){
+      $("#auth-error").textContent="Enter your name.";
+      form.display_name.focus();
+      return false;
+    }
+    if(form.username.value.trim().length<3){
+      $("#auth-error").textContent="Username must be at least 3 characters.";
+      form.username.focus();
+      return false;
+    }
+    if(form.password.value.length<8){
+      $("#auth-error").textContent="Password must be at least 8 characters.";
+      form.password.focus();
+      return false;
+    }
+    if(form.password.value!==form.confirm_password.value){
+      $("#auth-error").textContent="Those passwords do not match.";
+      form.confirm_password.focus();
+      return false;
+    }
+  }
+  return true;
+}
+
+function updateSetupSummary(){
+  const form=$("#setup-form");
+  const names=[...form.querySelectorAll('input[name="starter_calendar"]:checked')].map(i=>i.closest("label").querySelector("b").textContent);
+  $("#summary-household").textContent=form.household_name.value.trim();
+  $("#summary-admin").textContent=form.display_name.value.trim();
+  $("#summary-timezone").textContent=(form.timezone.value||"UTC").replaceAll("_"," ");
+  $("#summary-calendars").textContent=names.length?names.join(", "):"Family";
+}
+
 function localInput(d){const p=n=>String(n).padStart(2,"0");return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`}
 function escapeHTML(v=""){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function escapeAttr(v=""){return escapeHTML(v)}
 function safeColor(v){return /^#[0-9a-f]{6}$/i.test(v)?v:"#667085"}
 
-$("#setup-form").addEventListener("submit",async e=>{e.preventDefault();$("#auth-error").textContent="";try{const out=await api("/api/setup",{method:"POST",body:JSON.stringify(formJSON(e.currentTarget))});setToken(out.token);await boot();openManage()}catch(err){$("#auth-error").textContent=err.message}});
+$("#setup-next").addEventListener("click",()=>{if(setupStepValid())setSetupStep(state.setupStep+1)});
+$("#setup-back").addEventListener("click",()=>setSetupStep(state.setupStep-1));
+$("#setup-form").addEventListener("submit",async e=>{
+  e.preventDefault();
+  if(!setupStepValid())return;
+  const f=e.currentTarget;
+  $("#auth-error").textContent="";
+  $("#setup-finish").disabled=true;
+  $("#setup-finish").textContent="Setting up…";
+  const payload={
+    household_name:f.household_name.value.trim(),
+    timezone:f.timezone.value||"UTC",
+    display_name:f.display_name.value.trim(),
+    username:f.username.value.trim(),
+    password:f.password.value,
+    starter_calendars:[...f.querySelectorAll('input[name="starter_calendar"]:checked')].map(i=>i.value)
+  };
+  try{
+    const out=await api("/api/setup",{method:"POST",body:JSON.stringify(payload)});
+    setToken(out.token);
+    await boot();
+  }catch(err){
+    $("#auth-error").textContent=err.message;
+  }finally{
+    $("#setup-finish").disabled=false;
+    $("#setup-finish").textContent="Finish setup";
+  }
+});
 $("#login-form").addEventListener("submit",async e=>{e.preventDefault();$("#auth-error").textContent="";try{const out=await api("/api/login",{method:"POST",body:JSON.stringify(formJSON(e.currentTarget))});setToken(out.token);await boot()}catch(err){$("#auth-error").textContent=err.message}});
 $("#logout").addEventListener("click",()=>{setToken("");showAuth("login")});
 $("#new-event").addEventListener("click",()=>openEvent());$("#nav-add").addEventListener("click",()=>openEvent());
