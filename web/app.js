@@ -206,7 +206,14 @@ function renderEventControls(){
   const editable=state.calendars.filter(c=>c.can_edit);
   $("#calendar-select").innerHTML='<option value="">Choose a calendar</option>'+editable.map(c=>`<option value="${c.id}">${escapeHTML(c.name)}</option>`).join("");
   $("#category-select").innerHTML='<option value="">No category</option>'+state.categories.map(cat=>`<option value="${cat.id}">${escapeHTML(cat.name)}</option>`).join("");
-  $("#people-picker").innerHTML=state.users.filter(u=>u.active!==false).map(personChoice).join("");
+  const activeUsers=state.users.filter(u=>u.active!==false);
+  $("#people-picker").innerHTML=activeUsers.map(personChoice).join("");
+  const billPayer=$("#bill-payer-select");
+  if(billPayer){
+    const selected=billPayer.value;
+    billPayer.innerHTML='<option value="">Not assigned</option>'+activeUsers.map(u=>`<option value="${u.id}">${escapeHTML(u.display_name)}</option>`).join("");
+    if(activeUsers.some(u=>u.id===selected))billPayer.value=selected;
+  }
 
   const categoryFilter=$("#calendar-category-filter");
   if(categoryFilter){
