@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -207,6 +208,7 @@ func (m *Manager) Status() RestoreStatus {
 			status.Backups = append(status.Backups, SavedBackup{Name: entry.Name(), Size: info.Size(), CreatedAt: info.ModTime().UTC()})
 		}
 	}
+	sort.Slice(status.Backups, func(i, j int) bool { return status.Backups[i].CreatedAt.After(status.Backups[j].CreatedAt) })
 	return status
 }
 
