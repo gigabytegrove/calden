@@ -1,0 +1,2 @@
+/* Development fallback. npm run build:css replaces this with the compiled Tailwind bundle. */
+@import url("/app.css");
