@@ -53,6 +53,7 @@ func New(cfg Config) http.Handler {
 	mux.HandleFunc("POST /api/login", s.login)
 	mux.Handle("GET /api/me", s.auth(http.HandlerFunc(s.me)))
 	mux.Handle("GET /api/settings/general", s.auth(http.HandlerFunc(s.generalSettings)))
+	mux.Handle("GET /api/activity", s.auth(s.admin(http.HandlerFunc(s.listAudit))))
 	mux.Handle("PUT /api/settings/general", s.auth(s.admin(http.HandlerFunc(s.saveGeneralSettings))))
 	mux.Handle("GET /api/users", s.auth(http.HandlerFunc(s.listUsers)))
 	mux.Handle("POST /api/users", s.auth(s.admin(http.HandlerFunc(s.createUser))))
