@@ -1495,27 +1495,48 @@ googleImportDrop?.addEventListener("drop",e=>{
   e.preventDefault();googleImportDrop.classList.remove("drag-over");
   const file=e.dataTransfer?.files?.[0];if(file)setGoogleImportFile(file);
 });
+$("#review-google-calendar")?.addEventListener("click",async()=>{
+  const file=state.googleImportFile||googleImportInput?.files?.[0];
+  const status=$("#google-import-status"),button=$("#review-google-calendar"),results=$("#google-import-results");
+  if(!file){status.textContent="Choose your Google Calendar export first.";return}
+  button.disabled=true;button.textContent="Reviewing…";status.textContent="Comparing Google calendars with the calendars already in CalDen…";
+  results.classList.add("hidden");results.innerHTML="";
+  try{
+    const form=new FormData();form.append("archive",file,file.name);
+    const res=await fetch("/api/integrations/google/preview",{method:"POST",headers:{Authorization:"Bearer "+state.token},body:form});
+    const body=await res.json().catch(()=>null);
+    if(!res.ok)throw new Error(body?.error||"Could not review Google Calendar export");
+    renderGoogleImportMapping(body);
+    status.textContent=`Found ${body.calendar_count||0} Google calendar${Number(body.calendar_count)===1?"":"s"}. Review each destination below before importing.`;
+  }catch(err){
+    status.textContent=err.message;
+  }finally{
+    button.disabled=false;button.textContent="Review calendars";
+  }
+});
 $("#import-google-calendar")?.addEventListener("click",async()=>{
   const file=state.googleImportFile||googleImportInput?.files?.[0];
   const status=$("#google-import-status"),button=$("#import-google-calendar"),results=$("#google-import-results");
   if(!file){status.textContent="Choose your Google Calendar export first.";return}
-  button.disabled=true;button.textContent="Importing…";status.textContent="Reading calendars and importing events…";
+  if(!state.googleImportPreview?.length){status.textContent="Review the calendars before importing.";return}
+  button.disabled=true;button.textContent="Importing…";status.textContent="Importing the calendar mapping you approved…";
   results.classList.add("hidden");results.innerHTML="";
   try{
     const form=new FormData();
     form.append("archive",file,file.name);
-    form.append("reuse_by_name",String($("#google-import-reuse")?.checked!==false));
+    form.append("calendar_mapping",JSON.stringify(collectGoogleMapping()));
     const res=await fetch("/api/integrations/google/import",{method:"POST",headers:{Authorization:"Bearer "+state.token},body:form});
     const body=await res.json().catch(()=>null);
     if(!res.ok)throw new Error(body?.error||"Google Calendar import failed");
-    status.textContent=`Imported ${body.calendar_count||0} calendars: ${body.created||0} new events, ${body.updated||0} updated${body.skipped?" · "+body.skipped+" skipped":""}.`;
+    const cleanup=Number(body.cleaned_calendars)||0;
+    status.textContent=`Imported ${body.calendar_count||0} calendar${Number(body.calendar_count)===1?"":"s"}: ${body.created||0} new events, ${body.updated||0} updated${cleanup?" · "+cleanup+" old duplicate calendar"+(cleanup===1?"":"s")+" removed":""}.`;
     renderGoogleImportResults(body);
     await reloadSharedData();
-    renderCalendars();renderCategories();renderEventControls();renderCalendar();renderAgenda();renderNotifications();renderSettings();
+    renderCalendars();renderCategories();renderBillNavigation();renderBills();renderEventControls();renderCalendar();renderAgenda();renderNotifications();renderSettings();
   }catch(err){
     status.textContent=err.message;
   }finally{
-    button.disabled=false;button.textContent="Import everything";
+    button.disabled=false;button.textContent="Import selected calendars";
   }
 });
 
