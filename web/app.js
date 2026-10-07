@@ -12,7 +12,7 @@ const savedScrollNow=localStorage.getItem("calden_scroll_now")!=="false";
 const state={
   token:localStorage.getItem("calden_token")||"",
   me:null,settings:null,users:[],calendars:[],categories:[],events:[],
-  editingEvent:null,editingScope:"series",editingCalendar:null,editingCategory:null,editingUser:null,
+  editingEvent:null,editingScope:"series",preserveRawRecurrence:false,editingCalendar:null,editingCategory:null,editingUser:null,
   setupStep:0,currentPage:"calendar",
   viewDays:[1,7,14,30].includes(savedDays)?savedDays:7,
   anchorDate:startOfDay(new Date()),
@@ -22,6 +22,7 @@ const state={
   defaultDuration:[30,60,90,120].includes(savedDefaultDuration)?savedDefaultDuration:60,
   scrollNow:savedScrollNow,
   settingsTab:"general",
+  googleImportFile:null,
   updateInfo:null,updatePoll:null
 };
 
@@ -50,6 +51,7 @@ function startOfDay(value){const d=new Date(value);d.setHours(0,0,0,0);return d}
 function addDays(value,days){const d=new Date(value);d.setDate(d.getDate()+days);return d}
 function sameDay(a,b){return startOfDay(a).getTime()===startOfDay(b).getTime()}
 function localInput(d){const p=n=>String(n).padStart(2,"0");return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`}
+const maxAvatarUploadBytes=10*1024*1024;
 function roleLabel(role){return role==="admin"?"Administrator":role==="restricted"?"Restricted member":"Family member"}
 function avatarMarkup(user,sizeClass=""){
   if(user?.avatar_url){
@@ -62,6 +64,34 @@ function setAvatarPreview(el,user){
   el.innerHTML=user?.avatar_url
     ?`<img src="${escapeAttr(user.avatar_url)}" alt="">`
     :`<span>${escapeHTML(user?.initials||"?")}</span>`;
+}
+function previewAvatarFile(input,preview,status){
+  const file=input?.files?.[0];
+  if(!file)return true;
+  if(file.size>maxAvatarUploadBytes){
+    input.value="";
+    if(status)status.textContent="Profile image must be 10 MB or smaller.";
+    return false;
+  }
+  const allowed=["image/jpeg","image/png","image/webp"];
+  if(file.type&&!allowed.includes(file.type)){
+    input.value="";
+    if(status)status.textContent="Use a JPG, PNG, or WebP profile image.";
+    return false;
+  }
+  const url=URL.createObjectURL(file);
+  const img=document.createElement("img");
+  img.alt="";
+  img.onload=()=>URL.revokeObjectURL(url);
+  img.onerror=()=>{
+    URL.revokeObjectURL(url);
+    if(status)status.textContent="Could not preview this image. Use a JPG, PNG, or WebP file.";
+    preview.innerHTML="<span>?</span>";
+  };
+  img.src=url;
+  preview.replaceChildren(img);
+  if(status)status.textContent="";
+  return true;
 }
 function formatDate(d,opts={month:"short",day:"numeric"}){return new Intl.DateTimeFormat(undefined,opts).format(d)}
 function formatTime(d){return new Intl.DateTimeFormat(undefined,{hour:"numeric",minute:"2-digit"}).format(d)}
@@ -154,7 +184,7 @@ function navigate(page,load=true){
   $("#sidebar").classList.remove("open");
   if(!load)return;
   if(page==="notifications")renderNotifications();
-  if(page==="integrations")loadMonita();
+  if(page==="integrations"){loadMonita();setGoogleImportFile(state.googleImportFile);}
   if(page==="updates")loadUpdater();
   if(page==="backups")loadBackups();
   if(page==="activity")loadActivity();
@@ -594,6 +624,9 @@ function updateRepeatUI(){
 }
 
 function recurrencePayload(form){
+  if(state.preserveRawRecurrence&&state.editingEvent?.recurrence?.raw){
+    return {...state.editingEvent.recurrence};
+  }
   const frequency=form.repeat_frequency.value;
   if(!frequency)return null;
   const rule={
@@ -688,7 +721,7 @@ function openEvent(existing=null,dateHint=null,scope="series"){
     if(state.me.role==="admin"){navigate("calendars");return}
     alert("You do not have a calendar you can add events to yet.");return;
   }
-  const form=$("#event-form");form.reset();state.editingEvent=existing;state.editingScope=scope;
+  const form=$("#event-form");form.reset();state.editingEvent=existing;state.editingScope=scope;state.preserveRawRecurrence=false;
   $("#event-dialog-title").textContent=existing?(scope==="occurrence"?"Edit occurrence":"Edit series"):"Add event";
   $("#delete-event").classList.toggle("hidden",!existing);
   $("#repeat-editor").classList.toggle("hidden",!!existing&&scope==="occurrence");
@@ -714,6 +747,8 @@ function openEvent(existing=null,dateHint=null,scope="series"){
     form.ends_at.value=localInput(new Date(occurrenceScope?existing.ends_at:(existing.series_ends_at||existing.ends_at)));
     form.all_day.checked=!!sourceAllDay;form.location.value=sourceLocation||"";form.notes.value=sourceNotes||"";
     const recurrence=occurrenceScope?null:(existing.recurrence||null);
+    state.preserveRawRecurrence=!!recurrence?.raw;
+    $("#advanced-recurrence-note")?.classList.toggle("hidden",!state.preserveRawRecurrence);
     form.repeat_frequency.value=recurrence?.frequency||"";
     form.repeat_interval.value=String(recurrence?.interval||1);
     [...form.querySelectorAll('input[name="repeat_weekday"]')].forEach(i=>i.checked=(recurrence?.weekdays||[]).includes(Number(i.value)));
@@ -729,7 +764,7 @@ function openEvent(existing=null,dateHint=null,scope="series"){
     renderReminderEditor(sourceReminders);
     [...form.querySelectorAll('input[name="assignee"]')].forEach(i=>i.checked=sourceAssignees.some(a=>a.id===i.value));
   }else{
-    $("#repeat-editor").classList.remove("hidden");$("#series-scope-note").classList.add("hidden");
+    $("#repeat-editor").classList.remove("hidden");$("#series-scope-note").classList.add("hidden");$("#advanced-recurrence-note")?.classList.add("hidden");
     const start=dateHint?new Date(dateHint):new Date(Date.now()+3600000);
     if(!dateHint)start.setMinutes(0,0,0);else start.setSeconds(0,0);
     if(dateHint&&start.getHours()===0&&start.getMinutes()===0)start.setHours(9);
@@ -853,6 +888,42 @@ async function loadMonita(){
   }catch(err){$("#monita-status").textContent=err.message}
 }
 
+
+function setGoogleImportFile(file){
+  state.googleImportFile=file||null;
+  const summary=$("#google-import-file-summary"),button=$("#import-google-calendar"),status=$("#google-import-status");
+  if(!summary||!button)return;
+  if(!file){
+    summary.classList.add("hidden");summary.innerHTML="";button.disabled=true;
+    return;
+  }
+  const valid=/\.(zip|ics)$/i.test(file.name||"");
+  summary.classList.remove("hidden");
+  summary.innerHTML=`<div><strong>${escapeHTML(file.name||"Google Calendar export")}</strong><span>${humanSize(file.size||0)}</span></div><button id="clear-google-import-file" class="text-button" type="button">Clear</button>`;
+  button.disabled=!valid;
+  if(!valid)status.textContent="Choose the .zip file exported by Google Calendar, or an .ics file.";
+  else if(status.textContent.startsWith("Choose the"))status.textContent="";
+  $("#clear-google-import-file")?.addEventListener("click",()=>{
+    const input=$("#google-calendar-export");if(input)input.value="";
+    setGoogleImportFile(null);$("#google-import-results")?.classList.add("hidden");
+  });
+}
+
+function renderGoogleImportResults(body){
+  const host=$("#google-import-results");if(!host)return;
+  const calendars=body?.calendars||[];
+  host.classList.remove("hidden");
+  host.innerHTML=`<div class="google-import-summary">
+    <span>${Number(body?.calendar_count)||calendars.length} calendars</span>
+    <span>${Number(body?.created)||0} new events</span>
+    <span>${Number(body?.updated)||0} updated</span>
+    <span>${Number(body?.exceptions)||0} recurrence changes</span>
+  </div>`+calendars.map(item=>`<article class="google-import-calendar">
+    <div><strong>${escapeHTML(item.name||"Imported calendar")}</strong><small>${Number(item.created)||0} new · ${Number(item.updated)||0} updated${item.skipped?" · "+Number(item.skipped)+" skipped":""}</small></div>
+    <span>${item.created_calendar?"Created calendar":"Matched calendar"}</span>
+  </article>`).join("");
+}
+
 async function loadUpdater(){
   if(state.me.role!=="admin")return;
   $("#update-state").textContent="Checking for updates…";
@@ -964,9 +1035,17 @@ $("#refresh-notifications").addEventListener("click",async()=>{await loadEvents(
 $$("#event-dialog [data-close-event]").forEach(b=>b.addEventListener("click",()=>$("#event-dialog").close()));
 $("#add-personal-reminder").addEventListener("click",()=>addReminderRow("personal"));
 $("#add-system-reminder").addEventListener("click",()=>addReminderRow("system"));
-$("#event-form").repeat_frequency.addEventListener("change",updateRepeatUI);
-$("#event-form").repeat_interval.addEventListener("input",updateRepeatUI);
-$("#event-form").repeat_end_type.addEventListener("change",updateRepeatUI);
+function markRecurrenceEdited(){
+  if(!state.preserveRawRecurrence)return;
+  state.preserveRawRecurrence=false;
+  $("#advanced-recurrence-note")?.classList.add("hidden");
+}
+$("#event-form").repeat_frequency.addEventListener("change",()=>{markRecurrenceEdited();updateRepeatUI()});
+$("#event-form").repeat_interval.addEventListener("input",()=>{markRecurrenceEdited();updateRepeatUI()});
+$("#event-form").repeat_end_type.addEventListener("change",()=>{markRecurrenceEdited();updateRepeatUI()});
+$("#event-form").repeat_until.addEventListener("change",markRecurrenceEdited);
+$("#event-form").repeat_count.addEventListener("input",markRecurrenceEdited);
+$("#event-form").querySelectorAll('input[name="repeat_weekday"]').forEach(input=>input.addEventListener("change",markRecurrenceEdited));
 $("#event-form").starts_at.addEventListener("change",()=>{if($("#event-form").repeat_frequency.value==="weekly")updateRepeatUI()});
 $("#delete-event").addEventListener("click",async()=>{
   if(!state.editingEvent)return;
@@ -986,7 +1065,7 @@ $("#delete-event").addEventListener("click",async()=>{
       await api("/api/events/"+state.editingEvent.id,{method:"DELETE"});
     }
     if($("#event-dialog").open)$("#event-dialog").close();
-    state.editingEvent=null;state.editingScope="series";
+    state.editingEvent=null;state.editingScope="series";state.preserveRawRecurrence=false;
     await loadEvents();renderCalendar();renderAgenda();
   }catch(err){
     if(!$("#event-dialog").open)$("#event-dialog").showModal();
@@ -1009,7 +1088,7 @@ $("#event-form").addEventListener("submit",async e=>{
   }
   try{
     await api(target,{method,body:JSON.stringify(body)});
-    $("#event-dialog").close();state.editingEvent=null;state.editingScope="series";
+    $("#event-dialog").close();state.editingEvent=null;state.editingScope="series";state.preserveRawRecurrence=false;
     await loadEvents();renderCalendar();renderAgenda();
   }
   catch(err){$("#event-error").textContent=err.message}
@@ -1018,6 +1097,11 @@ $("#event-form").addEventListener("submit",async e=>{
 $("#person-form").addEventListener("submit",async e=>{
   e.preventDefault();const form=e.currentTarget;$("#person-error").textContent="";$("#person-status").textContent="";
   const editing=state.editingUser;
+  const avatarFile=$("#person-avatar-file").files?.[0];
+  if(avatarFile&&avatarFile.size>maxAvatarUploadBytes){
+    $("#person-error").textContent="Profile image must be 10 MB or smaller.";
+    return;
+  }
   try{
     let userID=editing?.id||"";
     if(editing){
@@ -1028,7 +1112,6 @@ $("#person-form").addEventListener("submit",async e=>{
       const created=await api("/api/users",{method:"POST",body:JSON.stringify(payload)});
       userID=created.id;
     }
-    const avatarFile=$("#person-avatar-file").files?.[0];
     if(avatarFile&&userID){
       const data=new FormData();data.append("avatar",avatarFile);
       await apiForm("/api/users/"+userID+"/avatar",data);
@@ -1040,9 +1123,8 @@ $("#person-form").addEventListener("submit",async e=>{
 });
 $("#cancel-person-edit").addEventListener("click",resetPersonForm);
 $("#person-avatar-file").addEventListener("change",e=>{
-  const file=e.target.files?.[0];if(!file)return;
-  const url=URL.createObjectURL(file);
-  $("#person-avatar-preview").innerHTML=`<img src="${url}" alt="">`;
+  if(!e.target.files?.[0])return;
+  previewAvatarFile(e.target,$("#person-avatar-preview"),$("#person-error"));
 });
 $("#remove-person-avatar").addEventListener("click",async()=>{
   if(!state.editingUser)return;
@@ -1171,12 +1253,13 @@ $("#general-settings-form").addEventListener("submit",async e=>{
 
 
 $("#settings-avatar-file").addEventListener("change",e=>{
-  const file=e.target.files?.[0];if(!file)return;
-  $("#settings-avatar-preview").innerHTML=`<img src="${URL.createObjectURL(file)}" alt="">`;
+  if(!e.target.files?.[0])return;
+  previewAvatarFile(e.target,$("#settings-avatar-preview"),$("#settings-avatar-status"));
 });
 $("#save-settings-avatar").addEventListener("click",async()=>{
   const file=$("#settings-avatar-file").files?.[0];
   if(!file){$("#settings-avatar-status").textContent="Choose a profile image first.";return}
+  if(file.size>maxAvatarUploadBytes){$("#settings-avatar-status").textContent="Profile image must be 10 MB or smaller.";return}
   $("#settings-avatar-status").textContent="Uploading…";
   try{
     const data=new FormData();data.append("avatar",file);
@@ -1199,6 +1282,39 @@ $("#remove-settings-avatar").addEventListener("click",async()=>{
     $("#remove-settings-avatar").classList.add("hidden");
     $("#settings-avatar-status").textContent="Profile image removed.";
   }catch(err){$("#settings-avatar-status").textContent=err.message}
+});
+
+const googleImportInput=$("#google-calendar-export");
+const googleImportDrop=$("#google-import-drop");
+googleImportInput?.addEventListener("change",()=>setGoogleImportFile(googleImportInput.files?.[0]||null));
+googleImportDrop?.addEventListener("dragover",e=>{e.preventDefault();googleImportDrop.classList.add("drag-over")});
+googleImportDrop?.addEventListener("dragleave",()=>googleImportDrop.classList.remove("drag-over"));
+googleImportDrop?.addEventListener("drop",e=>{
+  e.preventDefault();googleImportDrop.classList.remove("drag-over");
+  const file=e.dataTransfer?.files?.[0];if(file)setGoogleImportFile(file);
+});
+$("#import-google-calendar")?.addEventListener("click",async()=>{
+  const file=state.googleImportFile||googleImportInput?.files?.[0];
+  const status=$("#google-import-status"),button=$("#import-google-calendar"),results=$("#google-import-results");
+  if(!file){status.textContent="Choose your Google Calendar export first.";return}
+  button.disabled=true;button.textContent="Importing…";status.textContent="Reading calendars and importing events…";
+  results.classList.add("hidden");results.innerHTML="";
+  try{
+    const form=new FormData();
+    form.append("archive",file,file.name);
+    form.append("reuse_by_name",String($("#google-import-reuse")?.checked!==false));
+    const res=await fetch("/api/integrations/google/import",{method:"POST",headers:{Authorization:"Bearer "+state.token},body:form});
+    const body=await res.json().catch(()=>null);
+    if(!res.ok)throw new Error(body?.error||"Google Calendar import failed");
+    status.textContent=`Imported ${body.calendar_count||0} calendars: ${body.created||0} new events, ${body.updated||0} updated${body.skipped?" · "+body.skipped+" skipped":""}.`;
+    renderGoogleImportResults(body);
+    await reloadSharedData();
+    renderCalendars();renderCategories();renderEventControls();renderCalendar();renderAgenda();renderNotifications();renderSettings();
+  }catch(err){
+    status.textContent=err.message;
+  }finally{
+    button.disabled=false;button.textContent="Import everything";
+  }
 });
 
 $("#monita-form").addEventListener("submit",async e=>{

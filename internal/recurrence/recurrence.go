@@ -2,8 +2,12 @@ package recurrence
 
 import (
 	"errors"
+	"fmt"
 	"sort"
+	"strings"
 	"time"
+
+	rrulelib "github.com/teambition/rrule-go"
 )
 
 type Rule struct {
@@ -12,6 +16,7 @@ type Rule struct {
 	Weekdays        []int      `json:"weekdays,omitempty"`
 	Until           *time.Time `json:"until,omitempty"`
 	OccurrenceCount *int       `json:"occurrence_count,omitempty"`
+	Raw             string     `json:"raw,omitempty"`
 }
 
 type Occurrence struct {
@@ -22,6 +27,12 @@ type Occurrence struct {
 
 func Validate(rule *Rule) error {
 	if rule == nil {
+		return nil
+	}
+	if raw := strings.TrimSpace(strings.TrimPrefix(rule.Raw, "RRULE:")); raw != "" {
+		if _, err := rrulelib.StrToROption(raw); err != nil {
+			return fmt.Errorf("invalid RFC 5545 recurrence rule: %w", err)
+		}
 		return nil
 	}
 	switch rule.Frequency {
@@ -59,6 +70,9 @@ func Normalize(rule *Rule, start time.Time) *Rule {
 		return nil
 	}
 	out := *rule
+	if strings.TrimSpace(out.Raw) != "" {
+		return &out
+	}
 	if out.Interval < 1 {
 		out.Interval = 1
 	}
@@ -91,6 +105,9 @@ func Expand(start, end time.Time, rule *Rule, from, to time.Time, max int) []Occ
 	if Validate(rule) != nil {
 		return nil
 	}
+	if strings.TrimSpace(rule.Raw) != "" {
+		return expandRFC5545(start, duration, rule.Raw, from, to, max)
+	}
 
 	switch rule.Frequency {
 	case "daily":
@@ -104,6 +121,32 @@ func Expand(start, end time.Time, rule *Rule, from, to time.Time, max int) []Occ
 	default:
 		return nil
 	}
+}
+
+func expandRFC5545(start time.Time, duration time.Duration, raw string, from, to time.Time, max int) []Occurrence {
+	raw = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(raw), "RRULE:"))
+	option, err := rrulelib.StrToROptionInLocation(raw, start.Location())
+	if err != nil {
+		return nil
+	}
+	option.Dtstart = start
+	rule, err := rrulelib.NewRRule(*option)
+	if err != nil {
+		return nil
+	}
+	searchFrom := from.Add(-duration)
+	candidates := rule.Between(searchFrom, to, true)
+	out := make([]Occurrence, 0, min(len(candidates), max))
+	for i, candidate := range candidates {
+		if candidate.Before(start) {
+			continue
+		}
+		out = appendIfInRange(out, candidate, duration, i+1, from, to, max)
+		if len(out) >= max {
+			break
+		}
+	}
+	return out
 }
 
 func accepted(candidate time.Time, index int, rule *Rule) bool {
