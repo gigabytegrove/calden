@@ -60,6 +60,7 @@ func (s *server) createCategory(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "That category name is already in use")
 		return
 	}
+	s.audit(r, "create", "category", &id, "Created category "+in.Name, map[string]any{"color": in.Color})
 	writeJSON(w, http.StatusCreated, map[string]any{"id": id})
 }
 
@@ -95,6 +96,7 @@ func (s *server) updateCategory(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 404, "Category not found")
 		return
 	}
+	s.audit(r, "update", "category", &id, "Updated category "+in.Name, map[string]any{"color": in.Color})
 	writeJSON(w, http.StatusOK, map[string]any{"id": id})
 }
 
@@ -114,5 +116,6 @@ func (s *server) deleteCategory(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 404, "Category not found")
 		return
 	}
+	s.audit(r, "archive", "category", &id, "Archived category", nil)
 	w.WriteHeader(http.StatusNoContent)
 }
