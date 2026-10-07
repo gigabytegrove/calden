@@ -21,9 +21,13 @@ import (
 	"github.com/gigabytegrove/calden/internal/store"
 )
 
-const version = "0.1.0-alpha1"
+var version = "0.1.0-alpha2"
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "version" {
+		fmt.Printf("CalDen\nVersion: %s\n", version)
+		return
+	}
 	port := env("CALDEN_PORT", "8787")
 	databaseURL, err := databaseURLFromEnv()
 	if err != nil {
@@ -60,6 +64,7 @@ func main() {
 		DB:        db,
 		JWTSecret: jwtSecret,
 		WebDir:    webDir,
+		DataDir:   dataDir,
 		Version:   version,
 	})
 
