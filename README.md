@@ -75,7 +75,7 @@ The current development build includes:
 - real 1 Day, 7 Day, 14 Day, and 30 Day calendar views
 - recurring events with single-occurrence changes
 - standard iCalendar import/export
-- Google Calendar ZIP migration with preview, explicit calendar mapping, and safe duplicate cleanup
+- Google Calendar ZIP migration with preview, explicit calendar mapping, safe duplicate-calendar cleanup, and revision-aware duplicate-event suppression/repair
 - profile images for family members
 - personal Android reminder records
 - Monita household reminder records
