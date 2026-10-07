@@ -99,6 +99,8 @@ func New(cfg Config) http.Handler {
 	mux.Handle("GET /api/integrations/google/duplicates", s.auth(s.admin(http.HandlerFunc(s.scanGoogleDuplicates))))
 	mux.Handle("POST /api/integrations/google/duplicates/preview", s.auth(s.admin(http.HandlerFunc(s.previewGoogleDuplicateRepair))))
 	mux.Handle("POST /api/integrations/google/duplicates/repair", s.auth(s.admin(http.HandlerFunc(s.repairGoogleDuplicatesWithExport))))
+	mux.Handle("GET /api/integrations/google/duplicates/candidates", s.auth(s.admin(http.HandlerFunc(s.listGooglePotentialDuplicates))))
+	mux.Handle("POST /api/integrations/google/duplicates/resolve", s.auth(s.admin(http.HandlerFunc(s.resolveGooglePotentialDuplicates))))
 	mux.Handle("GET /api/system/update", s.auth(s.admin(http.HandlerFunc(s.updateCheck))))
 	mux.Handle("GET /api/system/update/status", s.auth(s.admin(http.HandlerFunc(s.updateStatus))))
 	mux.Handle("GET /api/system/update/preferences", s.auth(s.admin(http.HandlerFunc(s.updatePreferences))))
