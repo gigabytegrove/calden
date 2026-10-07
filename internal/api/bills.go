@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,13 +21,40 @@ type billEventDetails struct {
 	PayerAvatarURL   *string
 }
 
+type billPaymentEntry struct {
+	ID               uuid.UUID
+	AmountPaid       float64
+	PaidOn           string
+	ClearedOn        *string
+	SettlesBill      bool
+	RecordedAt       time.Time
+	PaidByID         *uuid.UUID
+	PaidByName       *string
+	PaidByInitials   *string
+	PaidByAvatarURL  *string
+}
+
 type billPaymentDetails struct {
-	AmountPaid      *float64
-	PaidAt          *time.Time
-	PaidByID        *uuid.UUID
-	PaidByName      *string
-	PaidByInitials  *string
-	PaidByAvatarURL *string
+	Status             string
+	NoBalance          bool
+	NoBalanceMarkedAt  *time.Time
+	AmountPaid         *float64
+	PaidAt             *time.Time
+	PaidOn             *string
+	ClearedOn          *string
+	PaidByID           *uuid.UUID
+	PaidByName         *string
+	PaidByInitials     *string
+	PaidByAvatarURL    *string
+	Payments           []billPaymentEntry
+}
+
+type billOccurrenceTarget struct {
+	EventID          uuid.UUID
+	EffectiveEventID uuid.UUID
+	CalendarID       uuid.UUID
+	Title            string
+	CalendarType     string
 }
 
 func (s *server) calendarType(ctx context.Context, tx pgx.Tx, calendarID uuid.UUID) (string, error) {
@@ -54,7 +82,10 @@ func (s *server) saveBillDetails(ctx context.Context, tx pgx.Tx, eventID, calend
 		if _, err = tx.Exec(ctx, `DELETE FROM bill_event_details WHERE event_id=$1`, eventID); err != nil {
 			return err
 		}
-		_, err = tx.Exec(ctx, `DELETE FROM bill_payments WHERE event_id=$1`, eventID)
+		if _, err = tx.Exec(ctx, `DELETE FROM bill_payments WHERE event_id=$1`, eventID); err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, `DELETE FROM bill_no_balance_occurrences WHERE event_id=$1`, eventID)
 		return err
 	}
 
@@ -107,40 +138,456 @@ func addBillFields(target map[string]any, prefix string, details billEventDetail
 	}
 }
 
+func billPaymentPerson(id *uuid.UUID, name, initials, avatar *string) any {
+	if id == nil {
+		return nil
+	}
+	return map[string]any{
+		"id":           id,
+		"display_name": name,
+		"initials":     initials,
+		"avatar_url":   avatar,
+	}
+}
+
+func billPaymentEntryJSON(entry billPaymentEntry) map[string]any {
+	return map[string]any{
+		"id":           entry.ID,
+		"amount_paid":  entry.AmountPaid,
+		"paid_on":      entry.PaidOn,
+		"cleared_on":   entry.ClearedOn,
+		"settles_bill": entry.SettlesBill,
+		"recorded_at":  entry.RecordedAt,
+		"paid_by":      billPaymentPerson(entry.PaidByID, entry.PaidByName, entry.PaidByInitials, entry.PaidByAvatarURL),
+	}
+}
 
 func (s *server) eventBillPayment(ctx context.Context, eventID uuid.UUID, occurrenceStart time.Time) billPaymentDetails {
-	var out billPaymentDetails
-	err := s.db.QueryRow(ctx, `SELECT
-		p.amount_paid::double precision,p.paid_at,p.paid_by_user_id,
-		u.display_name,u.initials,u.avatar_url
+	out := billPaymentDetails{Status: "due", Payments: []billPaymentEntry{}}
+
+	var markedAt time.Time
+	err := s.db.QueryRow(ctx, `SELECT marked_at FROM bill_no_balance_occurrences
+		WHERE event_id=$1 AND occurrence_start=$2`, eventID, occurrenceStart).Scan(&markedAt)
+	if err == nil {
+		out.NoBalance = true
+		out.NoBalanceMarkedAt = &markedAt
+		out.Status = "no_balance"
+	} else if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return out
+	}
+
+	rows, err := s.db.Query(ctx, `SELECT
+		p.id,p.amount_paid::double precision,to_char(p.paid_on,'YYYY-MM-DD'),
+		CASE WHEN p.cleared_on IS NULL THEN NULL ELSE to_char(p.cleared_on,'YYYY-MM-DD') END,
+		p.settles_bill,p.paid_at,p.paid_by_user_id,u.display_name,u.initials,u.avatar_url
 		FROM bill_payments p
 		LEFT JOIN users u ON u.id=p.paid_by_user_id
-		WHERE p.event_id=$1 AND p.occurrence_start=$2`, eventID, occurrenceStart).Scan(
-		&out.AmountPaid, &out.PaidAt, &out.PaidByID,
-		&out.PaidByName, &out.PaidByInitials, &out.PaidByAvatarURL,
-	)
-	if errors.Is(err, pgx.ErrNoRows) || err != nil {
-		return billPaymentDetails{}
+		WHERE p.event_id=$1 AND p.occurrence_start=$2
+		ORDER BY p.paid_on,p.paid_at,p.id`, eventID, occurrenceStart)
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+
+	total := 0.0
+	var final *billPaymentEntry
+	var last *billPaymentEntry
+	for rows.Next() {
+		var entry billPaymentEntry
+		if rows.Scan(
+			&entry.ID, &entry.AmountPaid, &entry.PaidOn, &entry.ClearedOn,
+			&entry.SettlesBill, &entry.RecordedAt, &entry.PaidByID,
+			&entry.PaidByName, &entry.PaidByInitials, &entry.PaidByAvatarURL,
+		) != nil {
+			continue
+		}
+		total += entry.AmountPaid
+		out.Payments = append(out.Payments, entry)
+		copy := entry
+		last = &copy
+		if entry.SettlesBill {
+			final = &copy
+		}
+	}
+	if len(out.Payments) == 0 {
+		if out.NoBalance {
+			out.Status = "no_balance"
+		}
+		return out
+	}
+
+	out.AmountPaid = &total
+	if !out.NoBalance {
+		out.Status = "partial"
+	}
+	representative := last
+	if final != nil {
+		representative = final
+		if !out.NoBalance {
+			out.Status = "paid"
+		}
+	}
+	if representative != nil {
+		out.PaidAt = &representative.RecordedAt
+		out.PaidOn = &representative.PaidOn
+		out.ClearedOn = representative.ClearedOn
+		out.PaidByID = representative.PaidByID
+		out.PaidByName = representative.PaidByName
+		out.PaidByInitials = representative.PaidByInitials
+		out.PaidByAvatarURL = representative.PaidByAvatarURL
 	}
 	return out
 }
 
 func addBillPaymentFields(target map[string]any, details billPaymentDetails) {
-	target["bill_paid"] = details.PaidAt != nil
+	target["bill_payment_status"] = details.Status
+	target["bill_paid"] = details.Status == "paid"
+	target["bill_no_balance"] = details.NoBalance
 	target["bill_amount_paid"] = details.AmountPaid
 	target["bill_paid_at"] = details.PaidAt
-	if details.PaidByID == nil {
-		target["bill_paid_by"] = nil
-		return
+	target["bill_paid_on"] = details.PaidOn
+	target["bill_cleared_on"] = details.ClearedOn
+	target["bill_no_balance_marked_at"] = details.NoBalanceMarkedAt
+	target["bill_payment_count"] = len(details.Payments)
+
+	payments := make([]map[string]any, 0, len(details.Payments))
+	for _, entry := range details.Payments {
+		payments = append(payments, billPaymentEntryJSON(entry))
 	}
-	target["bill_paid_by"] = map[string]any{
-		"id":           details.PaidByID,
-		"display_name": details.PaidByName,
-		"initials":     details.PaidByInitials,
-		"avatar_url":   details.PaidByAvatarURL,
-	}
+	target["bill_payments"] = payments
+	target["bill_paid_by"] = billPaymentPerson(
+		details.PaidByID, details.PaidByName, details.PaidByInitials, details.PaidByAvatarURL,
+	)
 }
 
+func (s *server) billOccurrenceTarget(r *http.Request, eventID uuid.UUID, occurrenceStart time.Time) (billOccurrenceTarget, error) {
+	out := billOccurrenceTarget{EventID: eventID, EffectiveEventID: eventID}
+	var seriesStart time.Time
+	var recurring bool
+	if err := s.db.QueryRow(r.Context(), `SELECT e.calendar_id,e.title,c.calendar_type,e.starts_at,
+		EXISTS(SELECT 1 FROM event_recurrence er WHERE er.event_id=e.id)
+		FROM events e JOIN calendars c ON c.id=e.calendar_id
+		WHERE e.id=$1`, eventID).Scan(
+		&out.CalendarID, &out.Title, &out.CalendarType, &seriesStart, &recurring,
+	); err != nil {
+		return out, errors.New("Bill not found")
+	}
+
+	if recurring {
+		_, exists, err := s.validSeriesOccurrence(r.Context(), eventID, occurrenceStart)
+		if err != nil {
+			return out, errors.New("Could not validate this bill occurrence")
+		}
+		if !exists {
+			return out, errors.New("That bill occurrence is not part of this recurring bill")
+		}
+	} else if !seriesStart.Equal(occurrenceStart) {
+		return out, errors.New("That bill occurrence does not match this bill")
+	}
+
+	var replacementID uuid.UUID
+	err := s.db.QueryRow(r.Context(), `SELECT replacement_event_id
+		FROM event_occurrence_exceptions
+		WHERE event_id=$1 AND original_start=$2 AND replacement_event_id IS NOT NULL`,
+		eventID, occurrenceStart).Scan(&replacementID)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return out, errors.New("Could not check this bill occurrence")
+	}
+	if replacementID != uuid.Nil {
+		out.EffectiveEventID = replacementID
+		if err := s.db.QueryRow(r.Context(), `SELECT e.calendar_id,e.title,c.calendar_type
+			FROM events e JOIN calendars c ON c.id=e.calendar_id
+			WHERE e.id=$1`, replacementID).Scan(&out.CalendarID, &out.Title, &out.CalendarType); err != nil {
+			return out, errors.New("Could not load this bill occurrence")
+		}
+	}
+	if out.CalendarType != "bill_pay" {
+		return out, errors.New("This event is not on a Bill Pay calendar")
+	}
+	if !s.canEditCalendar(r, out.CalendarID) {
+		return out, errors.New("You cannot update this bill")
+	}
+	return out, nil
+}
+
+func parseBillDate(value string, required bool) (*time.Time, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		if required {
+			return nil, errors.New("Choose the payment date")
+		}
+		return nil, nil
+	}
+	t, err := time.Parse("2006-01-02", value)
+	if err != nil {
+		return nil, errors.New("Check the payment date")
+	}
+	return &t, nil
+}
+
+func validateBillPaymentInput(amount float64, paidOn string, clearedOn string) (*time.Time, *time.Time, error) {
+	if math.IsNaN(amount) || math.IsInf(amount, 0) || amount <= 0 || amount > 9999999999.99 {
+		return nil, nil, errors.New("Enter the amount paid")
+	}
+	paid, err := parseBillDate(paidOn, true)
+	if err != nil {
+		return nil, nil, err
+	}
+	cleared, err := parseBillDate(clearedOn, false)
+	if err != nil {
+		return nil, nil, err
+	}
+	if cleared != nil && cleared.Before(*paid) {
+		return nil, nil, errors.New("Cleared date cannot be before the payment date")
+	}
+	return paid, cleared, nil
+}
+
+func (s *server) activeBillPayer(ctx context.Context, requested *uuid.UUID, fallback uuid.UUID) (uuid.UUID, error) {
+	paidBy := fallback
+	if requested != nil && *requested != uuid.Nil {
+		paidBy = *requested
+	}
+	var active bool
+	if err := s.db.QueryRow(ctx, `SELECT active FROM users WHERE id=$1`, paidBy).Scan(&active); err != nil || !active {
+		return uuid.Nil, errors.New("Choose an active person who made this payment")
+	}
+	return paidBy, nil
+}
+
+func (s *server) addBillPayment(w http.ResponseWriter, r *http.Request) {
+	eventID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeError(w, 400, "Invalid bill")
+		return
+	}
+	var in struct {
+		OccurrenceStart time.Time  `json:"occurrence_start"`
+		PaidByUserID    *uuid.UUID `json:"paid_by_user_id,omitempty"`
+		AmountPaid      float64    `json:"amount_paid"`
+		PaidOn          string     `json:"paid_on"`
+		ClearedOn       string     `json:"cleared_on,omitempty"`
+		SettlesBill     bool       `json:"settles_bill"`
+	}
+	if decode(r, &in) != nil || in.OccurrenceStart.IsZero() {
+		writeError(w, 400, "Check the payment details")
+		return
+	}
+	paidOn, clearedOn, err := validateBillPaymentInput(in.AmountPaid, in.PaidOn, in.ClearedOn)
+	if err != nil {
+		writeError(w, 400, err.Error())
+		return
+	}
+	target, err := s.billOccurrenceTarget(r, eventID, in.OccurrenceStart)
+	if err != nil {
+		writeError(w, 400, err.Error())
+		return
+	}
+	paidBy, err := s.activeBillPayer(r.Context(), in.PaidByUserID, currentActor(r).ID)
+	if err != nil {
+		writeError(w, 400, err.Error())
+		return
+	}
+
+	tx, err := s.db.Begin(r.Context())
+	if err != nil {
+		writeError(w, 500, "Could not save payment")
+		return
+	}
+	defer tx.Rollback(r.Context())
+	if _, err = tx.Exec(r.Context(), `DELETE FROM bill_no_balance_occurrences
+		WHERE event_id=$1 AND occurrence_start=$2`, eventID, in.OccurrenceStart); err != nil {
+		writeError(w, 500, "Could not reopen this bill")
+		return
+	}
+	var paymentID uuid.UUID
+	if err = tx.QueryRow(r.Context(), `INSERT INTO bill_payments(
+			event_id,occurrence_start,paid_by_user_id,amount_paid,paid_on,cleared_on,settles_bill,paid_at,updated_at
+		) VALUES($1,$2,$3,$4,$5,$6,$7,now(),now()) RETURNING id`,
+		eventID, in.OccurrenceStart, paidBy, normalizeBillAmount(&in.AmountPaid), paidOn, clearedOn, in.SettlesBill).Scan(&paymentID); err != nil {
+		writeError(w, 500, "Could not save payment")
+		return
+	}
+	if err = tx.Commit(r.Context()); err != nil {
+		writeError(w, 500, "Could not save payment")
+		return
+	}
+	s.audit(r, "bill_payment_add", "event", &eventID, "Recorded bill payment "+cleanText(target.Title, 200), map[string]any{
+		"occurrence_start": in.OccurrenceStart, "payment_id": paymentID, "paid_by_user_id": paidBy,
+		"amount_paid": in.AmountPaid, "paid_on": in.PaidOn, "cleared_on": in.ClearedOn, "settles_bill": in.SettlesBill,
+	})
+	out := map[string]any{}
+	addBillPaymentFields(out, s.eventBillPayment(r.Context(), eventID, in.OccurrenceStart))
+	writeJSON(w, 201, out)
+}
+
+func (s *server) updateBillPayment(w http.ResponseWriter, r *http.Request) {
+	eventID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeError(w, 400, "Invalid bill")
+		return
+	}
+	paymentID, err := uuid.Parse(r.PathValue("payment_id"))
+	if err != nil {
+		writeError(w, 400, "Invalid payment")
+		return
+	}
+	var in struct {
+		OccurrenceStart time.Time  `json:"occurrence_start"`
+		PaidByUserID    *uuid.UUID `json:"paid_by_user_id,omitempty"`
+		AmountPaid      float64    `json:"amount_paid"`
+		PaidOn          string     `json:"paid_on"`
+		ClearedOn       string     `json:"cleared_on,omitempty"`
+		SettlesBill     bool       `json:"settles_bill"`
+	}
+	if decode(r, &in) != nil || in.OccurrenceStart.IsZero() {
+		writeError(w, 400, "Check the payment details")
+		return
+	}
+	paidOn, clearedOn, err := validateBillPaymentInput(in.AmountPaid, in.PaidOn, in.ClearedOn)
+	if err != nil {
+		writeError(w, 400, err.Error())
+		return
+	}
+	target, err := s.billOccurrenceTarget(r, eventID, in.OccurrenceStart)
+	if err != nil {
+		writeError(w, 400, err.Error())
+		return
+	}
+	paidBy, err := s.activeBillPayer(r.Context(), in.PaidByUserID, currentActor(r).ID)
+	if err != nil {
+		writeError(w, 400, err.Error())
+		return
+	}
+
+	tag, err := s.db.Exec(r.Context(), `UPDATE bill_payments SET
+		paid_by_user_id=$4,amount_paid=$5,paid_on=$6,cleared_on=$7,settles_bill=$8,updated_at=now()
+		WHERE id=$1 AND event_id=$2 AND occurrence_start=$3`,
+		paymentID, eventID, in.OccurrenceStart, paidBy, normalizeBillAmount(&in.AmountPaid), paidOn, clearedOn, in.SettlesBill)
+	if err != nil {
+		writeError(w, 500, "Could not update payment")
+		return
+	}
+	if tag.RowsAffected() == 0 {
+		writeError(w, 404, "Payment not found")
+		return
+	}
+	s.audit(r, "bill_payment_update", "event", &eventID, "Updated bill payment "+cleanText(target.Title, 200), map[string]any{
+		"occurrence_start": in.OccurrenceStart, "payment_id": paymentID, "paid_by_user_id": paidBy,
+		"amount_paid": in.AmountPaid, "paid_on": in.PaidOn, "cleared_on": in.ClearedOn, "settles_bill": in.SettlesBill,
+	})
+	out := map[string]any{}
+	addBillPaymentFields(out, s.eventBillPayment(r.Context(), eventID, in.OccurrenceStart))
+	writeJSON(w, 200, out)
+}
+
+func (s *server) deleteBillPayment(w http.ResponseWriter, r *http.Request) {
+	eventID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeError(w, 400, "Invalid bill")
+		return
+	}
+	paymentID, err := uuid.Parse(r.PathValue("payment_id"))
+	if err != nil {
+		writeError(w, 400, "Invalid payment")
+		return
+	}
+	var in struct {
+		OccurrenceStart time.Time `json:"occurrence_start"`
+	}
+	if decode(r, &in) != nil || in.OccurrenceStart.IsZero() {
+		writeError(w, 400, "Choose the bill occurrence")
+		return
+	}
+	target, err := s.billOccurrenceTarget(r, eventID, in.OccurrenceStart)
+	if err != nil {
+		writeError(w, 400, err.Error())
+		return
+	}
+	tag, err := s.db.Exec(r.Context(), `DELETE FROM bill_payments
+		WHERE id=$1 AND event_id=$2 AND occurrence_start=$3`, paymentID, eventID, in.OccurrenceStart)
+	if err != nil {
+		writeError(w, 500, "Could not delete payment")
+		return
+	}
+	if tag.RowsAffected() == 0 {
+		writeError(w, 404, "Payment not found")
+		return
+	}
+	s.audit(r, "bill_payment_delete", "event", &eventID, "Deleted bill payment "+cleanText(target.Title, 200), map[string]any{
+		"occurrence_start": in.OccurrenceStart, "payment_id": paymentID,
+	})
+	out := map[string]any{}
+	addBillPaymentFields(out, s.eventBillPayment(r.Context(), eventID, in.OccurrenceStart))
+	writeJSON(w, 200, out)
+}
+
+func (s *server) setBillNoBalance(w http.ResponseWriter, r *http.Request) {
+	eventID, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeError(w, 400, "Invalid bill")
+		return
+	}
+	var in struct {
+		OccurrenceStart time.Time `json:"occurrence_start"`
+		NoBalance       bool      `json:"no_balance"`
+	}
+	if decode(r, &in) != nil || in.OccurrenceStart.IsZero() {
+		writeError(w, 400, "Choose the bill occurrence")
+		return
+	}
+	target, err := s.billOccurrenceTarget(r, eventID, in.OccurrenceStart)
+	if err != nil {
+		writeError(w, 400, err.Error())
+		return
+	}
+
+	tx, err := s.db.Begin(r.Context())
+	if err != nil {
+		writeError(w, 500, "Could not update bill status")
+		return
+	}
+	defer tx.Rollback(r.Context())
+	if in.NoBalance {
+		if _, err = tx.Exec(r.Context(), `DELETE FROM bill_payments
+			WHERE event_id=$1 AND occurrence_start=$2`, eventID, in.OccurrenceStart); err != nil {
+			writeError(w, 500, "Could not clear existing payments")
+			return
+		}
+		if _, err = tx.Exec(r.Context(), `INSERT INTO bill_no_balance_occurrences(
+			event_id,occurrence_start,marked_by_user_id,marked_at
+		) VALUES($1,$2,$3,now())
+		ON CONFLICT(event_id,occurrence_start) DO UPDATE
+		SET marked_by_user_id=EXCLUDED.marked_by_user_id,marked_at=now()`,
+			eventID, in.OccurrenceStart, currentActor(r).ID); err != nil {
+			writeError(w, 500, "Could not mark no balance")
+			return
+		}
+	} else {
+		if _, err = tx.Exec(r.Context(), `DELETE FROM bill_no_balance_occurrences
+			WHERE event_id=$1 AND occurrence_start=$2`, eventID, in.OccurrenceStart); err != nil {
+			writeError(w, 500, "Could not reopen this bill")
+			return
+		}
+	}
+	if err = tx.Commit(r.Context()); err != nil {
+		writeError(w, 500, "Could not update bill status")
+		return
+	}
+	action := "bill_reopened"
+	message := "Reopened bill " + cleanText(target.Title, 200)
+	if in.NoBalance {
+		action = "bill_no_balance"
+		message = "Marked no balance " + cleanText(target.Title, 200)
+	}
+	s.audit(r, action, "event", &eventID, message, map[string]any{"occurrence_start": in.OccurrenceStart})
+	out := map[string]any{}
+	addBillPaymentFields(out, s.eventBillPayment(r.Context(), eventID, in.OccurrenceStart))
+	writeJSON(w, 200, out)
+}
+
+// Legacy Alpha10 endpoint. It remains available for older clients while the
+// web and mobile clients use the multi-payment endpoints above.
 func (s *server) setBillPayment(w http.ResponseWriter, r *http.Request) {
 	eventID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
@@ -154,123 +601,86 @@ func (s *server) setBillPayment(w http.ResponseWriter, r *http.Request) {
 		AmountPaid      *float64   `json:"amount_paid,omitempty"`
 	}
 	if decode(r, &in) != nil || in.OccurrenceStart.IsZero() {
-		writeError(w, 400, "Choose the bill occurrence")
+		writeError(w, 400, "Check the payment details")
 		return
 	}
-	if in.AmountPaid != nil {
-		if math.IsNaN(*in.AmountPaid) || math.IsInf(*in.AmountPaid, 0) || *in.AmountPaid < 0 || *in.AmountPaid > 9999999999.99 {
-			writeError(w, 400, "Check the amount paid")
-			return
-		}
-	}
-
-	var effectiveEventID, calendarID uuid.UUID
-	var title, calendarType string
-	var seriesStart time.Time
-	var recurring bool
-	if err = s.db.QueryRow(r.Context(), `SELECT e.id,e.calendar_id,e.title,c.calendar_type,e.starts_at,
-		EXISTS(SELECT 1 FROM event_recurrence er WHERE er.event_id=e.id)
-		FROM events e JOIN calendars c ON c.id=e.calendar_id
-		WHERE e.id=$1`, eventID).Scan(&effectiveEventID, &calendarID, &title, &calendarType, &seriesStart, &recurring); err != nil {
-		writeError(w, 404, "Bill not found")
-		return
-	}
-	if recurring {
-		_, exists, checkErr := s.validSeriesOccurrence(r.Context(), eventID, in.OccurrenceStart)
-		if checkErr != nil {
-			writeError(w, 500, "Could not validate this bill occurrence")
-			return
-		}
-		if !exists {
-			writeError(w, 404, "That bill occurrence is not part of this recurring bill")
-			return
-		}
-	} else if !seriesStart.Equal(in.OccurrenceStart) {
-		writeError(w, 400, "That bill occurrence does not match this bill")
-		return
-	}
-
-	var replacementID uuid.UUID
-	if err = s.db.QueryRow(r.Context(), `SELECT replacement_event_id
-		FROM event_occurrence_exceptions
-		WHERE event_id=$1 AND original_start=$2 AND replacement_event_id IS NOT NULL`,
-		eventID, in.OccurrenceStart).Scan(&replacementID); err != nil && err != pgx.ErrNoRows {
-		writeError(w, 500, "Could not check this bill occurrence")
-		return
-	}
-	if replacementID != uuid.Nil {
-		effectiveEventID = replacementID
-		if err = s.db.QueryRow(r.Context(), `SELECT e.calendar_id,e.title,c.calendar_type
-			FROM events e JOIN calendars c ON c.id=e.calendar_id
-			WHERE e.id=$1`, replacementID).Scan(&calendarID, &title, &calendarType); err != nil {
-			writeError(w, 500, "Could not load this bill occurrence")
-			return
-		}
-	}
-	if calendarType != "bill_pay" {
-		writeError(w, 400, "This event is not on a Bill Pay calendar")
-		return
-	}
-	if !s.canEditCalendar(r, calendarID) {
-		writeError(w, 403, "You cannot update this bill")
+	target, err := s.billOccurrenceTarget(r, eventID, in.OccurrenceStart)
+	if err != nil {
+		writeError(w, 400, err.Error())
 		return
 	}
 
 	if !in.Paid {
-		if _, err = s.db.Exec(r.Context(), `DELETE FROM bill_payments WHERE event_id=$1 AND occurrence_start=$2`,
-			eventID, in.OccurrenceStart); err != nil {
+		tx, err := s.db.Begin(r.Context())
+		if err != nil {
 			writeError(w, 500, "Could not mark this bill unpaid")
 			return
 		}
-		s.audit(r, "bill_unpaid", "event", &eventID, "Marked bill unpaid "+cleanText(title, 200), map[string]any{
-			"occurrence_start": in.OccurrenceStart,
-		})
-		writeJSON(w, 200, map[string]any{"paid": false})
+		defer tx.Rollback(r.Context())
+		if _, err = tx.Exec(r.Context(), `DELETE FROM bill_payments WHERE event_id=$1 AND occurrence_start=$2`, eventID, in.OccurrenceStart); err != nil {
+			writeError(w, 500, "Could not mark this bill unpaid")
+			return
+		}
+		if _, err = tx.Exec(r.Context(), `DELETE FROM bill_no_balance_occurrences WHERE event_id=$1 AND occurrence_start=$2`, eventID, in.OccurrenceStart); err != nil {
+			writeError(w, 500, "Could not mark this bill unpaid")
+			return
+		}
+		if err = tx.Commit(r.Context()); err != nil {
+			writeError(w, 500, "Could not mark this bill unpaid")
+			return
+		}
+		s.audit(r, "bill_unpaid", "event", &eventID, "Marked bill unpaid "+cleanText(target.Title, 200), map[string]any{"occurrence_start": in.OccurrenceStart})
+		writeJSON(w, 200, map[string]any{"bill_payment_status": "due", "bill_paid": false})
 		return
 	}
 
-	paidBy := currentActor(r).ID
-	if in.PaidByUserID != nil && *in.PaidByUserID != uuid.Nil {
-		paidBy = *in.PaidByUserID
-	}
-	var active bool
-	if err = s.db.QueryRow(r.Context(), `SELECT active FROM users WHERE id=$1`, paidBy).Scan(&active); err != nil || !active {
-		writeError(w, 400, "Choose an active person who paid this bill")
+	paidBy, err := s.activeBillPayer(r.Context(), in.PaidByUserID, currentActor(r).ID)
+	if err != nil {
+		writeError(w, 400, err.Error())
 		return
 	}
-
 	amount := normalizeBillAmount(in.AmountPaid)
 	if amount == nil {
 		var due *float64
 		err = s.db.QueryRow(r.Context(), `SELECT amount_due::double precision FROM bill_event_details WHERE event_id=$1`,
-			effectiveEventID).Scan(&due)
-		if err == pgx.ErrNoRows && effectiveEventID != eventID {
-			err = s.db.QueryRow(r.Context(), `SELECT amount_due::double precision FROM bill_event_details WHERE event_id=$1`,
-				eventID).Scan(&due)
+			target.EffectiveEventID).Scan(&due)
+		if errors.Is(err, pgx.ErrNoRows) && target.EffectiveEventID != eventID {
+			err = s.db.QueryRow(r.Context(), `SELECT amount_due::double precision FROM bill_event_details WHERE event_id=$1`, eventID).Scan(&due)
 		}
 		if err == nil {
 			amount = normalizeBillAmount(due)
 		}
 	}
+	if amount == nil || *amount <= 0 {
+		writeError(w, 400, "Enter the amount paid")
+		return
+	}
 
-	_, err = s.db.Exec(r.Context(), `INSERT INTO bill_payments(
-			event_id,occurrence_start,paid_by_user_id,amount_paid,paid_at,updated_at
-		) VALUES($1,$2,$3,$4,now(),now())
-		ON CONFLICT(event_id,occurrence_start) DO UPDATE
-		SET paid_by_user_id=EXCLUDED.paid_by_user_id,
-			amount_paid=EXCLUDED.amount_paid,
-			updated_at=now()`,
-		eventID, in.OccurrenceStart, paidBy, amount)
+	tx, err := s.db.Begin(r.Context())
 	if err != nil {
 		writeError(w, 500, "Could not mark this bill paid")
 		return
 	}
-
-	s.audit(r, "bill_paid", "event", &eventID, "Marked bill paid "+cleanText(title, 200), map[string]any{
-		"occurrence_start": in.OccurrenceStart, "paid_by_user_id": paidBy, "amount_paid": amount,
-	})
-	details := s.eventBillPayment(r.Context(), eventID, in.OccurrenceStart)
+	defer tx.Rollback(r.Context())
+	if _, err = tx.Exec(r.Context(), `DELETE FROM bill_payments WHERE event_id=$1 AND occurrence_start=$2`, eventID, in.OccurrenceStart); err != nil {
+		writeError(w, 500, "Could not update payment")
+		return
+	}
+	if _, err = tx.Exec(r.Context(), `DELETE FROM bill_no_balance_occurrences WHERE event_id=$1 AND occurrence_start=$2`, eventID, in.OccurrenceStart); err != nil {
+		writeError(w, 500, "Could not update payment")
+		return
+	}
+	if _, err = tx.Exec(r.Context(), `INSERT INTO bill_payments(
+		event_id,occurrence_start,paid_by_user_id,amount_paid,paid_on,settles_bill,paid_at,updated_at
+	) VALUES($1,$2,$3,$4,CURRENT_DATE,true,now(),now())`, eventID, in.OccurrenceStart, paidBy, amount); err != nil {
+		writeError(w, 500, "Could not mark this bill paid")
+		return
+	}
+	if err = tx.Commit(r.Context()); err != nil {
+		writeError(w, 500, "Could not mark this bill paid")
+		return
+	}
 	out := map[string]any{}
-	addBillPaymentFields(out, details)
+	addBillPaymentFields(out, s.eventBillPayment(r.Context(), eventID, in.OccurrenceStart))
 	writeJSON(w, 200, out)
 }
