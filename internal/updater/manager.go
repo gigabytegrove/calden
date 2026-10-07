@@ -651,10 +651,27 @@ func compareVersions(a, b string) int {
 		case le != nil && re == nil:
 			return 1
 		case left.pre[i] != right.pre[i]:
-			return strings.Compare(left.pre[i], right.pre[i])
+			if result := comparePrereleaseIdentifier(left.pre[i], right.pre[i]); result != 0 {
+				return result
+			}
 		}
 	}
 	return 0
+}
+
+var prereleaseSuffixPattern = regexp.MustCompile("^([A-Za-z-]+)([0-9]+)$")
+
+func comparePrereleaseIdentifier(a, b string) int {
+	left := prereleaseSuffixPattern.FindStringSubmatch(strings.ToLower(a))
+	right := prereleaseSuffixPattern.FindStringSubmatch(strings.ToLower(b))
+	if len(left) == 3 && len(right) == 3 && left[1] == right[1] {
+		li, lerr := strconv.Atoi(left[2])
+		ri, rerr := strconv.Atoi(right[2])
+		if lerr == nil && rerr == nil && li != ri {
+			return cmpInt(li, ri)
+		}
+	}
+	return strings.Compare(a, b)
 }
 
 func cmpInt(a, b int) int {
