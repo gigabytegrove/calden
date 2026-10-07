@@ -236,6 +236,46 @@
         <label>Calendar<select name="calendar_id" id="calendar-select" required></select></label>
         <div class="two"><label>Starts<input name="starts_at" type="datetime-local" required></label><label>Ends<input name="ends_at" type="datetime-local" required></label></div>
         <label class="toggle-row"><input name="all_day" type="checkbox"><span>All-day event</span></label>
+
+        <section class="repeat-editor">
+          <div><h3>Repeat</h3><p class="muted">Make this a repeating event without creating each date manually.</p></div>
+          <label>Repeats
+            <select name="repeat_frequency">
+              <option value="">Does not repeat</option>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="yearly">Yearly</option>
+            </select>
+          </label>
+          <div id="repeat-options" class="repeat-options hidden">
+            <label>Every
+              <div class="inline-fields"><input name="repeat_interval" type="number" min="1" max="365" value="1"><span id="repeat-unit">week</span></div>
+            </label>
+            <fieldset id="repeat-weekdays" class="hidden">
+              <legend>Repeat on</legend>
+              <div class="weekday-picker">
+                <label><input type="checkbox" name="repeat_weekday" value="0"><span>Sun</span></label>
+                <label><input type="checkbox" name="repeat_weekday" value="1"><span>Mon</span></label>
+                <label><input type="checkbox" name="repeat_weekday" value="2"><span>Tue</span></label>
+                <label><input type="checkbox" name="repeat_weekday" value="3"><span>Wed</span></label>
+                <label><input type="checkbox" name="repeat_weekday" value="4"><span>Thu</span></label>
+                <label><input type="checkbox" name="repeat_weekday" value="5"><span>Fri</span></label>
+                <label><input type="checkbox" name="repeat_weekday" value="6"><span>Sat</span></label>
+              </div>
+            </fieldset>
+            <label>Ends
+              <select name="repeat_end_type">
+                <option value="never">Never</option>
+                <option value="date">On a date</option>
+                <option value="count">After a number of times</option>
+              </select>
+            </label>
+            <label id="repeat-until-row" class="hidden">Last repeat date<input name="repeat_until" type="date"></label>
+            <label id="repeat-count-row" class="hidden">Number of times<input name="repeat_count" type="number" min="1" max="10000" value="10"></label>
+          </div>
+        </section>
+
         <fieldset><legend>Who is this for?</legend><div id="people-picker" class="people-picker"></div></fieldset>
         <label>Location<input name="location" maxlength="500" placeholder="Optional"></label>
         <label>Notes<textarea name="notes" rows="4" maxlength="5000" placeholder="Optional"></textarea></label>
