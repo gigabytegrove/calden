@@ -229,6 +229,7 @@ jobs:
           import datetime as dt
           import json
           import urllib.request
+          import urllib.parse
 
           base = "http://127.0.0.1:8787"
 
