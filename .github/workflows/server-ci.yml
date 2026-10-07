@@ -356,6 +356,7 @@ jobs:
             await travelCard.locator('.edit-category').click();
             page.once('dialog', dialog => dialog.accept());
             await page.locator('#delete-category').click();
+            await page.locator('#category-list').getByText('Travel', { exact: true }).waitFor({ state: 'detached' });
             if (await page.locator('#category-list').getByText('Travel', { exact: true }).count()) {
               throw new Error('Category was not permanently deleted.');
             }
