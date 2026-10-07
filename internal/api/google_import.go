@@ -136,7 +136,7 @@ func (s *server) importGoogleCalendarExport(w http.ResponseWriter, r *http.Reque
 	items := make([]googleCalendarImportItem, 0, len(bundles))
 	totalCreated, totalUpdated, totalExceptions, totalSkipped := 0, 0, 0, 0
 	createdCalendars, reusedCalendars, skippedCalendars, cleanedCalendars := 0, 0, 0, 0
-	duplicateEventsSuppressed, duplicateEventsReconciled, staleReplacementsReconciled := 0, 0, 0
+	duplicateEventsSuppressed, duplicateEventsReconciled := 0, 0
 	processedSources := map[string]bool{}
 	warnings := []string{}
 	for _, bundle := range bundles {
@@ -208,22 +208,6 @@ func (s *server) importGoogleCalendarExport(w http.ResponseWriter, r *http.Reque
 		writeError(w, 500, "Could not reconcile duplicate Google events")
 		return
 	}
-	processedBundles := make([]googleCalendarBundle, 0, len(bundles))
-	for _, bundle := range bundles {
-		if processedSources[bundle.ExternalID] {
-			processedBundles = append(processedBundles, bundle)
-		}
-	}
-	staleCandidates, err := s.googleStaleReplacementCandidates(r.Context(), tx, processedBundles)
-	if err != nil {
-		writeError(w, 500, "Could not reconcile replaced Google events")
-		return
-	}
-	staleReplacementsReconciled, err = s.applyGoogleStaleReplacementRepair(r.Context(), tx, staleCandidates)
-	if err != nil {
-		writeError(w, 500, "Could not remove stale replaced Google events")
-		return
-	}
 
 	if err = tx.Commit(r.Context()); err != nil {
 		writeError(w, 500, "Could not finish Google Calendar import")
@@ -235,7 +219,6 @@ func (s *server) importGoogleCalendarExport(w http.ResponseWriter, r *http.Reque
 		"skipped_calendars": skippedCalendars, "cleaned_calendars": cleanedCalendars,
 		"events_created": totalCreated, "events_updated": totalUpdated, "exceptions": totalExceptions, "skipped": totalSkipped,
 		"duplicate_events_suppressed": duplicateEventsSuppressed, "duplicate_events_reconciled": duplicateEventsReconciled,
-		"stale_replacements_reconciled": staleReplacementsReconciled,
 	})
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -246,7 +229,6 @@ func (s *server) importGoogleCalendarExport(w http.ResponseWriter, r *http.Reque
 		"exceptions": totalExceptions, "skipped": totalSkipped,
 		"duplicate_events_suppressed": duplicateEventsSuppressed,
 		"duplicate_events_reconciled": duplicateEventsReconciled,
-		"stale_replacements_reconciled": staleReplacementsReconciled,
 		"warnings": warnings,
 	})
 }
