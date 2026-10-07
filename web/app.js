@@ -33,7 +33,12 @@ async function api(path,options={}){
   if(state.token)headers.Authorization=`Bearer ${state.token}`;
   const res=await fetch(path,{...options,headers});
   const body=res.status===204?null:await res.json().catch(()=>null);
-  if(!res.ok)throw new Error(body?.error||`Request failed (${res.status})`);
+  if(!res.ok){
+    const err=new Error(body?.error||`Request failed (${res.status})`);
+    err.status=res.status;
+    err.body=body;
+    throw err;
+  }
   return body;
 }
 async function apiForm(path,formData,method="POST"){
@@ -1389,10 +1394,81 @@ $("#import-calendar-ics").addEventListener("click",async()=>{
   finally{button.disabled=false;button.textContent="Import .ics"}
 });
 
+function calendarDeletePhrase(calendar){
+  return "DELETE "+calendar.name;
+}
+
+function openCalendarDeleteDialog(calendar,eventCount){
+  const dialog=$("#calendar-delete-dialog");
+  const phrase=calendarDeletePhrase(calendar);
+  $("#calendar-delete-name").textContent=calendar.name;
+  $("#calendar-delete-event-count").textContent=`${eventCount} event${eventCount===1?"":"s"} will be permanently deleted.`;
+  $("#calendar-delete-phrase").textContent=phrase;
+  $("#calendar-delete-confirmation").value="";
+  $("#calendar-delete-error").textContent="";
+  $("#calendar-delete-confirm").disabled=true;
+  dialog.showModal();
+  $("#calendar-delete-confirmation").focus();
+}
+
+async function finishCalendarDelete(calendar,options={}){
+  await api("/api/calendars/"+calendar.id,{method:"DELETE",...(options.body?{body:JSON.stringify(options.body)}:{})});
+  state.hiddenCalendars.delete(calendar.id);
+  localStorage.setItem("calden_hidden_calendars",JSON.stringify([...state.hiddenCalendars]));
+  if(state.defaultCalendar===calendar.id){
+    state.defaultCalendar="";
+    localStorage.removeItem("calden_default_calendar");
+  }
+  [state.calendars,state.categories]=await Promise.all([api("/api/calendars"),api("/api/categories")]);
+  await loadEvents();
+  resetCalendarForm();
+  renderCalendars();renderBillNavigation();renderBills();renderEventControls();renderCalendar();renderAgenda();renderNotifications();renderSettings();
+}
+
 $("#delete-calendar").addEventListener("click",async()=>{
-  if(!state.editingCalendar||!confirm(`Delete "${state.editingCalendar.name}"? The calendar must be empty first.`))return;
-  try{await api("/api/calendars/"+state.editingCalendar.id,{method:"DELETE"});state.calendars=await api("/api/calendars");resetCalendarForm();renderCalendars();renderBillNavigation();renderBills();renderCalendar();renderEventControls()}
-  catch(err){$("#calendar-error").textContent=err.message}
+  const calendar=state.editingCalendar;
+  if(!calendar)return;
+  const knownCount=Number(calendar.event_count)||0;
+  if(knownCount>0){
+    openCalendarDeleteDialog(calendar,knownCount);
+    return;
+  }
+  if(!confirm(`Delete "${calendar.name}"? This permanently deletes the calendar.`))return;
+  try{
+    await finishCalendarDelete(calendar);
+  }catch(err){
+    if(err.status===409&&err.body?.requires_typed_confirmation){
+      openCalendarDeleteDialog(calendar,Number(err.body.event_count)||1);
+      return;
+    }
+    $("#calendar-error").textContent=err.message;
+  }
+});
+
+$("#calendar-delete-confirmation").addEventListener("input",()=>{
+  const calendar=state.editingCalendar;
+  $("#calendar-delete-confirm").disabled=!calendar||$("#calendar-delete-confirmation").value!==calendarDeletePhrase(calendar);
+});
+$("#calendar-delete-cancel").addEventListener("click",()=>$("#calendar-delete-dialog").close());
+$("#calendar-delete-form").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const calendar=state.editingCalendar;
+  if(!calendar)return;
+  const confirmation=$("#calendar-delete-confirmation").value;
+  if(confirmation!==calendarDeletePhrase(calendar))return;
+  const button=$("#calendar-delete-confirm");
+  button.disabled=true;
+  button.textContent="Deleting…";
+  $("#calendar-delete-error").textContent="";
+  try{
+    await finishCalendarDelete(calendar,{body:{force:true,confirmation}});
+    $("#calendar-delete-dialog").close();
+  }catch(err){
+    $("#calendar-delete-error").textContent=err.message;
+  }finally{
+    button.textContent="Delete calendar and events";
+    button.disabled=!state.editingCalendar||$("#calendar-delete-confirmation").value!==calendarDeletePhrase(state.editingCalendar);
+  }
 });
 
 $("#category-form").addEventListener("submit",async e=>{
