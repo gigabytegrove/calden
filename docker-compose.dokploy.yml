@@ -6,7 +6,6 @@
 #
 # Optional:
 #   CALDEN_PORT=8787
-#   CALDEN_IMAGE=ghcr.io/gigabytegrove/calden:latest
 #   CALDEN_DB_NAME=calden
 #   CALDEN_DB_USER=calden
 #   CALDEN_DB_PASSWORD=only-use-this-to-import an existing manually configured install
@@ -55,8 +54,9 @@ services:
       start_period: 10s
 
   calden:
-    image: ${CALDEN_IMAGE:-ghcr.io/gigabytegrove/calden:latest}
-    pull_policy: always
+    build:
+      context: https://github.com/gigabytegrove/calden.git#main
+      dockerfile: Dockerfile
     restart: unless-stopped
     depends_on:
       secrets:
