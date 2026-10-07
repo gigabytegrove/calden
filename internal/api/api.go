@@ -173,15 +173,16 @@ type starterCalendar struct {
 	Color       string
 	Icon        string
 	Description string
+	Type        string
 }
 
 var starterCalendars = []starterCalendar{
-	{Key: "family", Name: "Family", Color: "#2563EB", Icon: "home", Description: "Plans and events for the whole family"},
-	{Key: "bills", Name: "Bills", Color: "#16A34A", Icon: "receipt", Description: "Bills, payments, and household due dates"},
-	{Key: "appointments", Name: "Appointments", Color: "#7C3AED", Icon: "calendar", Description: "Appointments and scheduled visits"},
-	{Key: "school", Name: "School", Color: "#EAB308", Icon: "school", Description: "School events, activities, and deadlines"},
-	{Key: "birthdays", Name: "Birthdays", Color: "#EC4899", Icon: "cake", Description: "Birthdays and celebrations"},
-	{Key: "work", Name: "Work", Color: "#64748B", Icon: "briefcase", Description: "Work schedules and commitments"},
+	{Key: "family", Name: "Family", Color: "#2563EB", Icon: "home", Description: "Plans and events for the whole family", Type: "standard"},
+	{Key: "bills", Name: "Bills", Color: "#16A34A", Icon: "receipt", Description: "Bills, payments, and household due dates", Type: "bill_pay"},
+	{Key: "appointments", Name: "Appointments", Color: "#7C3AED", Icon: "calendar", Description: "Appointments and scheduled visits", Type: "standard"},
+	{Key: "school", Name: "School", Color: "#EAB308", Icon: "school", Description: "School events, activities, and deadlines", Type: "standard"},
+	{Key: "birthdays", Name: "Birthdays", Color: "#EC4899", Icon: "cake", Description: "Birthdays and celebrations", Type: "standard"},
+	{Key: "work", Name: "Work", Color: "#64748B", Icon: "briefcase", Description: "Work schedules and commitments", Type: "standard"},
 }
 
 func (s *server) setup(w http.ResponseWriter, r *http.Request) {
@@ -279,9 +280,9 @@ func (s *server) setup(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		var calendarID uuid.UUID
-		if err = tx.QueryRow(r.Context(), `INSERT INTO calendars(name,color,icon,description,created_by)
-			VALUES($1,$2,$3,$4,$5) RETURNING id`,
-			calendar.Name, calendar.Color, calendar.Icon, calendar.Description, id).Scan(&calendarID); err != nil {
+		if err = tx.QueryRow(r.Context(), `INSERT INTO calendars(name,color,icon,description,calendar_type,created_by)
+			VALUES($1,$2,$3,$4,$5,$6) RETURNING id`,
+			calendar.Name, calendar.Color, calendar.Icon, calendar.Description, calendar.Type, id).Scan(&calendarID); err != nil {
 			writeError(w, 500, "Could not create starter calendars")
 			return
 		}
