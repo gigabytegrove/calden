@@ -355,6 +355,7 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 				"occurrence_index": occurrence.Index, "occurrence_start": occurrence.Start,
 			}
 			addBillFields(item, "", billDetails)
+			addBillPaymentFields(item, s.eventBillPayment(r.Context(), id, occurrence.Start))
 			out = append(out, item)
 		}
 	}
@@ -448,6 +449,7 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 		}
 		addBillFields(item, "", s.eventBillDetails(r.Context(), replacementID))
 		addBillFields(item, "series_", s.eventBillDetails(r.Context(), parentID))
+		addBillPaymentFields(item, s.eventBillPayment(r.Context(), parentID, originalStart))
 		out = append(out, item)
 	}
 	if err := overrideRows.Err(); err != nil {

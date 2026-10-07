@@ -510,3 +510,68 @@ dialog::backdrop{background:rgba(15,23,42,.58);backdrop-filter:blur(2px)}
   .notification-tools{display:grid;grid-template-columns:1fr 1fr}
   .notification-tools select{grid-column:1/-1}
 }
+
+
+/* Alpha 10 bill payment tracking */
+.bill-summary{grid-template-columns:repeat(5,minmax(0,1fr))}
+.bill-stat.paid-stat{border-color:#bbf7d0;background:#f8fff9}
+.bill-stat.paid-stat strong{color:#166534}
+.bill-stat.outstanding-stat{border-color:#fde68a;background:#fffdf7}
+.bill-stat.outstanding-stat strong{color:#92400e}
+.bill-breakdown-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.paid-breakdown-row>div:last-child strong{color:#166534}
+
+.bill-row{
+  display:grid;grid-template-columns:minmax(0,1fr) 255px;gap:0;align-items:stretch;
+  padding:0;border-bottom:1px solid #edf2f7;background:#fff
+}
+.bill-row:last-child{border-bottom:0}
+.bill-row:hover{background:#fff}
+.bill-row.is-paid{background:#fbfefc}
+.bill-row-edit{
+  min-width:0;display:grid;grid-template-columns:92px minmax(0,1fr) 130px;gap:15px;align-items:center;
+  border:0;background:transparent;color:#263248;text-align:left;padding:14px 18px
+}
+.bill-row-edit:hover{background:#f8fafc}
+.bill-row.is-paid .bill-row-edit:hover{background:#f4fbf6}
+.bill-row-payment{
+  border-left:1px solid #edf2f7;padding:11px 14px;display:grid;grid-template-columns:minmax(0,1fr) auto;
+  gap:10px;align-items:center;background:rgba(248,250,252,.72)
+}
+.bill-row.is-paid .bill-row-payment{background:#f4fbf6}
+.bill-paid-status{display:grid;gap:2px;min-width:0}
+.bill-paid-status strong{font-size:.82rem;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bill-paid-status small{font-size:.68rem;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bill-status-pill{
+  justify-self:start;display:inline-flex;align-items:center;min-height:21px;padding:3px 7px;border-radius:999px;
+  font-size:.63rem;line-height:1;font-weight:850;text-transform:uppercase;letter-spacing:.055em
+}
+.bill-status-pill.paid{background:#dcfce7;color:#166534;border:1px solid #bbf7d0}
+.bill-status-pill.due{background:#fff7ed;color:#9a3412;border:1px solid #fed7aa}
+.bill-payment-dialog{width:min(560px,calc(100vw - 36px))}
+.bill-payment-assignment{
+  display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 16px;align-items:center;
+  border:1px solid #e2e8f0;background:#f8fafc;border-radius:11px;padding:11px 13px
+}
+.bill-payment-assignment span{font-size:.72rem;color:#64748b}
+.bill-payment-assignment strong{font-size:.85rem;color:#0f172a;text-align:right}
+.bill-payment-assignment small{grid-column:1/-1;font-size:.7rem;color:#7c2d12}
+.bill-payment-existing{display:grid;gap:2px;border:1px solid #bbf7d0;background:#f0fdf4;border-radius:10px;padding:10px 12px}
+.bill-payment-existing strong{font-size:.78rem;color:#166534}
+.bill-payment-existing span{font-size:.73rem;color:#3f624c}
+
+@media(max-width:1180px){
+  .bill-summary{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .bill-breakdown-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:900px){
+  .bill-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .bill-breakdown-grid{grid-template-columns:1fr}
+  .bill-row{grid-template-columns:1fr}
+  .bill-row-payment{border-left:0;border-top:1px solid #edf2f7}
+}
+@media(max-width:620px){
+  .bill-row-edit{grid-template-columns:68px minmax(0,1fr)}
+  .bill-row-amount{grid-column:2;text-align:left}
+  .bill-row-payment{grid-template-columns:minmax(0,1fr) auto}
+}
