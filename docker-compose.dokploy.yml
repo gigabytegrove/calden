@@ -1,28 +1,52 @@
 # CalDen - Dokploy / Docker Raw Compose
 #
-# This file uses the published CalDen container image, so Dokploy does not
-# need the repository or a local Dockerfile.
-#
-# Required environment variable:
-#   CALDEN_DB_PASSWORD=use-a-long-random-password
+# No required environment variables.
+# On first deployment CalDen generates a private PostgreSQL password and keeps
+# it in the persistent calden-secrets volume.
 #
 # Optional:
 #   CALDEN_PORT=8787
 #   CALDEN_IMAGE=ghcr.io/gigabytegrove/calden:latest
-#
-# If the GHCR package is private, add ghcr.io to Dokploy's registry
-# credentials before deploying.
+#   CALDEN_DB_NAME=calden
+#   CALDEN_DB_USER=calden
+#   CALDEN_DB_PASSWORD=only-use-this-to-import an existing manually configured install
 
 services:
+  secrets:
+    image: alpine:3.22
+    restart: "no"
+    environment:
+      CALDEN_DB_PASSWORD: ${CALDEN_DB_PASSWORD:-}
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        umask 077
+        mkdir -p /run/calden-secrets
+        if [ ! -s /run/calden-secrets/db-password ]; then
+          if [ -n "$$CALDEN_DB_PASSWORD" ]; then
+            printf '%s' "$$CALDEN_DB_PASSWORD" > /run/calden-secrets/db-password
+          else
+            head -c 48 /dev/urandom | base64 | tr -d '\n' > /run/calden-secrets/db-password
+          fi
+        fi
+        chmod 600 /run/calden-secrets/db-password
+    volumes:
+      - calden-secrets:/run/calden-secrets
+
   db:
     image: postgres:17-alpine
     restart: unless-stopped
+    depends_on:
+      secrets:
+        condition: service_completed_successfully
     environment:
       POSTGRES_DB: ${CALDEN_DB_NAME:-calden}
       POSTGRES_USER: ${CALDEN_DB_USER:-calden}
-      POSTGRES_PASSWORD: ${CALDEN_DB_PASSWORD:?Set CALDEN_DB_PASSWORD}
+      POSTGRES_PASSWORD_FILE: /run/calden-secrets/db-password
     volumes:
       - calden-db:/var/lib/postgresql/data
+      - calden-secrets:/run/calden-secrets:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${CALDEN_DB_USER:-calden} -d ${CALDEN_DB_NAME:-calden}"]
       interval: 5s
@@ -32,8 +56,11 @@ services:
 
   calden:
     image: ${CALDEN_IMAGE:-ghcr.io/gigabytegrove/calden:latest}
+    pull_policy: always
     restart: unless-stopped
     depends_on:
+      secrets:
+        condition: service_completed_successfully
       db:
         condition: service_healthy
     environment:
@@ -42,13 +69,14 @@ services:
       CALDEN_DB_PORT: 5432
       CALDEN_DB_NAME: ${CALDEN_DB_NAME:-calden}
       CALDEN_DB_USER: ${CALDEN_DB_USER:-calden}
-      CALDEN_DB_PASSWORD: ${CALDEN_DB_PASSWORD:?Set CALDEN_DB_PASSWORD}
+      CALDEN_DB_PASSWORD_FILE: /run/calden-secrets/db-password
       CALDEN_DB_SSLMODE: disable
       CALDEN_DATA_DIR: /data
     ports:
       - "${CALDEN_PORT:-8787}:8787"
     volumes:
       - calden-data:/data
+      - calden-secrets:/run/calden-secrets:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8787/api/health | grep -q '\"ok\":true'"]
       interval: 30s
@@ -59,3 +87,4 @@ services:
 volumes:
   calden-db:
   calden-data:
+  calden-secrets:
