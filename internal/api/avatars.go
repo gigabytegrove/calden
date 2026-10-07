@@ -1,8 +1,6 @@
 package api
 
 import (
-	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -161,8 +159,3 @@ func (s *server) deleteUserAvatar(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func avatarURLFor(baseURL string, userID uuid.UUID, ext string) string {
-	return fmt.Sprintf("%s/media/avatars/%s%s", strings.TrimRight(baseURL, "/"), userID, ext)
-}
-
-var _ = errors.New
