@@ -199,14 +199,15 @@ For Dokploy, a normal redeploy performs the same job when the Compose file uses 
 
 ## Backups
 
-A complete CalDen backup has two important parts:
+A complete CalDen backup has three important parts:
 
 - the PostgreSQL database
 - the CalDen data volume
+- the CalDen secrets volume
 
 The database contains users, calendars, events, permissions, reminders, and settings.
 
-The CalDen data volume contains server-generated application data such as the persistent signing secret.
+The CalDen data volume contains server-generated application data such as the persistent signing secret. The `calden-secrets` volume contains the automatically generated PostgreSQL password and must be preserved with the database.
 
 For a manual PostgreSQL backup:
 
@@ -220,10 +221,12 @@ Also back up the Docker volume named:
 calden-data
 ```
 
-and, if you want a full container-level backup, also preserve:
+For a complete container-level backup, preserve all three named volumes:
 
 ```text
 calden-db
+calden-data
+calden-secrets
 ```
 
 Do not remove the data volumes during a normal update.
