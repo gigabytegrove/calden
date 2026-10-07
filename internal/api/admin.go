@@ -86,6 +86,9 @@ func (s *server) updateUser(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "Could not save account")
 		return
 	}
+	s.audit(r, "update", "user", &id, "Updated "+in.DisplayName, map[string]any{
+		"role": in.Role, "active": active, "password_reset": strings.TrimSpace(in.Password) != "",
+	})
 	writeJSON(w, http.StatusOK, map[string]any{"id": id})
 }
 
@@ -108,6 +111,7 @@ func (s *server) deactivateUser(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 404, "Person not found")
 		return
 	}
+	s.audit(r, "deactivate", "user", &id, "Deactivated account", nil)
 	w.WriteHeader(http.StatusNoContent)
 }
 
