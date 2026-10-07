@@ -117,3 +117,7 @@ dialog{border:0;padding:0;width:min(900px,calc(100% - 28px));max-height:92vh;box
 .restore-result{display:grid;gap:4px;padding:11px 12px;border-left:3px solid #667085;background:#f6f8fa;font-size:.8rem}.restore-result span{color:#657184}.restore-success{border-left-color:#148044;background:#f2fbf5}.restore-failed{border-left-color:#b42318;background:#fff5f4}
 @media(max-width:900px){.backup-layout{grid-template-columns:1fr}}
 @media(max-width:620px){.saved-backup{align-items:flex-start;flex-direction:column}.saved-backup-actions{width:100%}.saved-backup-actions .button{flex:1}}
+
+.interop-box{display:grid;gap:10px;border:1px solid #e0e5eb;background:#f8fafb;padding:13px;border-radius:7px}.interop-box h3{margin-bottom:3px}.interop-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.file-button{display:inline-flex;align-items:center;justify-content:center;border:1px solid #cfd6e1;background:#fff;color:#354157;padding:.72rem .95rem;border-radius:7px;font-weight:750;line-height:1;min-height:40px;cursor:pointer}.file-button input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+@media(max-width:620px){.interop-actions>*{flex:1 1 100%}}
