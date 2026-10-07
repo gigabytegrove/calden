@@ -23,7 +23,7 @@ const state={
   scrollNow:savedScrollNow,
   settingsTab:"general",
   billMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1),
-  billEvents:[],
+  billEvents:[],billPaymentEvent:null,
   notifications:[],unreadNotifications:0,notificationKnown:new Set(),notificationPoll:null,
   googleImportFile:null,googleImportPreview:null,
   updateInfo:null,updatePoll:null
@@ -110,6 +110,14 @@ function billAmountLabel(event){
   if(event?.bill_amount===null||event?.bill_amount===undefined)return "";
   return `${event.bill_amount_is_estimate?"~":""}${money(event.bill_amount)}`;
 }
+function billOccurrenceStart(event){return event?.occurrence_start||event?.starts_at}
+function billPaidAmount(event){
+  if(!event?.bill_paid)return null;
+  if(event.bill_amount_paid!==null&&event.bill_amount_paid!==undefined)return Number(event.bill_amount_paid)||0;
+  if(event.bill_amount!==null&&event.bill_amount!==undefined)return Number(event.bill_amount)||0;
+  return null;
+}
+function canUpdateBill(event){return !!state.calendars.find(cal=>cal.id===event?.calendar_id&&cal.calendar_type==="bill_pay"&&cal.can_edit)}
 function clamp(n,min,max){return Math.min(max,Math.max(min,n))}
 function eventKey(e){return `${e.id}|${e.occurrence_start||e.starts_at}`}
 function findEventByKey(key){return state.events.find(e=>eventKey(e)===key)}
@@ -319,6 +327,28 @@ function billBreakdownMarkup(rows){
   return rows.map(row=>`<div class="bill-breakdown-row">
     <div><strong>${escapeHTML(row.label)}</strong><small>${row.count} bill${row.count===1?"":"s"}${row.unpriced?" · "+row.unpriced+" without amount":""}</small></div>
     <div><strong>${money(row.total)}</strong>${row.estimated?`<small>${money(row.estimated)} estimated</small>`:""}</div>
+  </div>`).join("");
+}
+
+function billPaidRows(events){
+  const groups=new Map();
+  events.filter(event=>event.bill_paid).forEach(event=>{
+    const key=event.bill_paid_by?.id||"__unknown__";
+    const label=event.bill_paid_by?.display_name||"Unknown payer";
+    if(!groups.has(key))groups.set(key,{label,total:0,count:0,unpriced:0});
+    const group=groups.get(key);group.count++;
+    const amount=billPaidAmount(event);
+    if(amount===null){group.unpriced++;return}
+    group.total+=amount;
+  });
+  return [...groups.values()].sort((a,b)=>b.total-a.total||a.label.localeCompare(b.label));
+}
+
+function billPaidBreakdownMarkup(rows){
+  if(!rows.length)return '<div class="bill-empty-small">No bills have been marked paid this month.</div>';
+  return rows.map(row=>`<div class="bill-breakdown-row paid-breakdown-row">
+    <div><strong>${escapeHTML(row.label)}</strong><small>${row.count} payment${row.count===1?"":"s"}${row.unpriced?" · "+row.unpriced+" without amount":""}</small></div>
+    <div><strong>${money(row.total)}</strong><small>actually paid</small></div>
   </div>`).join("");
 }
 
