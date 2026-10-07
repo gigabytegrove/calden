@@ -23,7 +23,7 @@ const state={
   scrollNow:savedScrollNow,
   settingsTab:"general",
   billMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1),
-  billEvents:[],
+  billEvents:[],billPaymentEvent:null,
   notifications:[],unreadNotifications:0,notificationKnown:new Set(),notificationPoll:null,
   googleImportFile:null,googleImportPreview:null,
   updateInfo:null,updatePoll:null
@@ -109,6 +109,19 @@ function isBillCalendar(id){return !!billCalendar(id)}
 function billAmountLabel(event){
   if(event?.bill_amount===null||event?.bill_amount===undefined)return "";
   return `${event.bill_amount_is_estimate?"~":""}${money(event.bill_amount)}`;
+}
+function billOccurrenceStart(event){return event?.occurrence_start||event?.starts_at}
+function billPaidAmount(event){
+  if(!event?.bill_paid)return null;
+  if(event.bill_amount_paid!==null&&event.bill_amount_paid!==undefined)return Number(event.bill_amount_paid)||0;
+  if(event.bill_amount!==null&&event.bill_amount!==undefined)return Number(event.bill_amount)||0;
+  return null;
+}
+function canUpdateBill(event){return !!state.calendars.find(cal=>cal.id===event?.calendar_id&&cal.calendar_type==="bill_pay"&&cal.can_edit)}
+function billPaymentLabel(event){
+  if(!event?.bill_paid)return "";
+  const who=event.bill_paid_by?.display_name;
+  return who?`Paid by ${who}`:"Paid";
 }
 function clamp(n,min,max){return Math.min(max,Math.max(min,n))}
 function eventKey(e){return `${e.id}|${e.occurrence_start||e.starts_at}`}
@@ -322,6 +335,28 @@ function billBreakdownMarkup(rows){
   </div>`).join("");
 }
 
+function billPaidRows(events){
+  const groups=new Map();
+  events.filter(event=>event.bill_paid).forEach(event=>{
+    const key=event.bill_paid_by?.id||"__unknown__";
+    const label=event.bill_paid_by?.display_name||"Unknown payer";
+    if(!groups.has(key))groups.set(key,{label,total:0,count:0,unpriced:0});
+    const group=groups.get(key);group.count++;
+    const amount=billPaidAmount(event);
+    if(amount===null){group.unpriced++;return}
+    group.total+=amount;
+  });
+  return [...groups.values()].sort((a,b)=>b.total-a.total||a.label.localeCompare(b.label));
+}
+
+function billPaidBreakdownMarkup(rows){
+  if(!rows.length)return '<div class="bill-empty-small">No bills have been marked paid this month.</div>';
+  return rows.map(row=>`<div class="bill-breakdown-row paid-breakdown-row">
+    <div><strong>${escapeHTML(row.label)}</strong><small>${row.count} payment${row.count===1?"":"s"}${row.unpriced?" · "+row.unpriced+" without amount":""}</small></div>
+    <div><strong>${money(row.total)}</strong><small>actually paid</small></div>
+  </div>`).join("");
+}
+
 function renderBills(){
   const host=$("#bill-list"),summary=$("#bill-summary");
   if(!host||!summary)return;
@@ -332,6 +367,7 @@ function renderBills(){
     summary.innerHTML="";
     $("#bill-by-person").innerHTML='<div class="bill-empty-small">No bill pay calendars are visible to you.</div>';
     $("#bill-by-calendar").innerHTML='<div class="bill-empty-small">No bill pay calendars are visible to you.</div>';
+    $("#bill-paid-by-person").innerHTML='<div class="bill-empty-small">No bill pay calendars are visible to you.</div>';
     host.innerHTML='<div class="empty-state"><strong>No Bill Pay calendar</strong><span>An administrator can create a Bill Pay calendar and give you access.</span></div>';
     $("#bill-count").textContent="";
     return;
@@ -345,39 +381,139 @@ function renderBills(){
   });
   const events=(state.currentPage==="bills"?state.billEvents:fallback).slice().sort((a,b)=>new Date(a.starts_at)-new Date(b.starts_at));
 
-  let known=0,estimated=0,unpriced=0;
+  let known=0,estimated=0,unpriced=0,paidTotal=0,paidUnknown=0,outstanding=0;
   events.forEach(event=>{
-    if(event.bill_amount===null||event.bill_amount===undefined){unpriced++;return}
-    if(event.bill_amount_is_estimate)estimated+=Number(event.bill_amount)||0;
-    else known+=Number(event.bill_amount)||0;
+    const dueAmount=event.bill_amount===null||event.bill_amount===undefined?null:Number(event.bill_amount)||0;
+    if(dueAmount===null)unpriced++;
+    else if(event.bill_amount_is_estimate)estimated+=dueAmount;
+    else known+=dueAmount;
+
+    if(event.bill_paid){
+      const paidAmount=billPaidAmount(event);
+      if(paidAmount===null)paidUnknown++;else paidTotal+=paidAmount;
+    }else if(dueAmount!==null){
+      outstanding+=dueAmount;
+    }
   });
   const total=known+estimated;
+  const paidCount=events.filter(event=>event.bill_paid).length;
+  const unpaidCount=events.length-paidCount;
   summary.innerHTML=`
     <article class="bill-stat"><span>Expected this month</span><strong>${money(total)}</strong><small>known + estimated bills</small></article>
     <article class="bill-stat"><span>Known amounts</span><strong>${money(known)}</strong><small>fixed or confirmed amounts</small></article>
     <article class="bill-stat"><span>Estimated</span><strong>${money(estimated)}</strong><small>variable bills marked as estimates</small></article>
-    <article class="bill-stat"><span>Due</span><strong>${events.length}</strong><small>${unpriced?unpriced+" without an amount":"all amounts entered"}</small></article>`;
+    <article class="bill-stat paid-stat"><span>Paid so far</span><strong>${money(paidTotal)}</strong><small>${paidCount} of ${events.length} bills${paidUnknown?" · "+paidUnknown+" without amount":""}</small></article>
+    <article class="bill-stat outstanding-stat"><span>Outstanding</span><strong>${money(outstanding)}</strong><small>${unpaidCount} bill${unpaidCount===1?"":"s"} not marked paid${unpriced?" · "+unpriced+" without amount":""}</small></article>`;
 
   const byPerson=billGroupRows(events,event=>event.bill_payer?.id||"__unassigned__",event=>event.bill_payer?.display_name||"Unassigned");
   const byCalendar=billGroupRows(events,event=>event.calendar_id,event=>event.calendar_name||"Bill calendar");
+  const paidByPerson=billPaidRows(events);
   $("#bill-by-person").innerHTML=billBreakdownMarkup(byPerson);
   $("#bill-by-calendar").innerHTML=billBreakdownMarkup(byCalendar);
-  $("#bill-count").textContent=events.length+" bill"+(events.length===1?"":"s");
+  $("#bill-paid-by-person").innerHTML=billPaidBreakdownMarkup(paidByPerson);
+  $("#bill-count").textContent=`${paidCount} paid · ${unpaidCount} outstanding`;
 
   host.innerHTML=events.length?events.map(event=>{
     const due=new Date(event.starts_at),amount=billAmountLabel(event);
     const payer=event.bill_payer?.display_name||"Not assigned";
-    return `<button type="button" class="bill-row" data-event-key="${escapeAttr(eventKey(event))}">
-      <span class="bill-due"><strong>${formatDate(due,{month:"short",day:"numeric"})}</strong><small>${event.all_day?"Due date":formatTime(due)}</small></span>
-      <span class="bill-row-main"><strong>${escapeHTML(event.title)}</strong><small>${escapeHTML(event.calendar_name||"Bills")} · ${escapeHTML(payer)}</small></span>
-      <span class="bill-row-amount ${event.bill_amount_is_estimate?"estimated":""}"><strong>${amount?escapeHTML(amount):"Amount not set"}</strong><small>${event.bill_amount_is_estimate?"Estimated":"Amount due"}</small></span>
-    </button>`;
+    const actualPayer=event.bill_paid_by?.display_name||"Unknown payer";
+    const paidAmount=billPaidAmount(event);
+    const paidAt=event.bill_paid_at?new Date(event.bill_paid_at):null;
+    const canUpdate=canUpdateBill(event);
+    const paymentState=event.bill_paid
+      ?`<span class="bill-paid-status"><span class="bill-status-pill paid">Paid</span><strong>${paidAmount===null?"Amount not recorded":escapeHTML(money(paidAmount))}</strong><small>by ${escapeHTML(actualPayer)}${paidAt?" · "+escapeHTML(formatDate(paidAt,{month:"short",day:"numeric"})):""}</small></span>`
+      :`<span class="bill-paid-status"><span class="bill-status-pill due">Due</span><strong>Not paid yet</strong><small>Assigned to ${escapeHTML(payer)}</small></span>`;
+    return `<article class="bill-row ${event.bill_paid?"is-paid":""}">
+      <button type="button" class="bill-row-edit" data-event-key="${escapeAttr(eventKey(event))}" aria-label="Edit ${escapeAttr(event.title)}">
+        <span class="bill-due"><strong>${formatDate(due,{month:"short",day:"numeric"})}</strong><small>${event.all_day?"Due date":formatTime(due)}</small></span>
+        <span class="bill-row-main"><strong>${escapeHTML(event.title)}</strong><small>${escapeHTML(event.calendar_name||"Bills")} · assigned ${escapeHTML(payer)}</small></span>
+        <span class="bill-row-amount ${event.bill_amount_is_estimate?"estimated":""}"><strong>${amount?escapeHTML(amount):"Amount not set"}</strong><small>${event.bill_amount_is_estimate?"Estimated":"Amount due"}</small></span>
+      </button>
+      <span class="bill-row-payment">${paymentState}${canUpdate?`<button type="button" class="button ${event.bill_paid?"secondary":""} compact bill-payment-action" data-event-key="${escapeAttr(eventKey(event))}">${event.bill_paid?"Change payment":"Mark paid"}</button>`:""}</span>
+    </article>`;
   }).join(""):'<div class="empty-state"><strong>Nothing due this month</strong><span>Add a bill or move to another month.</span></div>';
-  host.querySelectorAll("[data-event-key]").forEach(button=>button.addEventListener("click",()=>{
+  host.querySelectorAll(".bill-row-edit[data-event-key]").forEach(button=>button.addEventListener("click",()=>{
     const key=button.dataset.eventKey;
     const event=events.find(item=>eventKey(item)===key);
     if(event)requestEventEdit(event);
   }));
+  host.querySelectorAll(".bill-payment-action[data-event-key]").forEach(button=>button.addEventListener("click",event=>{
+    event.stopPropagation();
+    const item=events.find(entry=>eventKey(entry)===button.dataset.eventKey);
+    if(item)openBillPayment(item);
+  }));
+}
+
+function openBillPayment(event){
+  if(!event||!canUpdateBill(event))return;
+  state.billPaymentEvent=event;
+  const dialog=$("#bill-payment-dialog");
+  const paid=!!event.bill_paid;
+  const due=new Date(event.starts_at);
+  const assigned=event.bill_payer?.display_name||"Not assigned";
+  const paidBy=event.bill_paid_by?.display_name||"";
+  const users=state.users.filter(user=>user.active!==false);
+  const select=$("#bill-payment-person");
+  select.innerHTML=users.map(user=>`<option value="${user.id}">${escapeHTML(user.display_name)}</option>`).join("");
+  const preferred=event.bill_paid_by?.id||event.bill_payer?.id||state.me?.id||users[0]?.id||"";
+  if(users.some(user=>user.id===preferred))select.value=preferred;
+
+  const amount=event.bill_paid&&event.bill_amount_paid!==null&&event.bill_amount_paid!==undefined
+    ?Number(event.bill_amount_paid)
+    :(event.bill_amount!==null&&event.bill_amount!==undefined?Number(event.bill_amount):null);
+  $("#bill-payment-amount").value=amount===null?"":String(amount);
+  $("#bill-payment-title").textContent=paid?"Update payment":"Mark bill paid";
+  $("#bill-payment-copy").textContent=`${event.title} · due ${formatDate(due,{month:"long",day:"numeric",year:"numeric"})}`;
+  $("#bill-payment-assignment").innerHTML=`<span>Originally assigned</span><strong>${escapeHTML(assigned)}</strong>${event.bill_amount_is_estimate?'<small>Amount due is currently an estimate.</small>':""}`;
+  const existing=$("#bill-payment-existing");
+  existing.classList.toggle("hidden",!paid);
+  if(paid){
+    const paidAt=event.bill_paid_at?new Date(event.bill_paid_at):null;
+    existing.innerHTML=`<strong>Currently marked paid</strong><span>${escapeHTML(paidBy||"Unknown payer")}${paidAt?" · "+escapeHTML(formatDate(paidAt,{month:"long",day:"numeric",year:"numeric"})):""}</span>`;
+  }else existing.innerHTML="";
+  $("#bill-payment-unpaid").classList.toggle("hidden",!paid);
+  $("#bill-payment-save").textContent=paid?"Update payment":"Mark paid";
+  $("#bill-payment-error").textContent="";
+  dialog.showModal();
+}
+
+async function refreshBillPaymentViews(){
+  await loadEvents();
+  if(state.currentPage==="bills")await loadBillMonth();
+  else renderBills();
+  renderCalendar();
+  renderAgenda();
+}
+
+async function saveBillPayment(paid){
+  const event=state.billPaymentEvent;
+  if(!event)return;
+  const amountRaw=$("#bill-payment-amount").value.trim();
+  const amount=amountRaw===""?null:Number(amountRaw);
+  if(paid&&amount!==null&&(!Number.isFinite(amount)||amount<0)){
+    $("#bill-payment-error").textContent="Check the amount paid.";
+    return;
+  }
+  const payload={
+    occurrence_start:billOccurrenceStart(event),
+    paid,
+    paid_by_user_id:paid?$("#bill-payment-person").value:null,
+    amount_paid:paid?amount:null
+  };
+  $("#bill-payment-error").textContent="";
+  $("#bill-payment-save").disabled=true;
+  $("#bill-payment-unpaid").disabled=true;
+  try{
+    await api("/api/bills/"+event.id+"/payment",{method:"PUT",body:JSON.stringify(payload)});
+    await refreshBillPaymentViews();
+    $("#bill-payment-dialog").close();
+    state.billPaymentEvent=null;
+  }catch(err){
+    $("#bill-payment-error").textContent=err.message;
+  }finally{
+    $("#bill-payment-save").disabled=false;
+    $("#bill-payment-unpaid").disabled=false;
+  }
 }
 
 function renderCalendar(){
@@ -455,7 +591,7 @@ function renderTimeline(days){
       const left=item.column/item.columns*100,width=100/item.columns;
       const e=item.event;
       return `<button class="timed-event" data-event-key="${escapeAttr(eventKey(e))}" style="--cal:${safeColor(e.calendar_color||e.color)};--top:${top}%;--height:${height}%;--left:${left}%;--width:${width}%">
-        <strong>${escapeHTML(e.title)}</strong><span>${formatTime(new Date(e.starts_at))}${billAmountLabel(e)?" · "+escapeHTML(billAmountLabel(e)):""}${e.bill_payer?.display_name?" · "+escapeHTML(e.bill_payer.display_name):""}${e.category_name?" · "+escapeHTML(e.category_name):""}</span>${avatarMini(e)}
+        <strong>${escapeHTML(e.title)}</strong><span>${formatTime(new Date(e.starts_at))}${billAmountLabel(e)?" · "+escapeHTML(billAmountLabel(e)):""}${billPaymentLabel(e)?" · "+escapeHTML(billPaymentLabel(e)):""}${e.bill_payer?.display_name?" · "+escapeHTML(e.bill_payer.display_name):""}${e.category_name?" · "+escapeHTML(e.category_name):""}</span>${avatarMini(e)}
       </button>`;
     }).join("");
     const now=new Date(),nowMinutes=now.getHours()*60+now.getMinutes();
@@ -487,7 +623,7 @@ function renderDayGrid(days){
 
 function calendarEventBlock(e,compact=false){
   const time=e.all_day?"All day":formatTime(new Date(e.starts_at));
-  const meta=[time,billAmountLabel(e),e.bill_payer?.display_name,e.category_name].filter(Boolean).join(" · ");
+  const meta=[time,billAmountLabel(e),billPaymentLabel(e),e.bill_payer?.display_name,e.category_name].filter(Boolean).join(" · ");
   return `<button class="calendar-event ${compact?"compact":""}" data-event-key="${escapeAttr(eventKey(e))}" style="--cal:${safeColor(e.calendar_color||e.color)}">
     <span class="event-color"></span><span class="calendar-event-copy"><strong>${e.is_recurring?'<span class="repeat-mark" title="Repeating event">↻</span> ':""}${escapeHTML(e.title)}</strong><small>${escapeHTML(meta)}</small></span>${avatarMini(e)}
   </button>`;
@@ -544,7 +680,7 @@ function eventCard(e){
   const start=new Date(e.starts_at),end=new Date(e.ends_at);
   return `<button class="agenda-event" data-event-key="${escapeAttr(eventKey(e))}" style="--cal:${safeColor(e.calendar_color||e.color)}">
     <span class="agenda-color"></span><span class="agenda-date"><strong>${formatDate(start,{month:"short",day:"numeric"})}</strong><small>${e.all_day?"All day":formatTime(start)}</small></span>
-    <span class="agenda-main"><strong>${e.is_recurring?'<span class="repeat-mark" title="Repeating event">↻</span> ':""}${escapeHTML(e.title)}${billAmountLabel(e)?` · ${escapeHTML(billAmountLabel(e))}`:""}</strong><small>${escapeHTML(e.calendar_name)}${e.bill_payer?.display_name?" · payer "+escapeHTML(e.bill_payer.display_name):""}${e.location?" · "+escapeHTML(e.location):""}${e.all_day?"":` · ends ${escapeHTML(formatTime(end))}`}</small></span>
+    <span class="agenda-main"><strong>${e.is_recurring?'<span class="repeat-mark" title="Repeating event">↻</span> ':""}${escapeHTML(e.title)}${billAmountLabel(e)?` · ${escapeHTML(billAmountLabel(e))}`:""}${billPaymentLabel(e)?` · ${escapeHTML(billPaymentLabel(e))}`:""}</strong><small>${escapeHTML(e.calendar_name)}${e.bill_payer?.display_name?" · assigned "+escapeHTML(e.bill_payer.display_name):""}${e.location?" · "+escapeHTML(e.location):""}${e.all_day?"":` · ends ${escapeHTML(formatTime(end))}`}</small></span>
     ${avatarMini(e)}
   </button>`;
 }
@@ -1211,11 +1347,14 @@ function renderGoogleImportMapping(body){
     host.innerHTML='<div class="empty-state"><strong>No calendars found</strong></div>';
     button.classList.add("hidden");button.disabled=true;return;
   }
-  host.innerHTML=`<div class="google-mapping-head"><div><strong>Review calendar mapping</strong><span>Nothing is imported until you confirm these choices.</span></div><span>${items.length} Google calendar${items.length===1?"":"s"}</span></div>
+  const duplicateSuppressed=Number(body?.duplicate_events_suppressed)||0;
+  host.innerHTML=`<div class="google-mapping-head"><div><strong>Review calendar mapping</strong><span>Nothing is imported until you confirm these choices. ${duplicateSuppressed?duplicateSuppressed+" stale duplicate Google event"+(duplicateSuppressed===1?" was":"s were")+" removed from the export before mapping.":""}</span></div><span>${items.length} Google calendar${items.length===1?"":"s"}</span></div>
     <div class="google-mapping-list">${items.map((item,index)=>{
       const prior=item.previous_auto_created?" · previous import created a duplicate calendar":"";
+      const suppressed=Number(item.duplicate_events_suppressed)||0;
+      const duplicateNote=suppressed?" · "+suppressed+" stale duplicate"+(suppressed===1?"":"s")+" ignored":"";
       return `<article class="google-mapping-row">
-        <div class="google-mapping-source"><strong>${escapeHTML(item.name)}</strong><small>${Number(item.event_count)||0} exported event${Number(item.event_count)===1?"":"s"}${escapeHTML(prior)}</small></div>
+        <div class="google-mapping-source"><strong>${escapeHTML(item.name)}</strong><small>${Number(item.event_count)||0} event${Number(item.event_count)===1?"":"s"} to import${escapeHTML(duplicateNote)}${escapeHTML(prior)}</small></div>
         <label>Import into<select class="google-map-select" data-google-map-index="${index}">${googleMappingOptions(item)}</select></label>
         <div class="google-match-reason ${item.match_score>=80?"match-good":""}"><strong>${item.match_score>=80?"Suggested match":"Review required"}</strong><span>${escapeHTML(item.match_reason||"Choose where this calendar belongs.")}</span></div>
       </article>`;
@@ -1241,7 +1380,9 @@ function renderGoogleImportResults(body){
     <span>${Number(body?.created)||0} new events</span>
     <span>${Number(body?.updated)||0} updated</span>
     <span>${Number(body?.skipped_calendars)||0} skipped calendars</span>
-    <span>${Number(body?.cleaned_calendars)||0} old duplicates cleaned up</span>
+    <span>${Number(body?.cleaned_calendars)||0} old duplicate calendars cleaned up</span>
+    <span>${Number(body?.duplicate_events_suppressed)||0} stale Google event copies suppressed</span>
+    <span>${Number(body?.duplicate_events_reconciled)||0} existing duplicate events repaired</span>
   </div>`+calendars.map(item=>`<article class="google-import-calendar">
     <div><strong>${escapeHTML(item.name||"Imported calendar")}</strong><small>${Number(item.created)||0} new · ${Number(item.updated)||0} updated${item.skipped?" · "+Number(item.skipped)+" skipped":""}</small></div>
     <span>${item.created_calendar?"Created calendar":"Mapped to existing"}</span>
@@ -1337,6 +1478,9 @@ $("#mobile-menu").addEventListener("click",()=>$("#sidebar").classList.toggle("o
 $("#new-event").addEventListener("click",()=>openEvent());
 $("#nav-add").addEventListener("click",()=>openEvent());
 $("#add-bill")?.addEventListener("click",openBillEvent);
+$("#bill-payment-cancel")?.addEventListener("click",()=>{$("#bill-payment-dialog").close();state.billPaymentEvent=null});
+$("#bill-payment-form")?.addEventListener("submit",async e=>{e.preventDefault();await saveBillPayment(true)});
+$("#bill-payment-unpaid")?.addEventListener("click",async()=>{await saveBillPayment(false)});
 $("#bill-prev")?.addEventListener("click",async()=>{state.billMonth=new Date(state.billMonth.getFullYear(),state.billMonth.getMonth()-1,1);await loadBillMonth()});
 $("#bill-next")?.addEventListener("click",async()=>{state.billMonth=new Date(state.billMonth.getFullYear(),state.billMonth.getMonth()+1,1);await loadBillMonth()});
 $("#bill-current")?.addEventListener("click",async()=>{const now=new Date();state.billMonth=new Date(now.getFullYear(),now.getMonth(),1);await loadBillMonth()});
@@ -1733,7 +1877,8 @@ $("#review-google-calendar")?.addEventListener("click",async()=>{
     const body=await res.json().catch(()=>null);
     if(!res.ok)throw new Error(body?.error||"Could not review Google Calendar export");
     renderGoogleImportMapping(body);
-    status.textContent=`Found ${body.calendar_count||0} Google calendar${Number(body.calendar_count)===1?"":"s"}. Review each destination below before importing.`;
+    const suppressed=Number(body.duplicate_events_suppressed)||0;
+    status.textContent=`Found ${body.calendar_count||0} Google calendar${Number(body.calendar_count)===1?"":"s"}${suppressed?" · "+suppressed+" stale duplicate event copy"+(suppressed===1?"":"ies")+" detected and suppressed":""}. Review each destination below before importing.`;
   }catch(err){
     status.textContent=err.message;
   }finally{
@@ -1755,7 +1900,9 @@ $("#import-google-calendar")?.addEventListener("click",async()=>{
     const body=await res.json().catch(()=>null);
     if(!res.ok)throw new Error(body?.error||"Google Calendar import failed");
     const cleanup=Number(body.cleaned_calendars)||0;
-    status.textContent=`Imported ${body.calendar_count||0} calendar${Number(body.calendar_count)===1?"":"s"}: ${body.created||0} new events, ${body.updated||0} updated${cleanup?" · "+cleanup+" old duplicate calendar"+(cleanup===1?"":"s")+" removed":""}.`;
+    const reconciled=Number(body.duplicate_events_reconciled)||0;
+    const suppressed=Number(body.duplicate_events_suppressed)||0;
+    status.textContent=`Imported ${body.calendar_count||0} calendar${Number(body.calendar_count)===1?"":"s"}: ${body.created||0} new events, ${body.updated||0} updated${suppressed?" · "+suppressed+" stale Google event copy"+(suppressed===1?"":"ies")+" suppressed":""}${reconciled?" · "+reconciled+" existing duplicate event"+(reconciled===1?"":"s")+" repaired":""}${cleanup?" · "+cleanup+" old duplicate calendar"+(cleanup===1?"":"s")+" removed":""}.`;
     renderGoogleImportResults(body);
     await reloadSharedData();
     renderCalendars();renderCategories();renderBillNavigation();renderBills();renderEventControls();renderCalendar();renderAgenda();renderNotifications();renderSettings();

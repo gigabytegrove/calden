@@ -134,7 +134,7 @@
 
     <section id="page-bills" class="app-page hidden">
       <div class="page-header">
-        <div><p class="eyebrow">Household bills</p><h2>Bill Pay</h2><p class="muted">See what is due this month, who is handling it, and a simple expected-cost breakdown. CalDen tracks due dates, not bank accounts or transactions.</p></div>
+        <div><p class="eyebrow">Household bills</p><h2>Bill Pay</h2><p class="muted">See what is due this month, who is handling it, what has been paid, and who actually paid it. CalDen tracks household bill status without becoming a banking app.</p></div>
         <button id="add-bill" class="button" type="button">+ Add bill</button>
       </div>
       <div class="bill-month-toolbar">
@@ -149,6 +149,7 @@
       <div class="bill-breakdown-grid">
         <section class="panel bill-breakdown"><div class="bill-section-head"><div><h3>By person</h3><p class="muted">Expected responsibility for the month.</p></div></div><div id="bill-by-person"></div></section>
         <section class="panel bill-breakdown"><div class="bill-section-head"><div><h3>By bill calendar</h3><p class="muted">Expected costs across the bill calendars you can see.</p></div></div><div id="bill-by-calendar"></div></section>
+        <section class="panel bill-breakdown"><div class="bill-section-head"><div><h3>Paid by person</h3><p class="muted">What each person actually paid this month, regardless of who was assigned.</p></div></div><div id="bill-paid-by-person"></div></section>
       </div>
       <section class="panel bill-schedule">
         <div class="bill-section-head"><div><h3>Due this month</h3><p class="muted">Amounts marked with ~ are estimates for bills that can vary.</p></div><span id="bill-count"></span></div>
@@ -276,13 +277,13 @@
             <div class="integration-icon google-icon">G</div>
             <div class="integration-card-copy">
               <div class="integration-title-row"><h3>Google Calendar</h3><span class="integration-badge">Migration</span></div>
-              <p>Bring your existing Google Calendar setup into CalDen without creating a pile of duplicate calendars. CalDen previews the export first, suggests matches, and lets you approve where every Google calendar goes before anything is created.</p>
+              <p>Bring your existing Google Calendar setup into CalDen without creating duplicate calendars or duplicate events. CalDen detects the same Google event repeated in multiple exported calendar files, keeps the newest revision, previews calendar matches, and lets you approve where every calendar goes before anything is created.</p>
             </div>
           </div>
           <div class="google-import-grid">
             <div class="migration-steps" aria-label="Google Calendar migration steps">
               <article class="migration-step"><span>1</span><div><strong>Export from Google Calendar</strong><p>In Google Calendar, open Settings, choose <b>Import &amp; export</b>, then choose <b>Export</b>. Google downloads one ZIP containing your calendars.</p></div></article>
-              <article class="migration-step"><span>2</span><div><strong>Review before importing</strong><p>Drop the export below and CalDen will compare each Google calendar to what already exists. Nothing is created during this step.</p></div></article>
+              <article class="migration-step"><span>2</span><div><strong>Review before importing</strong><p>Drop the export below and CalDen will compare calendars, detect repeated Google event UIDs across the export, and keep only the newest copy. Nothing is created during this step.</p></div></article>
               <article class="migration-step"><span>3</span><div><strong>Choose where each one belongs</strong><p>Accept a suggested match, choose another existing CalDen calendar, skip it, or explicitly create a new calendar. Then import.</p></div></article>
             </div>
             <div class="google-import-action">
@@ -300,7 +301,7 @@
               <p id="google-import-status" class="status-line"></p>
               <div id="google-import-mapping" class="google-import-mapping hidden"></div>
               <div id="google-import-results" class="google-import-results hidden"></div>
-              <p class="import-privacy-note">Nothing is created until you review the mapping and start the import. If this export was imported before, remapping can safely remove old auto-created duplicate calendars when they contain only imported events. The file stays on your CalDen server.</p>
+              <p class="import-privacy-note">Nothing is created until you review the mapping and start the import. Re-importing the same Google export can also reconcile event copies created by older CalDen imports when Google placed the same UID in more than one exported calendar. CalDen preserves attached people, reminders, bill metadata, and payment history when it consolidates those copies. The file stays on your CalDen server.</p>
             </div>
           </div>
         </section>
@@ -528,6 +529,31 @@
     </div>
     <div class="dialog-actions"><button id="delete-event" type="button" class="button danger hidden">Delete event</button><span class="grow"></span><button type="button" class="button secondary" data-close-event>Cancel</button><button type="submit" class="button">Save event</button></div>
     <p id="event-error" class="error"></p>
+  </form>
+</dialog>
+
+<dialog id="bill-payment-dialog" class="scope-dialog">
+  <form id="bill-payment-form" class="scope-dialog-body bill-payment-dialog">
+    <p class="eyebrow">Bill status</p>
+    <h2 id="bill-payment-title">Mark bill paid</h2>
+    <p id="bill-payment-copy" class="muted"></p>
+    <div id="bill-payment-assignment" class="bill-payment-assignment"></div>
+    <label>Paid by
+      <select id="bill-payment-person" required></select>
+      <span class="field-help">This can be different from the person originally assigned to pay the bill.</span>
+    </label>
+    <label>Amount actually paid
+      <div class="money-input"><span>$</span><input id="bill-payment-amount" type="number" min="0" max="9999999999.99" step="0.01" inputmode="decimal" placeholder="Optional"></div>
+      <span class="field-help">CalDen starts with the amount due. Change it here if the actual payment was different from the estimate.</span>
+    </label>
+    <div id="bill-payment-existing" class="bill-payment-existing hidden"></div>
+    <p id="bill-payment-error" class="error"></p>
+    <div class="scope-dialog-actions">
+      <button id="bill-payment-unpaid" type="button" class="button danger hidden">Mark unpaid</button>
+      <span class="grow"></span>
+      <button id="bill-payment-cancel" type="button" class="button secondary">Cancel</button>
+      <button id="bill-payment-save" type="submit" class="button">Mark paid</button>
+    </div>
   </form>
 </dialog>
 
