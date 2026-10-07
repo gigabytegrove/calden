@@ -24,6 +24,7 @@ const state={
   settingsTab:"general",
   billMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1),
   billEvents:[],
+  notifications:[],unreadNotifications:0,notificationKnown:new Set(),notificationPoll:null,
   googleImportFile:null,googleImportPreview:null,
   updateInfo:null,updatePoll:null
 };
@@ -153,9 +154,13 @@ async function boot(){
 }
 
 async function reloadSharedData(){
-  [state.users,state.calendars,state.categories]=await Promise.all([
-    api("/api/users"),api("/api/calendars"),api("/api/categories")
+  const [users,calendars,categories,notificationData]=await Promise.all([
+    api("/api/users"),api("/api/calendars"),api("/api/categories"),api("/api/notifications")
   ]);
+  state.users=users;state.calendars=calendars;state.categories=categories;
+  state.notifications=notificationData?.items||[];
+  state.unreadNotifications=Number(notificationData?.unread)||0;
+  state.notificationKnown=new Set(state.notifications.map(item=>item.id));
   await loadEvents();
 }
 async function loadEvents(){
@@ -186,6 +191,8 @@ function renderApp(){
   renderCategories();
   renderNotifications();
   renderSettings();
+  decorateNavigation();
+  ensureNotificationPolling();
 }
 
 function navigate(page,load=true){
@@ -199,7 +206,7 @@ function navigate(page,load=true){
   $("#new-event").classList.toggle("hidden",!["calendar","agenda"].includes(page));
   $("#sidebar").classList.remove("open");
   if(!load)return;
-  if(page==="notifications")renderNotifications();
+  if(page==="notifications")loadNotifications(false).catch(()=>renderNotifications());
   if(page==="bills")loadBillMonth();
   if(page==="integrations"){loadMonita();setGoogleImportFile(state.googleImportFile);}
   if(page==="updates")loadUpdater();
