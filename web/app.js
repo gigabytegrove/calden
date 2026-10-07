@@ -327,6 +327,7 @@ function billGroupRows(events,keyFn,labelFn){
     const key=keyFn(event),label=labelFn(event);
     if(!groups.has(key))groups.set(key,{label,total:0,known:0,estimated:0,count:0,unpriced:0});
     const group=groups.get(key);group.count++;
+    if(billPaymentStatus(event)==="no_balance"){group.noBalance=(group.noBalance||0)+1;return}
     if(event.bill_amount===null||event.bill_amount===undefined){group.unpriced++;return}
     const amount=Number(event.bill_amount)||0;group.total+=amount;
     if(event.bill_amount_is_estimate)group.estimated+=amount;else group.known+=amount;
@@ -337,7 +338,7 @@ function billGroupRows(events,keyFn,labelFn){
 function billBreakdownMarkup(rows){
   if(!rows.length)return '<div class="bill-empty-small">No bills in this month.</div>';
   return rows.map(row=>`<div class="bill-breakdown-row">
-    <div><strong>${escapeHTML(row.label)}</strong><small>${row.count} bill${row.count===1?"":"s"}${row.unpriced?" · "+row.unpriced+" without amount":""}</small></div>
+    <div><strong>${escapeHTML(row.label)}</strong><small>${row.count} bill${row.count===1?"":"s"}${row.noBalance?" · "+row.noBalance+" no balance":""}${row.unpriced?" · "+row.unpriced+" without amount":""}</small></div>
     <div><strong>${money(row.total)}</strong>${row.estimated?`<small>${money(row.estimated)} estimated</small>`:""}</div>
   </div>`).join("");
 }
@@ -397,13 +398,15 @@ function renderBills(){
   let known=0,estimated=0,unpriced=0,paidTotal=0,outstanding=0;
   let paidCount=0,partialCount=0,noBalanceCount=0,dueCount=0;
   events.forEach(event=>{
+    const status=billPaymentStatus(event);
     const dueAmount=event.bill_amount===null||event.bill_amount===undefined?null:Number(event.bill_amount)||0;
-    if(dueAmount===null)unpriced++;
-    else if(event.bill_amount_is_estimate)estimated+=dueAmount;
-    else known+=dueAmount;
+    if(status!=="no_balance"){
+      if(dueAmount===null)unpriced++;
+      else if(event.bill_amount_is_estimate)estimated+=dueAmount;
+      else known+=dueAmount;
+    }
     paidTotal+=billPaidAmount(event);
 
-    const status=billPaymentStatus(event);
     if(status==="paid")paidCount++;
     else if(status==="partial")partialCount++;
     else if(status==="no_balance")noBalanceCount++;
@@ -1943,7 +1946,7 @@ $("#preview-google-repair")?.addEventListener("click",previewGoogleDuplicateRepa
 $("#repair-google-duplicates")?.addEventListener("click",repairGoogleDuplicateData);
 $("#google-repair-confirmation")?.addEventListener("input",()=>{
   const body=state.googleRepairPreview;if(!body)return;
-  const phrase=`REPAIR ${Number(body.extra_copies)||Number(body.export_repairable_groups)||0}`;
+  const phrase=`REPAIR ${Number(body.export_repairable_groups)||0}`;
   $("#repair-google-duplicates").disabled=$("#google-repair-confirmation").value!==phrase;
 });
 
@@ -2013,8 +2016,7 @@ async function previewGoogleDuplicateRepair(){
     state.googleRepairPreview=body;renderGoogleDuplicateSummary(body);
     const repairable=Number(body.export_repairable_groups)||0;
     if(!repairable){status.textContent="CalDen could not safely identify a canonical copy for the remaining duplicates. Nothing has been changed.";return}
-    const copies=Number(body.extra_copies)||repairable;
-    const phrase=`REPAIR ${copies}`;
+    const phrase=`REPAIR ${repairable}`;
     $("#google-repair-phrase").textContent=phrase;
     $("#google-repair-confirmation").value="";
     $("#google-repair-confirm-wrap").classList.remove("hidden");
@@ -2027,7 +2029,7 @@ async function previewGoogleDuplicateRepair(){
 async function repairGoogleDuplicateData(){
   const body=state.googleRepairPreview,file=state.googleRepairFile||$("#google-repair-export")?.files?.[0]||state.googleImportFile;
   if(!body||!file)return;
-  const phrase=`REPAIR ${Number(body.extra_copies)||Number(body.export_repairable_groups)||0}`;
+  const phrase=`REPAIR ${Number(body.export_repairable_groups)||0}`;
   if($("#google-repair-confirmation").value!==phrase)return;
   const button=$("#repair-google-duplicates"),status=$("#google-repair-status");
   button.disabled=true;button.textContent="Repairing…";
