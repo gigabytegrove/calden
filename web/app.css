@@ -334,15 +334,15 @@ body{color:var(--ink)}
 }
 .sidebar-brand{
   padding:2px 8px 22px;margin-bottom:10px;border-bottom:1px solid var(--sidebar-line);
-  display:grid;grid-template-columns:48px minmax(0,1fr);gap:10px;align-items:center
+  display:grid;grid-template-columns:92px minmax(0,1fr);gap:10px;align-items:center
 }
 .sidebar-logo-surface{
-  width:48px;height:48px;border-radius:13px;display:grid;place-items:center;
+  width:92px;height:48px;border-radius:13px;display:grid;place-items:center;
   background:#1e293b;border:1px solid rgba(255,255,255,.09);
   box-shadow:0 8px 18px rgba(0,0,0,.16);overflow:hidden
 }
 .sidebar-logo-surface img{
-  display:block;width:42px;height:42px;object-fit:contain;
+  display:block;width:84px;height:42px;object-fit:contain;
   filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))
 }
 .sidebar-brand-copy{min-width:0;display:grid;gap:1px}
