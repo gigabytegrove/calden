@@ -597,7 +597,8 @@ async function refreshBillPaymentViews(keepOpen=false){
   await loadEvents();
   if(state.currentPage==="bills")await loadBillMonth();
   else renderBills();
-  renderCalendar();renderAgenda();
+  await loadNotifications(false);
+  renderCalendar();renderAgenda();renderNotifications();
   if(keepOpen&&state.billPaymentEvent){
     const key=eventKey(state.billPaymentEvent);
     const updated=(state.currentPage==="bills"?state.billEvents:state.events).find(item=>eventKey(item)===key);
@@ -966,8 +967,10 @@ async function loadNotifications(announce=true){
     state.notifications.slice().reverse().forEach(item=>{
       if(item.read_at||previous.has(item.id))return;
       const family=item.kind==="event_family";
-      const body=(family?"For everyone: ":"Assigned to you: ")+item.title;
-      try{new Notification("CalDen · "+(family?"New family event":"New event assignment"),{body,tag:"calden-"+item.id})}catch{}
+      const billReview=item.kind==="bill_review";
+      const body=billReview?item.message+" "+item.title:(family?"For everyone: ":"Assigned to you: ")+item.title;
+      const title=billReview?"Bill follow-up":family?"New family event":"New event assignment";
+      try{new Notification("CalDen · "+title,{body,tag:"calden-"+item.id})}catch{}
     });
   }
   state.notificationKnown=new Set(state.notifications.map(item=>item.id));
