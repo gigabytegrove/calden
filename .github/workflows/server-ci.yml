@@ -1241,20 +1241,20 @@ jobs:
           before_days=sorted(e["starts_at"][:10] for e in before_repair)
           assert before_days==["2026-10-06","2026-10-07"], before_days
 
-          changed_uid_preview=google_multipart(
-              "/api/integrations/google/duplicates/preview",
-              replacement_payload,
-              token,
-          )
-          assert changed_uid_preview["replacement_repairable_groups"] >= 1, changed_uid_preview
-          assert any(x["title"]==replacement_title for x in changed_uid_preview["replacement_examples"]), changed_uid_preview
+          duplicate_candidates=json_request("/api/integrations/google/duplicates/candidates",token=token)
+          changed_group=next(g for g in duplicate_candidates["groups"] if g["title"]==replacement_title)
+          assert len(changed_group["events"])==2, changed_group
+          keep=next(e for e in changed_group["events"] if e["starts_at"][:10]=="2026-02-07")
+          remove=[e["id"] for e in changed_group["events"] if e["id"]!=keep["id"]]
+          assert len(remove)==1, changed_group
 
-          changed_uid_repair=google_multipart(
-              "/api/integrations/google/duplicates/repair",
-              replacement_payload,
+          changed_uid_repair=json_request(
+              "/api/integrations/google/duplicates/resolve",
+              "POST",
+              {"resolutions":[{"keep_event_id":keep["id"],"remove_event_ids":remove}]},
               token,
           )
-          assert changed_uid_repair["replacement_removed"] >= 1, changed_uid_repair
+          assert changed_uid_repair["removed_copies"] == 1, changed_uid_repair
 
           after_repair=json_request(f"/api/events?from={october_from}&to={october_to}",token=token)
           after_repair=[e for e in after_repair if e["title"]==replacement_title]
@@ -1271,7 +1271,7 @@ jobs:
               "duplicate_scan":duplicate_scan,
               "duplicate_preview":repair_preview,
               "duplicate_repair":repaired_duplicates,
-              "changed_uid_preview":changed_uid_preview,
+              "duplicate_candidates":duplicate_candidates,
               "changed_uid_repair":changed_uid_repair,
           },indent=2))
           PY
