@@ -306,6 +306,7 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 
 		assignees := s.eventAssignees(r, id)
 		reminders := s.eventReminders(r, id)
+		billDetails := s.eventBillDetails(r.Context(), id)
 
 		var rule *recurrence.Rule
 		if frequency != nil && interval != nil {
@@ -351,7 +352,7 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 				"is_recurring": rule != nil, "is_occurrence_override": false,
 				"occurrence_index": occurrence.Index, "occurrence_start": occurrence.Start,
 			}
-			addBillFields(item, "", s.eventBillDetails(r.Context(), id))
+			addBillFields(item, "", billDetails)
 			out = append(out, item)
 		}
 	}
