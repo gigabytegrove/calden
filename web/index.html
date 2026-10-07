@@ -117,6 +117,12 @@
         </div>
       </div>
       <div id="calendar-strip" class="calendar-strip" aria-label="Visible calendars"></div>
+      <div class="calendar-filterbar">
+        <div class="filter-field"><span>Category</span><select id="calendar-category-filter"><option value="">All categories</option></select></div>
+        <div class="filter-field"><span>Person</span><select id="calendar-person-filter"><option value="">Everyone</option></select></div>
+        <label class="calendar-search"><span>Search</span><input id="calendar-search" type="search" placeholder="Find an event"></label>
+        <button id="clear-calendar-filters" class="button secondary compact hidden" type="button">Clear filters</button>
+      </div>
       <div id="calendar-view" class="calendar-view"></div>
     </section>
 
@@ -152,7 +158,7 @@
     </section>
 
     <section id="page-calendars" class="app-page hidden admin-only">
-      <div class="page-header"><div><p class="eyebrow">Schedule organization</p><h2>Calendars</h2><p class="muted">A calendar owns its event color. Access and editing are controlled per calendar.</p></div></div>
+      <div class="page-header"><div><p class="eyebrow">Schedule organization</p><h2>Calendars</h2><p class="muted">Calendars organize schedules, control event color, and decide who can see or change their events.</p></div></div>
       <div class="management-layout">
         <div id="calendar-list" class="card-list"></div>
         <form id="calendar-form" class="panel stack">
@@ -179,7 +185,7 @@
     </section>
 
     <section id="page-categories" class="app-page hidden admin-only">
-      <div class="page-header"><div><p class="eyebrow">Event types</p><h2>Categories</h2><p class="muted">Categories describe what an event is. Their color is used on the calendar regardless of which calendar the event belongs to.</p></div></div>
+      <div class="page-header"><div><p class="eyebrow">Event types</p><h2>Categories</h2><p class="muted">Categories describe what an event is and make filtering easier. The calendar still controls the event color.</p></div></div>
       <div class="management-layout">
         <div id="category-list" class="card-list"></div>
         <form id="category-form" class="panel stack">
@@ -276,31 +282,61 @@
     </section>
 
     <section id="page-settings" class="app-page hidden">
-      <div class="page-header"><div><p class="eyebrow">CalDen preferences</p><h2>Settings</h2><p class="muted">Household, calendar display, and account information live here.</p></div></div>
-      <div class="settings-grid">
-        <form id="general-settings-form" class="panel stack admin-settings">
-          <div><h3>Household</h3><p class="muted">These settings affect dates and schedule layout throughout CalDen.</p></div>
-          <label>Family calendar name<input name="household_name" maxlength="100" required></label>
-          <label>Time zone<input name="timezone" required placeholder="America/New_York"></label>
-          <label>Week starts on<select name="week_start"><option value="sunday">Sunday</option><option value="monday">Monday</option></select></label>
-          <label>Default calendar view<select name="default_view"><option value="1">1 Day</option><option value="7">7 Day</option><option value="14">14 Day</option><option value="30">30 Day</option></select></label>
-          <button type="submit" class="button">Save household settings</button>
-          <p id="general-settings-status" class="status-line"></p>
-        </form>
-        <article class="panel stack">
-          <div><h3>Your account</h3><p class="muted">Your profile image is shown on events and anywhere CalDen identifies you.</p></div>
-          <div class="account-avatar-settings">
-            <div id="settings-avatar-preview" class="avatar-preview xlarge"><span>?</span></div>
-            <div class="stack compact-stack">
-              <label>Profile image<input id="settings-avatar-file" type="file" accept="image/png,image/jpeg,image/webp"></label>
-              <div class="form-actions"><button id="save-settings-avatar" type="button" class="button">Upload image</button><button id="remove-settings-avatar" type="button" class="button secondary">Remove</button></div>
-              <p id="settings-avatar-status" class="status-line"></p>
-            </div>
-          </div>
-          <div class="feature-row"><strong>Name</strong><span id="settings-account-name"></span></div>
-          <div class="feature-row"><strong>Username</strong><span id="settings-account-username"></span></div>
-          <div class="feature-row"><strong>Role</strong><span id="settings-account-role"></span></div>
-        </article>
+      <div class="page-header"><div><p class="eyebrow">CalDen preferences</p><h2>Settings</h2><p class="muted">Control the household, your calendar workspace, and your account from one place.</p></div></div>
+      <div class="settings-workspace">
+        <nav class="settings-nav" aria-label="Settings sections">
+          <button type="button" class="settings-nav-item active admin-settings" data-settings-tab="general"><strong>Household</strong><span>Name, time zone, week layout</span></button>
+          <button type="button" class="settings-nav-item" data-settings-tab="calendar"><strong>Calendar & display</strong><span>Defaults and this browser</span></button>
+          <button type="button" class="settings-nav-item" data-settings-tab="account"><strong>Your account</strong><span>Profile image and sign-in details</span></button>
+        </nav>
+        <div class="settings-content">
+          <section class="settings-pane admin-settings" data-settings-pane="general">
+            <form id="general-settings-form" class="panel stack">
+              <div><p class="eyebrow">Household</p><h3>Household settings</h3><p class="muted">These choices affect how CalDen lays out dates for everyone.</p></div>
+              <label>Family calendar name<input name="household_name" maxlength="100" required></label>
+              <label>Time zone<input name="timezone" required placeholder="America/New_York"></label>
+              <div class="two">
+                <label>Week starts on<select name="week_start"><option value="sunday">Sunday</option><option value="monday">Monday</option></select></label>
+                <label>Default calendar view<select name="default_view"><option value="1">1 Day</option><option value="7">7 Day</option><option value="14">14 Day</option><option value="30">30 Day</option></select></label>
+              </div>
+              <div class="form-actions"><span class="grow"></span><button type="submit" class="button">Save household settings</button></div>
+              <p id="general-settings-status" class="status-line"></p>
+            </form>
+          </section>
+
+          <section class="settings-pane hidden" data-settings-pane="calendar">
+            <form id="display-settings-form" class="panel stack">
+              <div><p class="eyebrow">This browser</p><h3>Calendar & event defaults</h3><p class="muted">These preferences stay on this device and do not change anyone else's calendar.</p></div>
+              <div class="two">
+                <label>Default calendar<select id="settings-default-calendar"><option value="">First editable calendar</option></select></label>
+                <label>Default event length<select id="settings-default-duration"><option value="30">30 minutes</option><option value="60">1 hour</option><option value="90">1½ hours</option><option value="120">2 hours</option></select></label>
+              </div>
+              <label class="toggle-row"><input id="settings-scroll-now" type="checkbox" checked><span>Open 1 Day and 7 Day views near the current time</span></label>
+              <fieldset><legend>Calendar visibility</legend><div id="settings-calendar-visibility" class="settings-calendar-list"></div></fieldset>
+              <div class="form-actions"><button id="reset-display-settings" type="button" class="button secondary">Reset</button><span class="grow"></span><button type="submit" class="button">Save display settings</button></div>
+              <p id="display-settings-status" class="status-line"></p>
+            </form>
+          </section>
+
+          <section class="settings-pane hidden" data-settings-pane="account">
+            <article class="panel stack">
+              <div><p class="eyebrow">Your account</p><h3>Profile</h3><p class="muted">Your image is shown on events assigned to you and anywhere CalDen identifies you.</p></div>
+              <div class="account-avatar-settings">
+                <div id="settings-avatar-preview" class="avatar-preview xlarge"><span>?</span></div>
+                <div class="stack compact-stack">
+                  <label>Profile image<input id="settings-avatar-file" type="file" accept="image/png,image/jpeg,image/webp"></label>
+                  <div class="form-actions"><button id="save-settings-avatar" type="button" class="button">Upload image</button><button id="remove-settings-avatar" type="button" class="button secondary">Remove</button></div>
+                  <p id="settings-avatar-status" class="status-line"></p>
+                </div>
+              </div>
+              <div class="account-detail-grid">
+                <div><span>Name</span><strong id="settings-account-name"></strong></div>
+                <div><span>Username</span><strong id="settings-account-username"></strong></div>
+                <div><span>Account type</span><strong id="settings-account-role"></strong></div>
+              </div>
+            </article>
+          </section>
+        </div>
       </div>
     </section>
   </main>
@@ -320,7 +356,7 @@
         <label>Event name<input name="title" required maxlength="200" placeholder="Electric bill"></label>
         <div class="two">
           <label>Calendar<select name="calendar_id" id="calendar-select" required></select></label>
-          <label>Category<select name="category_id" id="category-select"><option value="">No category</option></select></label>
+          <label>Category (optional)<select name="category_id" id="category-select"><option value="">No category</option></select></label>
         </div>
         <div class="two"><label>Starts<input name="starts_at" type="datetime-local" required></label><label>Ends<input name="ends_at" type="datetime-local" required></label></div>
         <label class="toggle-row"><input name="all_day" type="checkbox"><span>All-day event</span></label>
@@ -369,10 +405,15 @@
         <label>Notes<textarea name="notes" rows="4" maxlength="5000" placeholder="Optional"></textarea></label>
       </div>
       <div class="stack reminder-panel">
-        <div><h3>Reminders</h3><p class="muted">Choose personal and household reminders separately.</p></div>
-        <label>Phone reminder<select name="personal_reminder"><option value="">None</option><option value="10">10 minutes before</option><option value="30">30 minutes before</option><option value="60">1 hour before</option><option value="120">2 hours before</option><option value="1440">1 day before</option></select></label>
-        <label class="toggle-row"><input name="system_reminder_enabled" type="checkbox"><span>Also remind the household through Monita</span></label>
-        <label id="system-reminder-time" class="hidden">Household reminder<select name="system_reminder"><option value="60">1 hour before</option><option value="120">2 hours before</option><option value="1440">1 day before</option><option value="4320">3 days before</option><option value="10080">1 week before</option></select></label>
+        <div><h3>Reminders</h3><p class="muted">Add as many personal or household reminders as this event needs.</p></div>
+        <section class="reminder-group">
+          <div class="reminder-group-head"><div><strong>Personal reminders</strong><span>Delivered to assigned people on their phone.</span></div><button id="add-personal-reminder" type="button" class="button secondary compact">+ Add</button></div>
+          <div id="personal-reminders-list" class="reminder-list"></div>
+        </section>
+        <section class="reminder-group">
+          <div class="reminder-group-head"><div><strong>Household reminders</strong><span>Sent by the server through Monita.</span></div><button id="add-system-reminder" type="button" class="button secondary compact">+ Add</button></div>
+          <div id="system-reminders-list" class="reminder-list"></div>
+        </section>
       </div>
     </div>
     <div class="dialog-actions"><button id="delete-event" type="button" class="button danger hidden">Delete event</button><span class="grow"></span><button type="button" class="button secondary" data-close-event>Cancel</button><button type="submit" class="button">Save event</button></div>
