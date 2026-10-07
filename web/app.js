@@ -694,6 +694,7 @@ function notificationRows(){
 }
 
 function renderNotifications(){
+  renderNotificationInbox();
   const host=$("#scheduled-reminders"),summary=$("#notification-summary");
   if(!host||!summary)return;
   const filter=$("#notification-kind-filter")?.value||"";
@@ -801,7 +802,7 @@ function renderCategories(){
   if(state.me.role!=="admin")return;
   $("#category-list").innerHTML=state.categories.map(cat=>`<article class="management-card">
     <span class="calendar-swatch" style="--cal:${safeColor(cat.color)}"></span>
-    <div class="management-copy"><strong>${escapeHTML(cat.name)}</strong><span>${escapeHTML(cat.description||"No description")}</span><small>Category marker ${escapeHTML(cat.color)}</small></div>
+    <div class="management-copy"><strong>${escapeHTML(cat.name)}</strong><span>${escapeHTML(cat.description||"No description")}</span><small>${Number(cat.event_count)||0} event${Number(cat.event_count)===1?"":"s"} using this category · ${escapeHTML(cat.color)}</small></div>
     <button class="button secondary compact edit-category" type="button" data-category-id="${cat.id}">Edit</button>
   </article>`).join("")||'<div class="empty-state"><strong>No categories</strong><span>Create a category to color-code event types.</span></div>';
   $("#category-list").querySelectorAll(".edit-category").forEach(b=>b.addEventListener("click",()=>beginCategoryEdit(b.dataset.categoryId)));
@@ -1360,7 +1361,20 @@ $("#clear-calendar-filters").addEventListener("click",()=>{
 });
 $("#agenda-search").addEventListener("input",renderAgenda);
 $("#notification-kind-filter").addEventListener("change",renderNotifications);
-$("#refresh-notifications").addEventListener("click",async()=>{await loadEvents();renderNotifications()});
+$("#refresh-notifications").addEventListener("click",async()=>{await Promise.all([loadEvents(),loadNotifications(false)]);renderNotifications()});
+$("#mark-notifications-read").addEventListener("click",async()=>{
+  try{
+    await api("/api/notifications/read-all",{method:"PUT"});
+    state.notifications.forEach(item=>{if(!item.read_at)item.read_at=new Date().toISOString()});
+    state.unreadNotifications=0;
+    renderNotificationInbox();
+  }catch{}
+});
+$("#enable-browser-notifications").addEventListener("click",async()=>{
+  if(!("Notification" in window))return;
+  try{await Notification.requestPermission()}catch{}
+  browserNotificationButton();
+});
 $$("#event-dialog [data-close-event]").forEach(b=>b.addEventListener("click",()=>$("#event-dialog").close()));
 $("#add-personal-reminder").addEventListener("click",()=>addReminderRow("personal"));
 $("#add-system-reminder").addEventListener("click",()=>addReminderRow("system"));
@@ -1396,7 +1410,7 @@ $("#delete-event").addEventListener("click",async()=>{
     if($("#event-dialog").open)$("#event-dialog").close();
     state.editingEvent=null;state.editingScope="series";state.preserveRawRecurrence=false;
     state.calendars=await api("/api/calendars");
-    await loadEvents();
+    await Promise.all([loadEvents(),loadNotifications(false)]);
     renderCalendars();renderBillNavigation();renderEventControls();renderCalendar();renderAgenda();renderNotifications();
     if(state.currentPage==="bills")await loadBillMonth();else renderBills();
   }catch(err){
@@ -1424,7 +1438,7 @@ $("#event-form").addEventListener("submit",async e=>{
     await api(target,{method,body:JSON.stringify(body)});
     $("#event-dialog").close();state.editingEvent=null;state.editingScope="series";state.preserveRawRecurrence=false;
     state.calendars=await api("/api/calendars");
-    await loadEvents();
+    await Promise.all([loadEvents(),loadNotifications(false)]);
     renderCalendars();renderBillNavigation();renderEventControls();renderCalendar();renderAgenda();renderNotifications();
     if(state.currentPage==="bills")await loadBillMonth();else renderBills();
   }
@@ -1617,10 +1631,16 @@ $("#category-form").addEventListener("submit",async e=>{
 });
 $("#cancel-category-edit").addEventListener("click",resetCategoryForm);
 $("#delete-category").addEventListener("click",async()=>{
-  if(!state.editingCategory||!confirm(`Archive "${state.editingCategory.name}"? Existing events keep the category label; their calendar still controls the event color.`))return;
+  if(!state.editingCategory)return;
+  const category=state.editingCategory;
+  const count=Number(category.event_count)||0;
+  const impact=count?\` ${count} event${count===1?"":"s"} will become uncategorized; the events themselves will not be deleted.\`:"";
+  if(!confirm(\`Permanently delete "${category.name}"?${impact}\`))return;
   try{
-    await api("/api/categories/"+state.editingCategory.id,{method:"DELETE"});
-    state.categories=await api("/api/categories");resetCategoryForm();renderCategories();renderEventControls();await loadEvents();renderCalendar();renderAgenda();
+    await api("/api/categories/"+category.id,{method:"DELETE"});
+    if(state.filters.category===category.id)state.filters.category="";
+    state.categories=await api("/api/categories");
+    resetCategoryForm();renderCategories();renderEventControls();await loadEvents();renderCalendar();renderAgenda();
   }catch(err){$("#category-error").textContent=err.message}
 });
 
