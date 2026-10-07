@@ -360,6 +360,128 @@ jobs:
           print("Recurring series and single-occurrence exception test passed.")
           PY
 
+      - name: Verify iCalendar recurring import and export
+        run: |
+          python - <<'PY'
+          import datetime as dt
+          import json
+          import urllib.parse
+          import urllib.request
+          import uuid
+
+          base="http://127.0.0.1:8787"
+
+          def request(path, method="GET", payload=None, token=None, raw=False, content_type="application/json"):
+              headers={}
+              if token:
+                  headers["Authorization"]="Bearer "+token
+              data=None
+              if payload is not None:
+                  if isinstance(payload, (bytes, bytearray)):
+                      data=payload
+                  else:
+                      data=json.dumps(payload).encode()
+                  headers["Content-Type"]=content_type
+              req=urllib.request.Request(base+path,data=data,headers=headers,method=method)
+              with urllib.request.urlopen(req) as response:
+                  body=response.read()
+                  if raw:
+                      return body
+                  if not body:
+                      return None
+                  return json.loads(body)
+
+          token=request("/api/login","POST",{"username":"testadmin","password":"test-password-123"})["token"]
+          me=request("/api/me",token=token)
+          calendars=request("/api/calendars",token=token)
+          family=next(c for c in calendars if c["name"]=="Family")
+          medical=next(c for c in request("/api/categories",token=token) if c["name"]=="Medical")
+
+          target_id=request("/api/calendars","POST",{
+              "name":"ICS Import Target",
+              "color":"#334155",
+              "icon":"calendar",
+              "description":"CI iCalendar import target",
+              "visible_to":[me["id"]],
+              "editable_by":[me["id"]],
+          },token)["id"]
+
+          start=(dt.datetime.now(dt.timezone.utc)+dt.timedelta(days=8)).replace(hour=15,minute=0,second=0,microsecond=0)
+          end=start+dt.timedelta(hours=1)
+          created=request("/api/events","POST",{
+              "calendar_id":family["id"],
+              "category_id":medical["id"],
+              "title":"ICS Recurring Source",
+              "notes":"export and import verification",
+              "location":"Original Place",
+              "starts_at":start.isoformat().replace("+00:00","Z"),
+              "ends_at":end.isoformat().replace("+00:00","Z"),
+              "all_day":False,
+              "assignee_ids":[],
+              "reminders":[],
+              "recurrence":{"frequency":"daily","interval":1,"weekdays":[],"until":None,"occurrence_count":3},
+          },token)
+          series_id=created["id"]
+
+          original_second=start+dt.timedelta(days=1)
+          moved_start=original_second+dt.timedelta(hours=2)
+          request(f"/api/events/{series_id}/occurrences","PUT",{
+              "original_start":original_second.isoformat().replace("+00:00","Z"),
+              "event":{
+                  "calendar_id":family["id"],
+                  "category_id":medical["id"],
+                  "title":"ICS Recurring Source Moved",
+                  "notes":"one moved occurrence",
+                  "location":"Moved Place",
+                  "starts_at":moved_start.isoformat().replace("+00:00","Z"),
+                  "ends_at":(moved_start+dt.timedelta(hours=1)).isoformat().replace("+00:00","Z"),
+                  "all_day":False,
+                  "assignee_ids":[],
+                  "reminders":[],
+                  "recurrence":None,
+              },
+          },token)
+
+          ics=request(f"/api/calendars/{family['id']}/export.ics",token=token,raw=True)
+          text=ics.decode("utf-8")
+          assert "BEGIN:VCALENDAR" in text, text
+          assert "RRULE:FREQ=DAILY;COUNT=3" in text, text
+          assert "CATEGORIES:Medical" in text, text
+          assert "RECURRENCE-ID:" in text, text
+          assert "ICS Recurring Source Moved" in text, text
+
+          boundary="----CalDenCIBoundary"+uuid.uuid4().hex
+          multipart=(
+              f"--{boundary}\r\n"
+              'Content-Disposition: form-data; name="calendar"; filename="family.ics"\r\n'
+              "Content-Type: text/calendar\r\n\r\n"
+          ).encode()+ics+f"\r\n--{boundary}--\r\n".encode()
+
+          first=request(
+              f"/api/calendars/{target_id}/import.ics","POST",multipart,token,
+              content_type=f"multipart/form-data; boundary={boundary}"
+          )
+          assert first["created"] >= 1, first
+          assert first["exceptions"] >= 1, first
+
+          second=request(
+              f"/api/calendars/{target_id}/import.ics","POST",multipart,token,
+              content_type=f"multipart/form-data; boundary={boundary}"
+          )
+          assert second["updated"] >= 1, second
+
+          from_q=urllib.parse.quote((start-dt.timedelta(hours=1)).isoformat().replace("+00:00","Z"))
+          to_q=urllib.parse.quote((start+dt.timedelta(days=4)).isoformat().replace("+00:00","Z"))
+          imported=request(f"/api/events?from={from_q}&to={to_q}",token=token)
+          imported=[e for e in imported if e["calendar_id"]==target_id and e["title"].startswith("ICS Recurring Source")]
+          assert len(imported)==3, imported
+          assert sum(1 for e in imported if e.get("is_occurrence_override"))==1, imported
+          assert all(e["category_name"]=="Medical" for e in imported), imported
+
+          request(f"/api/events/{series_id}","DELETE",token=token)
+          print(json.dumps({"first_import":first,"second_import":second,"occurrences":len(imported)},indent=2))
+          PY
+
       - name: Verify complete backup and cold restore
         run: |
           set -euo pipefail
