@@ -558,6 +558,125 @@ function reminderLabel(minutes){
   return n+" min before";
 }
 
+function notificationBadge(){
+  const badge=$("#notification-nav-badge");
+  if(!badge)return;
+  const count=Math.max(0,Number(state.unreadNotifications)||0);
+  badge.textContent=count>99?"99+":String(count);
+  badge.classList.toggle("hidden",count===0);
+}
+
+function browserNotificationButton(){
+  const button=$("#enable-browser-notifications");
+  if(!button)return;
+  if(!("Notification" in window)){
+    button.classList.add("hidden");
+    return;
+  }
+  if(Notification.permission==="granted"){
+    button.classList.add("hidden");
+    return;
+  }
+  button.classList.remove("hidden");
+  button.disabled=Notification.permission==="denied";
+  button.textContent=Notification.permission==="denied"?"Browser alerts blocked":"Enable browser alerts";
+}
+
+function notificationEvent(item){
+  if(!item?.event_id)return null;
+  return state.events.find(event=>event.id===item.event_id)||null;
+}
+
+function renderNotificationInbox(){
+  const host=$("#notification-inbox-list");
+  if(!host)return;
+  notificationBadge();
+  browserNotificationButton();
+  const unread=Math.max(0,Number(state.unreadNotifications)||0);
+  $("#notification-unread-count").textContent=unread?unread+" unread":"All caught up";
+  $("#mark-notifications-read").disabled=unread===0;
+
+  host.innerHTML=state.notifications.length?state.notifications.map(item=>{
+    const start=item.starts_at?new Date(item.starts_at):null;
+    const when=start?(item.all_day?formatDate(start,{weekday:"short",month:"short",day:"numeric"}):formatDate(start,{weekday:"short",month:"short",day:"numeric"})+" · "+formatTime(start)):"Event updated";
+    const family=item.kind==="event_family";
+    const color=safeColor(item.calendar_color||"#64748b");
+    return `<button type="button" class="notification-inbox-row ${item.read_at?"":"unread"}" data-notification-id="${escapeAttr(item.id)}">
+      <span class="notification-inbox-icon ${family?"family":"assigned"}">${family?"F":"Y"}</span>
+      <span class="notification-inbox-main">
+        <span class="notification-inbox-kicker">${family?"For everyone":"Assigned to you"} · ${escapeHTML(item.calendar_name||"Calendar")}</span>
+        <strong>${escapeHTML(item.title)}</strong>
+        <small>${escapeHTML(item.message)} ${escapeHTML(when)}</small>
+      </span>
+      <span class="notification-inbox-side"><i style="--cal:${color}"></i><time>${escapeHTML(formatDate(new Date(item.created_at),{month:"short",day:"numeric"}))}</time></span>
+    </button>`;
+  }).join(""):'<div class="empty-state notification-empty"><strong>No alerts yet</strong><span>New assignments and whole-family events will appear here.</span></div>';
+
+  host.querySelectorAll("[data-notification-id]").forEach(button=>button.addEventListener("click",async()=>{
+    const item=state.notifications.find(n=>n.id===button.dataset.notificationId);
+    if(!item)return;
+    if(!item.read_at){
+      try{
+        await api("/api/notifications/"+item.id+"/read",{method:"PUT"});
+        item.read_at=new Date().toISOString();
+        state.unreadNotifications=Math.max(0,state.unreadNotifications-1);
+      }catch{}
+      renderNotificationInbox();
+    }
+    const event=notificationEvent(item);
+    if(event)requestEventEdit(event);
+  }));
+}
+
+async function loadNotifications(announce=true){
+  const previous=new Set(state.notificationKnown);
+  const data=await api("/api/notifications");
+  state.notifications=data?.items||[];
+  state.unreadNotifications=Number(data?.unread)||0;
+
+  if(announce&&"Notification" in window&&Notification.permission==="granted"){
+    state.notifications.slice().reverse().forEach(item=>{
+      if(item.read_at||previous.has(item.id))return;
+      const family=item.kind==="event_family";
+      const body=(family?"For everyone: ":"Assigned to you: ")+item.title;
+      try{new Notification("CalDen · "+(family?"New family event":"New event assignment"),{body,tag:"calden-"+item.id})}catch{}
+    });
+  }
+  state.notificationKnown=new Set(state.notifications.map(item=>item.id));
+  renderNotifications();
+}
+
+function ensureNotificationPolling(){
+  if(state.notificationPoll)return;
+  state.notificationPoll=setInterval(()=>{
+    if(!state.token||document.hidden)return;
+    loadNotifications(true).catch(()=>{});
+  },30000);
+}
+
+function decorateNavigation(){
+  const icons={
+    calendar:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3v3m12-3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/></svg>',
+    bills:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Zm3 5h6m-6 4h6m-6 4h4"/></svg>',
+    agenda:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>',
+    people:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 20v-1.5A3.5 3.5 0 0 0 12.5 15h-5A3.5 3.5 0 0 0 4 18.5V20m5.5-8A3.5 3.5 0 1 0 9.5 5a3.5 3.5 0 0 0 0 7Zm7-5a3 3 0 0 1 0 5.8M19 20v-1.5a3.5 3.5 0 0 0-2.1-3.2"/></svg>',
+    calendars:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h12a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Zm-3 4v10a2 2 0 0 0 2 2m3-9h8m-8 4h5"/></svg>',
+    categories:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 12 8-8h7v7l-8 8L4 12Zm11-4h.01"/></svg>',
+    notifications:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Zm-8 12h4"/></svg>',
+    integrations:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 12h8m-4-4v8M7 3v4m10-4v4M7 17v4m10-4v4M3 7h4m10 0h4M3 17h4m10 0h4"/></svg>',
+    updates:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-5 5 5-5 5 5M5 21h14"/></svg>',
+    backups:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v13H4V7Zm3-4h10v4H7V3Zm2 9h6m-3-3v6"/></svg>',
+    activity:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5l3 2m6-3a9 9 0 1 1-3-6.7M18 2v4h4"/></svg>',
+    settings:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm7-3.5 2-1-2-3-2 .5-1.5-1L15 5h-6l-.5 2.5-1.5 1L5 8l-2 3 2 1v2l-2 1 2 3 2-.5 1.5 1L9 21h6l.5-2.5 1.5-1 2 .5 2-3-2-1v-2Z"/></svg>'
+  };
+  $(".primary-nav .nav-item").forEach(button=>{
+    if(button.querySelector(".nav-icon"))return;
+    const icon=icons[button.dataset.page];
+    if(!icon)return;
+    button.insertAdjacentHTML("afterbegin",`<span class="nav-icon">${icon}</span>`);
+  });
+}
+
 function notificationRows(){
   const now=Date.now();
   const rows=[];
