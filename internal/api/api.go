@@ -78,6 +78,7 @@ func New(cfg Config) http.Handler {
 	mux.Handle("POST /api/events", s.auth(http.HandlerFunc(s.createEvent)))
 	mux.Handle("PUT /api/events/{id}", s.auth(http.HandlerFunc(s.updateEvent)))
 	mux.Handle("DELETE /api/events/{id}", s.auth(http.HandlerFunc(s.deleteEvent)))
+	mux.Handle("PUT /api/bills/{id}/payment", s.auth(http.HandlerFunc(s.setBillPayment)))
 	mux.Handle("GET /api/notifications", s.auth(http.HandlerFunc(s.listNotifications)))
 	mux.Handle("PUT /api/notifications/read-all", s.auth(http.HandlerFunc(s.markAllNotificationsRead)))
 	mux.Handle("PUT /api/notifications/{id}/read", s.auth(http.HandlerFunc(s.markNotificationRead)))
