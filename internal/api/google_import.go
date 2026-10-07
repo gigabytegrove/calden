@@ -306,6 +306,121 @@ func parseGoogleCalendarUpload(filename string, raw []byte, loc *time.Location) 
 	}}, nil
 }
 
+type googleEventRevision struct {
+	Modified time.Time
+	Stamp    time.Time
+	Created  time.Time
+	Sequence int
+}
+
+func googleRevisionForEvent(event calical.Event) googleEventRevision {
+	return googleEventRevision{
+		Modified: event.ModifiedAt,
+		Stamp:    event.StampAt,
+		Created:  event.CreatedAt,
+		Sequence: event.Sequence,
+	}
+}
+
+func compareGoogleEventRevision(left, right googleEventRevision) int {
+	compareTime := func(a, b time.Time) int {
+		if a.After(b) {
+			return 1
+		}
+		if a.Before(b) {
+			return -1
+		}
+		return 0
+	}
+	if result := compareTime(left.Modified, right.Modified); result != 0 {
+		return result
+	}
+	if left.Sequence > right.Sequence {
+		return 1
+	}
+	if left.Sequence < right.Sequence {
+		return -1
+	}
+	if result := compareTime(left.Stamp, right.Stamp); result != 0 {
+		return result
+	}
+	return compareTime(left.Created, right.Created)
+}
+
+func dedupeGoogleCalendarBundles(bundles []googleCalendarBundle) []googleCalendarBundle {
+	type owner struct {
+		bundle   int
+		revision googleEventRevision
+	}
+	uidBundles := map[string]map[int]googleEventRevision{}
+
+	for bundleIndex := range bundles {
+		perBundle := map[string]googleEventRevision{}
+		for _, event := range bundles[bundleIndex].Calendar.Events {
+			uid := strings.TrimSpace(event.UID)
+			if uid == "" {
+				continue
+			}
+			revision := googleRevisionForEvent(event)
+			if current, ok := perBundle[uid]; !ok || compareGoogleEventRevision(revision, current) > 0 {
+				perBundle[uid] = revision
+			}
+		}
+		for uid, revision := range perBundle {
+			if uidBundles[uid] == nil {
+				uidBundles[uid] = map[int]googleEventRevision{}
+			}
+			uidBundles[uid][bundleIndex] = revision
+		}
+	}
+
+	owners := map[string]owner{}
+	for uid, revisions := range uidBundles {
+		if len(revisions) < 2 {
+			continue
+		}
+		best := owner{bundle: -1}
+		ambiguous := false
+		for bundleIndex, revision := range revisions {
+			if best.bundle < 0 {
+				best = owner{bundle: bundleIndex, revision: revision}
+				continue
+			}
+			switch compareGoogleEventRevision(revision, best.revision) {
+			case 1:
+				best = owner{bundle: bundleIndex, revision: revision}
+				ambiguous = false
+			case 0:
+				ambiguous = true
+			}
+		}
+		// If Google gives identical revision metadata in more than one calendar,
+		// keep both rather than guessing which calendar currently owns the event.
+		if !ambiguous && best.bundle >= 0 {
+			owners[uid] = best
+		}
+	}
+
+	for bundleIndex := range bundles {
+		filtered := make([]calical.Event, 0, len(bundles[bundleIndex].Calendar.Events))
+		for _, event := range bundles[bundleIndex].Calendar.Events {
+			uid := strings.TrimSpace(event.UID)
+			owner, duplicated := owners[uid]
+			if duplicated && owner.bundle != bundleIndex {
+				if bundles[bundleIndex].SuppressedDuplicateUIDs == nil {
+					bundles[bundleIndex].SuppressedDuplicateUIDs = map[string]string{}
+				}
+				bundles[bundleIndex].SuppressedDuplicateUIDs[uid] = bundles[owner.bundle].ExternalID
+				bundles[bundleIndex].SuppressedDuplicateEvents++
+				continue
+			}
+			filtered = append(filtered, event)
+		}
+		bundles[bundleIndex].Calendar.Events = filtered
+	}
+	return bundles
+}
+
 func googleCalendarDisplayName(calendarName, filename string) string {
 	name := strings.TrimSpace(calendarName)
 	filenameLabel := googleCalendarFilenameLabel(filename)
