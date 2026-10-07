@@ -584,6 +584,48 @@ function seriesValue(event,key,fallback){
   return event[seriesKey]!==undefined&&event[seriesKey]!==null?event[seriesKey]:fallback;
 }
 
+function reminderMinutesOptions(selected){
+  const standard=[
+    [5,"5 minutes before"],[10,"10 minutes before"],[15,"15 minutes before"],[30,"30 minutes before"],
+    [60,"1 hour before"],[120,"2 hours before"],[1440,"1 day before"],[2880,"2 days before"],
+    [4320,"3 days before"],[10080,"1 week before"]
+  ];
+  if(selected&&!standard.some(([value])=>value===Number(selected)))standard.push([Number(selected),Number(selected)+" minutes before"]);
+  return standard.sort((a,b)=>a[0]-b[0]).map(([value,label])=>`<option value="${value}" ${Number(selected)===value?"selected":""}>${label}</option>`).join("");
+}
+
+function addReminderRow(kind,reminder={}){
+  const personal=kind==="personal";
+  const host=personal?$("#personal-reminders-list"):$("#system-reminders-list");
+  const minutes=Number(reminder.minutes_before||(personal?30:1440));
+  const row=document.createElement("div");
+  row.className="reminder-row";
+  row.dataset.kind=kind;
+  row.innerHTML=`<select class="reminder-minutes" aria-label="${personal?"Personal":"Household"} reminder time">${reminderMinutesOptions(minutes)}</select>
+    ${personal?"":`<input class="reminder-destination" maxlength="200" placeholder="Monita channel (optional)" value="${escapeAttr(reminder.destination||"")}">`}
+    <button type="button" class="icon-button reminder-remove" aria-label="Remove reminder">×</button>`;
+  row.querySelector(".reminder-remove").addEventListener("click",()=>row.remove());
+  host.appendChild(row);
+}
+
+function renderReminderEditor(reminders=[]){
+  $("#personal-reminders-list").innerHTML="";
+  $("#system-reminders-list").innerHTML="";
+  reminders.filter(r=>r.kind==="personal"&&r.provider==="android").forEach(r=>addReminderRow("personal",r));
+  reminders.filter(r=>r.kind==="system"&&r.provider==="monita").forEach(r=>addReminderRow("system",r));
+}
+
+function collectReminders(){
+  const reminders=[];
+  $("#personal-reminders-list").querySelectorAll(".reminder-row").forEach(row=>{
+    reminders.push({kind:"personal",provider:"android",minutes_before:Number(row.querySelector(".reminder-minutes").value),destination:""});
+  });
+  $("#system-reminders-list").querySelectorAll(".reminder-row").forEach(row=>{
+    reminders.push({kind:"system",provider:"monita",minutes_before:Number(row.querySelector(".reminder-minutes").value),destination:row.querySelector(".reminder-destination")?.value.trim()||""});
+  });
+  return reminders;
+}
+
 function openEvent(existing=null,dateHint=null,scope="series"){
   if(!state.calendars.some(c=>c.can_edit)){
     if(state.me.role==="admin"){navigate("calendars");return}
@@ -627,22 +669,23 @@ function openEvent(existing=null,dateHint=null,scope="series"){
     }else{
       form.repeat_end_type.value="never";
     }
-    const personal=sourceReminders.find(r=>r.kind==="personal"&&r.provider==="android");
-    const system=sourceReminders.find(r=>r.kind==="system"&&r.provider==="monita");
-    form.personal_reminder.value=personal?String(personal.minutes_before):"";
-    form.system_reminder_enabled.checked=!!system;form.system_reminder.value=system?String(system.minutes_before):"1440";
+    renderReminderEditor(sourceReminders);
     [...form.querySelectorAll('input[name="assignee"]')].forEach(i=>i.checked=sourceAssignees.some(a=>a.id===i.value));
   }else{
     $("#repeat-editor").classList.remove("hidden");$("#series-scope-note").classList.add("hidden");
-    const start=dateHint?new Date(dateHint):new Date(Date.now()+3600000);start.setMinutes(0,0,0);
-    if(dateHint&&start.getHours()===0)start.setHours(9);
-    const end=new Date(start.getTime()+3600000);
-    form.starts_at.value=localInput(start);form.ends_at.value=localInput(end);form.system_reminder.value="1440";
+    const start=dateHint?new Date(dateHint):new Date(Date.now()+3600000);
+    if(!dateHint)start.setMinutes(0,0,0);else start.setSeconds(0,0);
+    if(dateHint&&start.getHours()===0&&start.getMinutes()===0)start.setHours(9);
+    const end=new Date(start.getTime()+state.defaultDuration*60000);
+    form.starts_at.value=localInput(start);form.ends_at.value=localInput(end);
+    const editable=state.calendars.filter(cal=>cal.can_edit);
+    const preferred=editable.find(cal=>cal.id===state.defaultCalendar)||editable[0];
+    if(preferred)form.calendar_id.value=preferred.id;
     form.repeat_frequency.value="";form.repeat_interval.value="1";form.repeat_end_type.value="never";form.repeat_count.value="10";
     [...form.querySelectorAll('input[name="repeat_weekday"]')].forEach(i=>i.checked=false);
+    renderReminderEditor([]);
   }
   updateRepeatUI();
-  $("#system-reminder-time").classList.toggle("hidden",!form.system_reminder_enabled.checked);
   $("#event-error").textContent="";$("#event-dialog").showModal();
 }
 
@@ -889,9 +932,7 @@ $("#delete-event").addEventListener("click",async()=>{
 });
 $("#event-form").addEventListener("submit",async e=>{
   e.preventDefault();const form=e.currentTarget,fd=new FormData(form);$("#event-error").textContent="";
-  const reminders=[],personal=fd.get("personal_reminder");
-  if(personal)reminders.push({kind:"personal",provider:"android",minutes_before:Number(personal),destination:""});
-  if(form.system_reminder_enabled.checked)reminders.push({kind:"system",provider:"monita",minutes_before:Number(fd.get("system_reminder")||1440),destination:""});
+  const reminders=collectReminders();
   const payload={title:fd.get("title"),calendar_id:fd.get("calendar_id"),category_id:fd.get("category_id")||null,starts_at:new Date(fd.get("starts_at")).toISOString(),ends_at:new Date(fd.get("ends_at")).toISOString(),all_day:form.all_day.checked,location:fd.get("location"),notes:fd.get("notes"),assignee_ids:fd.getAll("assignee"),reminders,recurrence:recurrencePayload(form)};
   let target="/api/events",method="POST",body=payload;
   if(state.editingEvent){
@@ -1023,7 +1064,7 @@ $("#category-form").addEventListener("submit",async e=>{
 });
 $("#cancel-category-edit").addEventListener("click",resetCategoryForm);
 $("#delete-category").addEventListener("click",async()=>{
-  if(!state.editingCategory||!confirm(`Archive "${state.editingCategory.name}"? Existing events keep their category and color.`))return;
+  if(!state.editingCategory||!confirm(`Archive "${state.editingCategory.name}"? Existing events keep the category label; their calendar still controls the event color.`))return;
   try{
     await api("/api/categories/"+state.editingCategory.id,{method:"DELETE"});
     state.categories=await api("/api/categories");resetCategoryForm();renderCategories();renderEventControls();await loadEvents();renderCalendar();renderAgenda();
