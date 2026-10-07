@@ -1028,12 +1028,83 @@ jobs:
           assert len(repaired_events) == 1, repaired_events
           assert repaired_events[0]["calendar_id"] == family["id"], repaired_events
 
+          # Google exports can repeat the same UID in multiple calendar files after
+          # an event was moved. Reproduce the old CalDen behavior first by giving
+          # both copies identical/no revision metadata, then prove a subsequent
+          # import uses LAST-MODIFIED to keep the current copy and removes the stale one.
+          moved_day=family_day+dt.timedelta(days=4)
+          moved_start=moved_day.replace(hour=17,minute=0,second=0,microsecond=0)
+          moved_end=moved_start+dt.timedelta(hours=1)
+          moved_uid="google-moved-between-calendars@test"
+          old_path="Takeout/Calendar/Google Old.ics"
+          current_path="Takeout/Calendar/Google Current.ics"
+
+          def moved_calendar(name,last_modified=None):
+              revision="" if last_modified is None else (
+                  f"CREATED:20261001T120000Z\r\n"
+                  f"LAST-MODIFIED:{last_modified}\r\n"
+                  f"DTSTAMP:{last_modified}\r\n"
+              )
+              return (
+                  "BEGIN:VCALENDAR\r\n"
+                  "VERSION:2.0\r\n"
+                  f"X-WR-CALNAME:{name}\r\n"
+                  "BEGIN:VEVENT\r\n"
+                  f"UID:{moved_uid}\r\n"
+                  f"DTSTART:{moved_start.strftime('%Y%m%dT%H%M%SZ')}\r\n"
+                  f"DTEND:{moved_end.strftime('%Y%m%dT%H%M%SZ')}\r\n"
+                  +revision+
+                  "SUMMARY:Google Moved Duplicate CI\r\n"
+                  "END:VEVENT\r\n"
+                  "END:VCALENDAR\r\n"
+              )
+
+          legacy_archive=io.BytesIO()
+          with zipfile.ZipFile(legacy_archive,"w",zipfile.ZIP_DEFLATED) as z:
+              z.writestr(old_path,moved_calendar("Google Old"))
+              z.writestr(current_path,moved_calendar("Google Current"))
+          legacy_payload=legacy_archive.getvalue()
+          legacy=google_multipart("/api/integrations/google/import",legacy_payload,token,{"reuse_by_name":"true"})
+          assert legacy["created"] == 2, legacy
+
+          moved_from=urllib.parse.quote((moved_start-dt.timedelta(hours=1)).isoformat().replace("+00:00","Z"))
+          moved_to=urllib.parse.quote((moved_end+dt.timedelta(hours=1)).isoformat().replace("+00:00","Z"))
+          duplicate_events=json_request(f"/api/events?from={moved_from}&to={moved_to}",token=token)
+          duplicate_events=[e for e in duplicate_events if e["title"]=="Google Moved Duplicate CI"]
+          assert len(duplicate_events) == 2, duplicate_events
+
+          corrected_archive=io.BytesIO()
+          with zipfile.ZipFile(corrected_archive,"w",zipfile.ZIP_DEFLATED) as z:
+              z.writestr(old_path,moved_calendar("Google Old","20261002T120000Z"))
+              z.writestr(current_path,moved_calendar("Google Current","20261006T120000Z"))
+          corrected_payload=corrected_archive.getvalue()
+
+          duplicate_preview=google_multipart("/api/integrations/google/preview",corrected_payload,token)
+          assert duplicate_preview["duplicate_events_suppressed"] == 1, duplicate_preview
+          old_preview=next(item for item in duplicate_preview["calendars"] if item["name"]=="Google Old")
+          current_preview=next(item for item in duplicate_preview["calendars"] if item["name"]=="Google Current")
+          assert old_preview["event_count"] == 0, old_preview
+          assert old_preview["duplicate_events_suppressed"] == 1, old_preview
+          assert current_preview["event_count"] == 1, current_preview
+
+          reconciled=google_multipart("/api/integrations/google/import",corrected_payload,token,{"reuse_by_name":"true"})
+          assert reconciled["duplicate_events_suppressed"] == 1, reconciled
+          assert reconciled["duplicate_events_reconciled"] == 1, reconciled
+
+          duplicate_events=json_request(f"/api/events?from={moved_from}&to={moved_to}",token=token)
+          duplicate_events=[e for e in duplicate_events if e["title"]=="Google Moved Duplicate CI"]
+          assert len(duplicate_events) == 1, duplicate_events
+          current_calendar=next(c for c in json_request("/api/calendars",token=token) if c["name"]=="Google Current")
+          assert duplicate_events[0]["calendar_id"] == current_calendar["id"], duplicate_events
+
           print(json.dumps({
               "first":first,
               "second":second,
               "advanced_occurrences":len(monday),
               "preview_match":match,
               "repair":repaired,
+              "duplicate_preview":duplicate_preview,
+              "duplicate_repair":reconciled,
           },indent=2))
           PY
 
