@@ -1466,7 +1466,8 @@ function renderGoogleImportResults(body){
     <span>${Number(body?.skipped_calendars)||0} skipped calendars</span>
     <span>${Number(body?.cleaned_calendars)||0} old duplicate calendars cleaned up</span>
     <span>${Number(body?.duplicate_events_suppressed)||0} stale Google event copies suppressed</span>
-    <span>${Number(body?.duplicate_events_reconciled)||0} existing duplicate events repaired</span>
+    <span>${Number(body?.duplicate_events_reconciled)||0} same-UID duplicate events repaired</span>
+    <span>${Number(body?.stale_replacements_reconciled)||0} stale changed-UID events removed</span>
   </div>`+calendars.map(item=>`<article class="google-import-calendar">
     <div><strong>${escapeHTML(item.name||"Imported calendar")}</strong><small>${Number(item.created)||0} new · ${Number(item.updated)||0} updated${item.skipped?" · "+Number(item.skipped)+" skipped":""}</small></div>
     <span>${item.created_calendar?"Created calendar":"Mapped to existing"}</span>
@@ -1984,12 +1985,20 @@ $("#review-google-calendar")?.addEventListener("click",async()=>{
 function renderGoogleDuplicateSummary(body){
   const host=$("#google-duplicate-summary"),workflow=$("#google-repair-workflow"),examples=$("#google-duplicate-examples");
   const groups=Number(body?.duplicate_groups)||0,copies=Number(body?.extra_copies)||0;
+  const replacements=Number(body?.replacement_repairable_groups)||0;
   host.classList.remove("hidden");
-  host.innerHTML=groups
-    ?`<div><strong>${groups}</strong><span>duplicate UID group${groups===1?"":"s"}</span></div><div><strong>${copies}</strong><span>redundant CalDen event cop${copies===1?"y":"ies"}</span></div><div><strong>${Number(body?.export_needed)||0}</strong><span>need export ownership check</span></div>`
-    :'<div class="google-repair-clean"><strong>No duplicate imported UIDs found.</strong><span>CalDen did not find multiple stored events sharing the same imported Google UID.</span></div>';
-  workflow.classList.toggle("hidden",groups===0);
-  examples.innerHTML=(body?.examples||[]).map(item=>`<div class="google-duplicate-example"><strong>${escapeHTML(item.title||"Untitled event")}</strong><span>${Number(item.copies)||0} copies · ${escapeHTML((item.calendars||[]).join(" / "))}</span></div>`).join("");
+  host.innerHTML=`
+    <div><strong>${groups}</strong><span>same-UID duplicate group${groups===1?"":"s"}</span></div>
+    <div><strong>${copies}</strong><span>same-UID redundant cop${copies===1?"y":"ies"}</span></div>
+    <div><strong>${replacements}</strong><span>stale replacement${replacements===1?"":"s"} with changed UID</span></div>`;
+  workflow.classList.remove("hidden");
+  const uidExamples=(body?.examples||[]).map(item=>`<div class="google-duplicate-example"><strong>${escapeHTML(item.title||"Untitled event")}</strong><span>${Number(item.copies)||0} stored copies · same Google UID</span></div>`);
+  const replacementExamples=(body?.replacement_examples||[]).map(item=>{
+    const oldDate=item.stale_start?formatDate(new Date(item.stale_start),{month:"short",day:"numeric",year:"numeric"}):"old date";
+    const newDate=item.current_start?formatDate(new Date(item.current_start),{month:"short",day:"numeric",year:"numeric"}):"current date";
+    return `<div class="google-duplicate-example"><strong>${escapeHTML(item.title||"Untitled event")}</strong><span>stale ${escapeHTML(oldDate)} → current ${escapeHTML(newDate)} · changed Google UID</span></div>`;
+  });
+  examples.innerHTML=[...uidExamples,...replacementExamples].join("");
 }
 
 async function scanGoogleDuplicateData(){
@@ -1999,7 +2008,9 @@ async function scanGoogleDuplicateData(){
     const body=await api("/api/integrations/google/duplicates");
     state.googleRepairPreview=null;
     renderGoogleDuplicateSummary(body);
-    status.textContent=Number(body.duplicate_groups)?"Duplicates found in CalDen. Choose the original Google export to determine the correct surviving copy.":"No duplicate imported Google UIDs were found.";
+    status.textContent=Number(body.duplicate_groups)
+      ?"Same-UID duplicates found. Choose the original Google export to also check for stale older copies whose Google UID changed."
+      :"No same-UID duplicates were found. Choose the original Google export anyway if CalDen shows an old and current copy on different dates; those can have different Google UIDs.";
     $("#google-repair-confirm-wrap").classList.add("hidden");
     $("#repair-google-duplicates").disabled=true;
   }catch(err){status.textContent=err.message}
@@ -2017,13 +2028,15 @@ async function previewGoogleDuplicateRepair(){
     const body=await res.json().catch(()=>null);if(!res.ok)throw new Error(body?.error||"Could not preview duplicate repair");
     state.googleRepairPreview=body;renderGoogleDuplicateSummary(body);
     const repairable=Number(body.export_repairable_groups)||0;
-    if(!repairable){status.textContent="CalDen could not safely identify a canonical copy for the remaining duplicates. Nothing has been changed.";return}
+    if(!repairable){status.textContent="CalDen did not find a stored duplicate it can safely tie to the current export. Nothing has been changed.";return}
     const phrase=`REPAIR ${repairable}`;
     $("#google-repair-phrase").textContent=phrase;
     $("#google-repair-confirmation").value="";
     $("#google-repair-confirm-wrap").classList.remove("hidden");
     $("#repair-google-duplicates").disabled=true;
-    status.textContent=`${repairable} duplicate group${repairable===1?" is":"s are"} safely repairable in place. No calendars will be deleted and no events will be imported.`;
+    const changed=Number(body.replacement_repairable_groups)||0;
+    const sameUID=Number(body.same_uid_repairable_groups)||0;
+    status.textContent=`${repairable} stored duplicate group${repairable===1?" is":"s are"} safely repairable in place (${sameUID} same UID, ${changed} changed UID/stale replacement). No calendars will be deleted and no events will be imported.`;
   }catch(err){status.textContent=err.message}
   finally{button.disabled=false;button.textContent="Preview repair"}
 }
@@ -2042,7 +2055,8 @@ async function repairGoogleDuplicateData(){
     await reloadSharedData();renderCalendar();renderAgenda();renderBills();
     renderGoogleDuplicateSummary(result);
     $("#google-repair-confirm-wrap").classList.add("hidden");
-    status.textContent=`Removed ${Number(result.removed_copies)||0} redundant CalDen event cop${Number(result.removed_copies)===1?"y":"ies"}. Calendars and nonduplicate events were left in place.`;
+    const total=Number(result.removed_copies)||0;
+    status.textContent=`Removed ${total} redundant CalDen event cop${total===1?"y":"ies"} (${Number(result.same_uid_removed)||0} same UID, ${Number(result.replacement_removed)||0} stale changed-UID replacement). Calendars and nonduplicate events were left in place.`;
   }catch(err){status.textContent=err.message}
   finally{button.textContent="Repair duplicates"}
 }
@@ -2063,8 +2077,9 @@ $("#import-google-calendar")?.addEventListener("click",async()=>{
     if(!res.ok)throw new Error(body?.error||"Google Calendar import failed");
     const cleanup=Number(body.cleaned_calendars)||0;
     const reconciled=Number(body.duplicate_events_reconciled)||0;
+    const replacements=Number(body.stale_replacements_reconciled)||0;
     const suppressed=Number(body.duplicate_events_suppressed)||0;
-    status.textContent=`Imported ${body.calendar_count||0} calendar${Number(body.calendar_count)===1?"":"s"}: ${body.created||0} new events, ${body.updated||0} updated${suppressed?" · "+suppressed+" stale Google event copy"+(suppressed===1?"":"ies")+" suppressed":""}${reconciled?" · "+reconciled+" existing duplicate event"+(reconciled===1?"":"s")+" repaired":""}${cleanup?" · "+cleanup+" old duplicate calendar"+(cleanup===1?"":"s")+" removed":""}.`;
+    status.textContent=`Imported ${body.calendar_count||0} calendar${Number(body.calendar_count)===1?"":"s"}: ${body.created||0} new events, ${body.updated||0} updated${suppressed?" · "+suppressed+" stale Google event copy"+(suppressed===1?"":"ies")+" suppressed":""}${reconciled?" · "+reconciled+" same-UID duplicate"+(reconciled===1?"":"s")+" repaired":""}${replacements?" · "+replacements+" stale changed-UID replacement"+(replacements===1?"":"s")+" removed":""}${cleanup?" · "+cleanup+" old duplicate calendar"+(cleanup===1?"":"s")+" removed":""}.`;
     renderGoogleImportResults(body);
     await reloadSharedData();
     renderCalendars();renderCategories();renderBillNavigation();renderBills();renderEventControls();renderCalendar();renderAgenda();renderNotifications();renderSettings();
