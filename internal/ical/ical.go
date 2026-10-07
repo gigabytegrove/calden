@@ -53,8 +53,7 @@ func Write(w io.Writer, calendar Calendar, loc *time.Location) error {
 	lines = append(lines, "END:VCALENDAR")
 	for _, line := range lines {
 		for _, folded := range foldLine(line) {
-			if _, err := io.WriteString(w, folded+"
-"); err != nil {
+			if _, err := io.WriteString(w, folded+"\r\n"); err != nil {
 				return err
 			}
 		}
@@ -102,22 +101,23 @@ func eventLines(event Event, loc *time.Location, stamp time.Time) []string {
 
 func formatPropertyTime(name string, value time.Time, allDay bool, loc *time.Location) string {
 	if allDay {
-		return name+";VALUE=DATE:"+value.In(loc).Format("20060102")
+		return name + ";VALUE=DATE:" + value.In(loc).Format("20060102")
 	}
-	return name+":"+formatDateTime(value)
+	return name + ":" + formatDateTime(value)
 }
 
 func formatPropertyEnd(name string, start, end time.Time, allDay bool, loc *time.Location) string {
 	if !allDay {
-		return name+":"+formatDateTime(end)
+		return name + ":" + formatDateTime(end)
 	}
 	startDate := start.In(loc)
 	endDate := end.In(loc)
 	exclusive := time.Date(endDate.Year(), endDate.Month(), endDate.Day(), 0, 0, 0, 0, loc).AddDate(0, 0, 1)
-	if exclusive.Before(time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, loc).AddDate(0, 0, 1)) {
-		exclusive = time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, loc).AddDate(0, 0, 1)
+	minimum := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, loc).AddDate(0, 0, 1)
+	if exclusive.Before(minimum) {
+		exclusive = minimum
 	}
-	return name+";VALUE=DATE:"+exclusive.Format("20060102")
+	return name + ";VALUE=DATE:" + exclusive.Format("20060102")
 }
 
 func formatDateTime(value time.Time) string {
@@ -126,7 +126,7 @@ func formatDateTime(value time.Time) string {
 
 func formatRule(rule recurrence.Rule) string {
 	freq := strings.ToUpper(rule.Frequency)
-	parts := []string{"FREQ="+freq}
+	parts := []string{"FREQ=" + freq}
 	if rule.Interval > 1 {
 		parts = append(parts, "INTERVAL="+strconv.Itoa(rule.Interval))
 	}
@@ -177,13 +177,13 @@ func Parse(r io.Reader, defaultLoc *time.Location) (Calendar, error) {
 			}
 			if current.End.IsZero() {
 				if current.AllDay {
-					current.End = current.Start.AddDate(0, 0, 1).Add(-time.Nanosecond)
+					current.End = current.Start.AddDate(0, 0, 1)
 				} else {
 					current.End = current.Start.Add(time.Hour)
 				}
 			}
 			if current.AllDay {
-				// RFC 5545 all-day DTEND is exclusive. Convert to CalDen's inclusive end.
+				// RFC 5545 all-day DTEND is exclusive. CalDen stores an inclusive end.
 				current.End = current.End.Add(-time.Nanosecond)
 			}
 			if !current.End.After(current.Start) {
@@ -265,8 +265,8 @@ func unfold(r io.Reader) ([]string, error) {
 	scanner.Buffer(make([]byte, 64*1024), 2<<20)
 	lines := []string{}
 	for scanner.Scan() {
-		line := strings.TrimSuffix(scanner.Text(), "")
-		if (strings.HasPrefix(line, " ") || strings.HasPrefix(line, "	")) && len(lines) > 0 {
+		line := strings.TrimSuffix(scanner.Text(), "\r")
+		if (strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t")) && len(lines) > 0 {
 			lines[len(lines)-1] += line[1:]
 		} else {
 			lines = append(lines, line)
@@ -286,7 +286,7 @@ func parseProperty(line string) (string, map[string]string, string, bool) {
 	for _, part := range parts[1:] {
 		key, val, ok := strings.Cut(part, "=")
 		if ok {
-			params[strings.ToUpper(strings.TrimSpace(key))] = strings.Trim(strings.TrimSpace(val), """)
+			params[strings.ToUpper(strings.TrimSpace(key))] = strings.Trim(strings.TrimSpace(val), "\"")
 		}
 	}
 	return name, params, value, true
@@ -361,16 +361,12 @@ func parseRule(value string, start time.Time, loc *time.Location) (*recurrence.R
 }
 
 func escapeText(value string) string {
-	value = strings.ReplaceAll(value, "\", "\\")
-	value = strings.ReplaceAll(value, "
-", "
-")
-	value = strings.ReplaceAll(value, "", "
-")
-	value = strings.ReplaceAll(value, "
-", "\n")
-	value = strings.ReplaceAll(value, ",", "\,")
-	value = strings.ReplaceAll(value, ";", "\;")
+	value = strings.ReplaceAll(value, "\\", "\\\\")
+	value = strings.ReplaceAll(value, "\r\n", "\n")
+	value = strings.ReplaceAll(value, "\r", "\n")
+	value = strings.ReplaceAll(value, "\n", "\\n")
+	value = strings.ReplaceAll(value, ",", "\\,")
+	value = strings.ReplaceAll(value, ";", "\\;")
 	return value
 }
 
@@ -381,22 +377,21 @@ func unescapeText(value string) string {
 		if escaped {
 			switch r {
 			case 'n', 'N':
-				b.WriteRune('
-')
+				b.WriteRune('\n')
 			default:
 				b.WriteRune(r)
 			}
 			escaped = false
 			continue
 		}
-		if r == '\' {
+		if r == '\\' {
 			escaped = true
 		} else {
 			b.WriteRune(r)
 		}
 	}
 	if escaped {
-		b.WriteRune('\')
+		b.WriteRune('\\')
 	}
 	return b.String()
 }
@@ -407,12 +402,12 @@ func splitEscaped(value string, separator rune) []string {
 	escaped := false
 	for _, r := range value {
 		if escaped {
-			b.WriteRune('\')
+			b.WriteRune('\\')
 			b.WriteRune(r)
 			escaped = false
 			continue
 		}
-		if r == '\' {
+		if r == '\\' {
 			escaped = true
 			continue
 		}
@@ -454,7 +449,10 @@ func foldLine(line string) []string {
 }
 
 func weekdayCode(day int) string {
-	return []string{"SU", "MO", "TU", "WE", "TH", "FR", "SA"}[clampDay(day)]
+	if day < 0 || day > 6 {
+		return ""
+	}
+	return []string{"SU", "MO", "TU", "WE", "TH", "FR", "SA"}[day]
 }
 
 func weekdayNumber(code string) int {
@@ -476,11 +474,4 @@ func weekdayNumber(code string) int {
 	default:
 		return -1
 	}
-}
-
-func clampDay(day int) int {
-	if day < 0 || day > 6 {
-		return 0
-	}
-	return day
 }
