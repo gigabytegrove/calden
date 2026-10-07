@@ -9,15 +9,73 @@
 </head>
 <body>
 <div id="auth" class="auth-shell">
-  <main class="auth-card">
+  <main id="auth-card" class="auth-card">
     <img class="brand-logo" src="/calden-logo.svg" alt="CalDen">
     <p>Your family calendar.</p>
-    <form id="setup-form" class="stack hidden">
-      <h1>Set up your family calendar</h1>
-      <label>Your name<input name="display_name" autocomplete="name" required></label>
-      <label>Username<input name="username" autocomplete="username" required minlength="3"></label>
-      <label>Password<input name="password" type="password" autocomplete="new-password" required minlength="8"></label>
-      <button type="submit">Create my account</button>
+    <form id="setup-form" class="setup-wizard hidden" novalidate>
+      <div class="setup-progress" aria-label="Setup progress">
+        <span class="setup-dot active" data-dot="0"></span>
+        <span class="setup-dot" data-dot="1"></span>
+        <span class="setup-dot" data-dot="2"></span>
+        <span class="setup-dot" data-dot="3"></span>
+      </div>
+
+      <section class="setup-step" data-step="0">
+        <p class="eyebrow">Welcome to CalDen</p>
+        <h1>Set up your family calendar</h1>
+        <p class="setup-copy">A few quick choices and CalDen will be ready to use.</p>
+        <label>What should we call your family calendar?
+          <input name="household_name" maxlength="100" placeholder="The Smith Family" required>
+        </label>
+        <input name="timezone" type="hidden">
+        <div class="setup-info">
+          <strong>Your time zone</strong>
+          <span id="setup-timezone">Detecting…</span>
+        </div>
+      </section>
+
+      <section class="setup-step hidden" data-step="1">
+        <p class="eyebrow">Your account</p>
+        <h1>Create the administrator</h1>
+        <p class="setup-copy">This is the first CalDen account. You can add everyone else after setup.</p>
+        <label>Your name<input name="display_name" autocomplete="name" maxlength="100" required></label>
+        <label>Username<input name="username" autocomplete="username" minlength="3" maxlength="50" required></label>
+        <label>Password<input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
+        <label>Confirm password<input name="confirm_password" type="password" autocomplete="new-password" minlength="8" required></label>
+      </section>
+
+      <section class="setup-step hidden" data-step="2">
+        <p class="eyebrow">Starter calendars</p>
+        <h1>What do you want to start with?</h1>
+        <p class="setup-copy">Pick any that are useful. You can add, rename, recolor, or remove calendars later.</p>
+        <div class="starter-grid">
+          <label class="starter-option"><input type="checkbox" name="starter_calendar" value="family" checked><span><i style="--starter:#2563EB"></i><b>Family</b><small>Plans everyone shares</small></span></label>
+          <label class="starter-option"><input type="checkbox" name="starter_calendar" value="bills" checked><span><i style="--starter:#16A34A"></i><b>Bills</b><small>Payments and due dates</small></span></label>
+          <label class="starter-option"><input type="checkbox" name="starter_calendar" value="appointments" checked><span><i style="--starter:#7C3AED"></i><b>Appointments</b><small>Visits and scheduled appointments</small></span></label>
+          <label class="starter-option"><input type="checkbox" name="starter_calendar" value="school"><span><i style="--starter:#EAB308"></i><b>School</b><small>School events and deadlines</small></span></label>
+          <label class="starter-option"><input type="checkbox" name="starter_calendar" value="birthdays" checked><span><i style="--starter:#EC4899"></i><b>Birthdays</b><small>Birthdays and celebrations</small></span></label>
+          <label class="starter-option"><input type="checkbox" name="starter_calendar" value="work"><span><i style="--starter:#64748B"></i><b>Work</b><small>Work schedules and commitments</small></span></label>
+        </div>
+      </section>
+
+      <section class="setup-step hidden" data-step="3">
+        <p class="eyebrow">Ready to go</p>
+        <h1>Finish setting up CalDen</h1>
+        <p class="setup-copy">CalDen will create your family space, administrator account, and starter calendars now.</p>
+        <div class="setup-summary">
+          <div><span>Family calendar</span><strong id="summary-household"></strong></div>
+          <div><span>Administrator</span><strong id="summary-admin"></strong></div>
+          <div><span>Time zone</span><strong id="summary-timezone"></strong></div>
+          <div><span>Starter calendars</span><strong id="summary-calendars"></strong></div>
+        </div>
+      </section>
+
+      <div class="setup-actions">
+        <button id="setup-back" type="button" class="quiet hidden">Back</button>
+        <span class="grow"></span>
+        <button id="setup-next" type="button">Continue</button>
+        <button id="setup-finish" type="submit" class="hidden">Finish setup</button>
+      </div>
     </form>
     <form id="login-form" class="stack hidden">
       <h1>Welcome back</h1>
@@ -36,7 +94,7 @@
   </header>
   <main class="page">
     <section class="hero">
-      <div><p class="eyebrow" id="today-label"></p><h1>Today</h1></div>
+      <div><p class="eyebrow" id="today-label"></p><h1>Today</h1><p id="household-label" class="hero-household"></p></div>
       <button id="new-event">+ Add event</button>
     </section>
     <section id="calendar-strip" class="calendar-strip"></section>
