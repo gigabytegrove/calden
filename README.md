@@ -46,7 +46,7 @@ The assigned person's icon or initials appear with the event.
 
 Personal reminders can stay on the person's phone. Household reminders can be sent through Monita.
 
-For example, a green **Bills** calendar can contain an Internet Bill assigned to Brad and an Electric Bill assigned to Jen. Both events stay green because they belong to Bills, while the person icon shows who is responsible for each one. Bill activity is tracked per occurrence: a month can have no balance, one payment, or several split/partial payments, each with its actual payer, payment date, and optional cleared date.
+For example, a green **Bills** calendar can contain an Internet Bill assigned to Brad and an Electric Bill assigned to Jen. Both events stay green because they belong to Bills, while the person icon shows who is responsible for each one. Bill activity is tracked per occurrence: funds can be marked **Allocated** when money is moved into a bill-pay account, then **Paid** when the withdrawal actually happens, and **Cleared** after it settles. A month can also have no balance or several split/partial payments, each with its actual payer, payment date, and cleared date. CalDen creates an end-of-day bill follow-up for open bills so the assigned payer can confirm the autopay came out.
 
 ## Current features
 
@@ -59,7 +59,7 @@ The current development build includes:
 - multiple user accounts
 - administrator, family member, and restricted member account types
 - multiple calendars
-- Bill Pay calendars with expected amount, assigned payer, no-balance months, partial/split payments, actual payer, payment date, optional cleared date, and household breakdowns
+- Bill Pay calendars with expected amount, assigned payer, allocated-funds tracking, no-balance months, partial/split payments, actual payer, payment date, cleared state, end-of-day payment follow-ups, and household breakdowns
 - calendar colors
 - calendar visibility controls
 - calendar editing permissions
