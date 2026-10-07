@@ -40,6 +40,9 @@ func (s *server) saveUpdatePreferences(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, err.Error())
 		return
 	}
+	s.audit(r, "preferences", "update", nil, "Changed update preferences", map[string]any{
+		"channel": saved.Channel, "auto_check": saved.AutoCheck,
+	})
 	writeJSON(w, http.StatusOK, saved)
 }
 
@@ -56,6 +59,7 @@ func (s *server) installUpdate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, err.Error())
 		return
 	}
+	s.audit(r, "install", "update", nil, "Started CalDen update "+strings.TrimSpace(in.Version), map[string]any{"version": strings.TrimSpace(in.Version)})
 	writeJSON(w, http.StatusAccepted, status)
 }
 
@@ -65,5 +69,6 @@ func (s *server) rollbackUpdate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, err.Error())
 		return
 	}
+	s.audit(r, "rollback", "update", nil, "Started CalDen rollback", map[string]any{"version": status.Version})
 	writeJSON(w, http.StatusAccepted, status)
 }
