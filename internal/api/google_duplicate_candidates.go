@@ -63,8 +63,7 @@ func normalizeImportedEventTitle(value string) string {
 
 func potentialDuplicateSignature(event googlePotentialDuplicateEvent) string {
 	duration := event.End.Sub(event.Start).Round(time.Second)
-	return fmt.Sprintf("%s|%s|%t|%s|%d|%s",
-		event.CalendarID.String(),
+	return fmt.Sprintf("%s|%t|%s|%d|%s",
 		normalizeImportedEventTitle(event.Title),
 		event.AllDay,
 		strings.ToLower(strings.TrimSpace(event.Frequency)),
@@ -178,11 +177,20 @@ func (s *server) googlePotentialDuplicateGroups(ctx context.Context, tx pgx.Tx) 
 			}
 			return events[i].Start.Before(events[j].Start)
 		})
+		calendarName := events[0].CalendarName
+		calendarID := events[0].CalendarID
+		for _, event := range events[1:] {
+			if event.CalendarID != calendarID {
+				calendarID = uuid.Nil
+				calendarName = "Multiple calendars"
+				break
+			}
+		}
 		group := googlePotentialDuplicateGroup{
 			Key: key,
 			Title: events[0].Title,
-			CalendarID: events[0].CalendarID,
-			CalendarName: events[0].CalendarName,
+			CalendarID: calendarID,
+			CalendarName: calendarName,
 			Frequency: strings.ToLower(strings.TrimSpace(events[0].Frequency)),
 			Interval: events[0].Interval,
 			AllDay: events[0].AllDay,
