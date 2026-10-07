@@ -163,6 +163,9 @@ func (s *server) ensureBillReviewNotifications(ctx context.Context, userID uuid.
 
 			details := s.eventBillPayment(ctx, eventID, occurrence.Start)
 			if details.Status == "cleared" || details.Status == "no_balance" {
+				_, _ = s.db.Exec(ctx, `DELETE FROM notifications
+					WHERE user_id=$1 AND event_id=$2 AND kind='bill_review' AND occurrence_start=$3`,
+					userID, eventID, occurrence.Start)
 				continue
 			}
 			message := "Confirm the autopay came out and record the payment."
@@ -176,7 +179,19 @@ func (s *server) ensureBillReviewNotifications(ctx context.Context, userID uuid.
 			_, _ = s.db.Exec(ctx, `INSERT INTO notifications(
 					user_id,event_id,kind,title,message,occurrence_start
 				) VALUES($1,$2,'bill_review',$3,$4,$5)
-				ON CONFLICT DO NOTHING`,
+				ON CONFLICT (user_id,event_id,kind,occurrence_start)
+				WHERE kind='bill_review' AND occurrence_start IS NOT NULL
+				DO UPDATE SET
+					title=EXCLUDED.title,
+					message=EXCLUDED.message,
+					read_at=CASE
+						WHEN notifications.message IS DISTINCT FROM EXCLUDED.message THEN NULL
+						ELSE notifications.read_at
+					END,
+					created_at=CASE
+						WHEN notifications.message IS DISTINCT FROM EXCLUDED.message THEN now()
+						ELSE notifications.created_at
+					END`,
 				userID, eventID, cleanText(strings.TrimSpace(title), 200), message, occurrence.Start)
 		}
 	}
