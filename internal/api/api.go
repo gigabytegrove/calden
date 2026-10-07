@@ -62,6 +62,8 @@ func New(cfg Config) http.Handler {
 	mux.Handle("POST /api/users", s.auth(s.admin(http.HandlerFunc(s.createUser))))
 	mux.Handle("PUT /api/users/{id}", s.auth(s.admin(http.HandlerFunc(s.updateUser))))
 	mux.Handle("DELETE /api/users/{id}", s.auth(s.admin(http.HandlerFunc(s.deactivateUser))))
+	mux.Handle("POST /api/users/{id}/avatar", s.auth(http.HandlerFunc(s.uploadUserAvatar)))
+	mux.Handle("DELETE /api/users/{id}/avatar", s.auth(http.HandlerFunc(s.deleteUserAvatar)))
 	mux.Handle("GET /api/calendars", s.auth(http.HandlerFunc(s.listCalendars)))
 	mux.Handle("POST /api/calendars", s.auth(s.admin(http.HandlerFunc(s.createCalendar))))
 	mux.Handle("GET /api/categories", s.auth(http.HandlerFunc(s.listCategories)))
@@ -97,6 +99,7 @@ func New(cfg Config) http.Handler {
 	mux.Handle("GET /api/system/backups/{name}", s.auth(s.admin(http.HandlerFunc(s.downloadSavedBackup))))
 	mux.Handle("DELETE /api/system/backups/{name}", s.auth(s.admin(http.HandlerFunc(s.deleteSavedBackup))))
 	mux.Handle("POST /api/system/restart", s.auth(s.admin(http.HandlerFunc(s.restartSystem))))
+	mux.HandleFunc("GET /media/avatars/{name}", s.avatarMedia)
 	mux.Handle("/", s.static())
 	return securityHeaders(mux)
 }
