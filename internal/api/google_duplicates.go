@@ -212,6 +212,14 @@ func (s *server) mergeImportedEventRows(ctx context.Context, tx pgx.Tx, ownerEve
 			ON CONFLICT(event_id,occurrence_start) DO NOTHING`, ownerEvent, loserEvent); err != nil {
 			return err
 		}
+		if _, err := tx.Exec(ctx, `INSERT INTO bill_allocations(
+				event_id,occurrence_start,amount_allocated,allocated_on,allocated_by_user_id,allocated_at,updated_at
+			)
+			SELECT $1,occurrence_start,amount_allocated,allocated_on,allocated_by_user_id,allocated_at,updated_at
+			FROM bill_allocations WHERE event_id=$2
+			ON CONFLICT(event_id,occurrence_start) DO NOTHING`, ownerEvent, loserEvent); err != nil {
+			return err
+		}
 	}
 	if _, err := tx.Exec(ctx, `UPDATE notifications SET event_id=$1 WHERE event_id=$2`, ownerEvent, loserEvent); err != nil {
 		return err
