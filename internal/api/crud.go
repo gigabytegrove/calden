@@ -99,7 +99,11 @@ func (s *server) updateEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var oldCalendar uuid.UUID
-	if err = s.db.QueryRow(r.Context(), "SELECT calendar_id FROM events WHERE id=$1", id).Scan(&oldCalendar); err != nil {
+	var oldStart time.Time
+	var wasRecurring bool
+	if err = s.db.QueryRow(r.Context(), `SELECT e.calendar_id,e.starts_at,
+		EXISTS(SELECT 1 FROM event_recurrence er WHERE er.event_id=e.id)
+		FROM events e WHERE e.id=$1`, id).Scan(&oldCalendar, &oldStart, &wasRecurring); err != nil {
 		writeError(w, 404, "Event not found")
 		return
 	}
@@ -135,6 +139,14 @@ func (s *server) updateEvent(w http.ResponseWriter, r *http.Request) {
 	if err = s.saveBillDetails(r.Context(), tx, id, in.CalendarID, in); err != nil {
 		writeError(w, 400, "Could not save bill details")
 		return
+	}
+	if !wasRecurring && !oldStart.Equal(in.StartsAt) {
+		if _, err = tx.Exec(r.Context(), `UPDATE bill_payments
+			SET occurrence_start=$3,updated_at=now()
+			WHERE event_id=$1 AND occurrence_start=$2`, id, oldStart, in.StartsAt); err != nil {
+			writeError(w, 500, "Could not move bill payment status with the event")
+			return
+		}
 	}
 
 	if _, err = tx.Exec(r.Context(), "DELETE FROM event_recurrence WHERE event_id=$1", id); err != nil {
