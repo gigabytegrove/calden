@@ -15,8 +15,9 @@ type categoryInput struct {
 }
 
 func (s *server) listCategories(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.db.Query(r.Context(), `SELECT id,name,color,icon,description,active
-		FROM categories WHERE active=true ORDER BY lower(name)`)
+	rows, err := s.db.Query(r.Context(), `SELECT c.id,c.name,c.color,c.icon,c.description,c.active,
+		(SELECT count(*) FROM events e WHERE e.category_id=c.id)
+		FROM categories c WHERE c.active=true ORDER BY lower(c.name)`)
 	if err != nil {
 		writeError(w, 500, "Could not load categories")
 		return
@@ -27,10 +28,11 @@ func (s *server) listCategories(w http.ResponseWriter, r *http.Request) {
 		var id uuid.UUID
 		var name, color, icon, description string
 		var active bool
-		if rows.Scan(&id, &name, &color, &icon, &description, &active) == nil {
+		var eventCount int
+		if rows.Scan(&id, &name, &color, &icon, &description, &active, &eventCount) == nil {
 			out = append(out, map[string]any{
 				"id": id, "name": name, "color": color, "icon": icon,
-				"description": description, "active": active,
+				"description": description, "active": active, "event_count": eventCount,
 			})
 		}
 	}
@@ -106,16 +108,27 @@ func (s *server) deleteCategory(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "Invalid category")
 		return
 	}
-	tag, err := s.db.Exec(r.Context(), `UPDATE categories SET active=false,updated_at=now()
-		WHERE id=$1 AND active=true`, id)
+
+	var name string
+	var eventCount int
+	if err = s.db.QueryRow(r.Context(), `SELECT c.name,
+		(SELECT count(*) FROM events e WHERE e.category_id=c.id)
+		FROM categories c WHERE c.id=$1`, id).Scan(&name, &eventCount); err != nil {
+		writeError(w, 404, "Category not found")
+		return
+	}
+
+	tag, err := s.db.Exec(r.Context(), `DELETE FROM categories WHERE id=$1`, id)
 	if err != nil {
-		writeError(w, 500, "Could not archive category")
+		writeError(w, 500, "Could not delete category")
 		return
 	}
 	if tag.RowsAffected() == 0 {
 		writeError(w, 404, "Category not found")
 		return
 	}
-	s.audit(r, "archive", "category", &id, "Archived category", nil)
+	s.audit(r, "delete", "category", &id, "Deleted category "+name, map[string]any{
+		"event_count": eventCount,
+	})
 	w.WriteHeader(http.StatusNoContent)
 }
