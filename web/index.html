@@ -277,13 +277,13 @@
             <div class="integration-icon google-icon">G</div>
             <div class="integration-card-copy">
               <div class="integration-title-row"><h3>Google Calendar</h3><span class="integration-badge">Migration</span></div>
-              <p>Bring your existing Google Calendar setup into CalDen without creating a pile of duplicate calendars. CalDen previews the export first, suggests matches, and lets you approve where every Google calendar goes before anything is created.</p>
+              <p>Bring your existing Google Calendar setup into CalDen without creating duplicate calendars or duplicate events. CalDen detects the same Google event repeated in multiple exported calendar files, keeps the newest revision, previews calendar matches, and lets you approve where every calendar goes before anything is created.</p>
             </div>
           </div>
           <div class="google-import-grid">
             <div class="migration-steps" aria-label="Google Calendar migration steps">
               <article class="migration-step"><span>1</span><div><strong>Export from Google Calendar</strong><p>In Google Calendar, open Settings, choose <b>Import &amp; export</b>, then choose <b>Export</b>. Google downloads one ZIP containing your calendars.</p></div></article>
-              <article class="migration-step"><span>2</span><div><strong>Review before importing</strong><p>Drop the export below and CalDen will compare each Google calendar to what already exists. Nothing is created during this step.</p></div></article>
+              <article class="migration-step"><span>2</span><div><strong>Review before importing</strong><p>Drop the export below and CalDen will compare calendars, detect repeated Google event UIDs across the export, and keep only the newest copy. Nothing is created during this step.</p></div></article>
               <article class="migration-step"><span>3</span><div><strong>Choose where each one belongs</strong><p>Accept a suggested match, choose another existing CalDen calendar, skip it, or explicitly create a new calendar. Then import.</p></div></article>
             </div>
             <div class="google-import-action">
@@ -301,7 +301,7 @@
               <p id="google-import-status" class="status-line"></p>
               <div id="google-import-mapping" class="google-import-mapping hidden"></div>
               <div id="google-import-results" class="google-import-results hidden"></div>
-              <p class="import-privacy-note">Nothing is created until you review the mapping and start the import. If this export was imported before, remapping can safely remove old auto-created duplicate calendars when they contain only imported events. The file stays on your CalDen server.</p>
+              <p class="import-privacy-note">Nothing is created until you review the mapping and start the import. Re-importing the same Google export can also reconcile event copies created by older CalDen imports when Google placed the same UID in more than one exported calendar. CalDen preserves attached people, reminders, bill metadata, and payment history when it consolidates those copies. The file stays on your CalDen server.</p>
             </div>
           </div>
         </section>
