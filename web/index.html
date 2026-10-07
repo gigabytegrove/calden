@@ -78,6 +78,7 @@
     <div class="sidebar-brand"><img src="/calden-logo-official.webp" alt="CalDen"></div>
     <nav class="primary-nav" aria-label="Main navigation">
       <button class="nav-item active" data-page="calendar">Calendar</button>
+      <button class="nav-item bill-nav hidden" data-page="bills">Bills</button>
       <button class="nav-item" data-page="agenda">Agenda</button>
       <button class="nav-item admin-only" data-page="people">People</button>
       <button class="nav-item admin-only" data-page="calendars">Calendars</button>
@@ -126,6 +127,30 @@
       <div id="calendar-view" class="calendar-view"></div>
     </section>
 
+    <section id="page-bills" class="app-page hidden">
+      <div class="page-header">
+        <div><p class="eyebrow">Household bills</p><h2>Bill Pay</h2><p class="muted">See what is due this month, who is handling it, and a simple expected-cost breakdown. CalDen tracks due dates, not bank accounts or transactions.</p></div>
+        <button id="add-bill" class="button" type="button">+ Add bill</button>
+      </div>
+      <div class="bill-month-toolbar">
+        <div class="date-nav">
+          <button id="bill-prev" class="button secondary compact" type="button" aria-label="Previous month">‹</button>
+          <button id="bill-current" class="button secondary compact" type="button">This month</button>
+          <button id="bill-next" class="button secondary compact" type="button" aria-label="Next month">›</button>
+          <strong id="bill-month-label"></strong>
+        </div>
+      </div>
+      <div id="bill-summary" class="bill-summary"></div>
+      <div class="bill-breakdown-grid">
+        <section class="panel bill-breakdown"><div class="bill-section-head"><div><h3>By person</h3><p class="muted">Expected responsibility for the month.</p></div></div><div id="bill-by-person"></div></section>
+        <section class="panel bill-breakdown"><div class="bill-section-head"><div><h3>By bill calendar</h3><p class="muted">Expected costs across the bill calendars you can see.</p></div></div><div id="bill-by-calendar"></div></section>
+      </div>
+      <section class="panel bill-schedule">
+        <div class="bill-section-head"><div><h3>Due this month</h3><p class="muted">Amounts marked with ~ are estimates for bills that can vary.</p></div><span id="bill-count"></span></div>
+        <div id="bill-list" class="bill-list"></div>
+      </section>
+    </section>
+
     <section id="page-agenda" class="app-page hidden">
       <div class="page-header"><div><p class="eyebrow">Everything in order</p><h2>Agenda</h2></div>
         <div class="agenda-tools"><input id="agenda-search" type="search" placeholder="Search events"><span id="event-count"></span></div></div>
@@ -165,6 +190,13 @@
           <input type="hidden" name="calendar_id">
           <div><p class="eyebrow" id="calendar-form-eyebrow">New calendar</p><h3 id="calendar-form-title">Create a calendar</h3></div>
           <label>Name<input name="name" required maxlength="100" placeholder="Bills"></label>
+          <label>Calendar type
+            <select name="calendar_type">
+              <option value="standard">Standard calendar</option>
+              <option value="bill_pay">Bill pay calendar</option>
+            </select>
+            <span class="field-help">Bill pay calendars add amount and payer fields to events and appear in the household Bill Pay overview.</span>
+          </label>
           <label>Color<input name="color" type="color" value="#2f6fed" required></label>
           <label>Description<textarea name="description" rows="3" maxlength="500" placeholder="Optional"></textarea></label>
           <section id="calendar-interop" class="interop-box hidden">
@@ -229,14 +261,14 @@
             <div class="integration-icon google-icon">G</div>
             <div class="integration-card-copy">
               <div class="integration-title-row"><h3>Google Calendar</h3><span class="integration-badge">Migration</span></div>
-              <p>Bring your existing Google Calendar setup into CalDen in one pass. Export all calendars from Google, upload the ZIP here, and CalDen creates or reuses the matching calendars and imports their events.</p>
+              <p>Bring your existing Google Calendar setup into CalDen without creating a pile of duplicate calendars. CalDen previews the export first, suggests matches, and lets you approve where every Google calendar goes before anything is created.</p>
             </div>
           </div>
           <div class="google-import-grid">
             <div class="migration-steps" aria-label="Google Calendar migration steps">
               <article class="migration-step"><span>1</span><div><strong>Export from Google Calendar</strong><p>In Google Calendar, open Settings, choose <b>Import &amp; export</b>, then choose <b>Export</b>. Google downloads one ZIP containing your calendars.</p></div></article>
-              <article class="migration-step"><span>2</span><div><strong>Upload the ZIP to CalDen</strong><p>Drop the Google export below or choose it from your computer. A single .ics file also works when you only need one calendar.</p></div></article>
-              <article class="migration-step"><span>3</span><div><strong>Review the imported calendars</strong><p>New calendars start accessible to your administrator account. Use Calendars afterward to adjust family visibility and editing access.</p></div></article>
+              <article class="migration-step"><span>2</span><div><strong>Review before importing</strong><p>Drop the export below and CalDen will compare each Google calendar to what already exists. Nothing is created during this step.</p></div></article>
+              <article class="migration-step"><span>3</span><div><strong>Choose where each one belongs</strong><p>Accept a suggested match, choose another existing CalDen calendar, skip it, or explicitly create a new calendar. Then import.</p></div></article>
             </div>
             <div class="google-import-action">
               <label id="google-import-drop" class="import-dropzone">
@@ -246,13 +278,14 @@
                 <span>or click to choose the .zip file</span>
               </label>
               <div id="google-import-file-summary" class="import-file-summary hidden"></div>
-              <label class="toggle-row google-reuse-row"><input id="google-import-reuse" type="checkbox" checked><span>Reuse an existing CalDen calendar when its name matches</span></label>
               <div class="form-actions">
-                <button id="import-google-calendar" type="button" class="button" disabled>Import everything</button>
+                <button id="review-google-calendar" type="button" class="button" disabled>Review calendars</button>
+                <button id="import-google-calendar" type="button" class="button hidden" disabled>Import selected calendars</button>
               </div>
               <p id="google-import-status" class="status-line"></p>
+              <div id="google-import-mapping" class="google-import-mapping hidden"></div>
               <div id="google-import-results" class="google-import-results hidden"></div>
-              <p class="import-privacy-note">The export is processed by your CalDen server. CalDen does not send the file to Google or another migration service.</p>
+              <p class="import-privacy-note">Nothing is created until you review the mapping and start the import. If this export was imported before, remapping can safely remove old auto-created duplicate calendars when they contain only imported events. The file stays on your CalDen server.</p>
             </div>
           </div>
         </section>
@@ -393,7 +426,7 @@
   </main>
 
   <nav class="mobile-nav">
-    <button class="active" data-page="calendar">Calendar</button><button data-page="agenda">Agenda</button><button id="nav-add" type="button">Add</button><button data-page="settings">Settings</button>
+    <button class="active" data-page="calendar">Calendar</button><button class="bill-nav hidden" data-page="bills">Bills</button><button data-page="agenda">Agenda</button><button id="nav-add" type="button">Add</button><button data-page="settings">Settings</button>
   </nav>
 </div>
 
@@ -411,6 +444,17 @@
         </div>
         <div class="two"><label>Starts<input name="starts_at" type="datetime-local" required></label><label>Ends<input name="ends_at" type="datetime-local" required></label></div>
         <label class="toggle-row"><input name="all_day" type="checkbox"><span>All-day event</span></label>
+
+        <section id="bill-event-details" class="bill-event-details hidden">
+          <div><h3>Bill details</h3><p class="muted">These fields appear on Bill Pay calendars and in the monthly household breakdown.</p></div>
+          <div class="two">
+            <label>Amount due
+              <div class="money-input"><span>$</span><input name="bill_amount" type="number" min="0" max="9999999999.99" step="0.01" inputmode="decimal" placeholder="0.00"></div>
+            </label>
+            <label>Assigned to pay<select name="bill_payer_user_id" id="bill-payer-select"><option value="">Not assigned</option></select></label>
+          </div>
+          <label class="toggle-row"><input name="bill_amount_is_estimate" type="checkbox"><span>This amount can vary and is an estimate</span></label>
+        </section>
 
         <section id="repeat-editor" class="repeat-editor">
           <div><h3>Repeat</h3><p class="muted">Make this a repeating event without creating each date manually.</p><p id="advanced-recurrence-note" class="series-scope-note hidden">This repeat pattern was imported from another calendar and may use advanced rules. CalDen will preserve it unless you change the repeat controls below.</p></div>
