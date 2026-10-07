@@ -161,6 +161,15 @@
           <label>Name<input name="name" required maxlength="100" placeholder="Bills"></label>
           <label>Color<input name="color" type="color" value="#2f6fed" required></label>
           <label>Description<textarea name="description" rows="3" maxlength="500" placeholder="Optional"></textarea></label>
+          <section id="calendar-interop" class="interop-box hidden">
+            <div><h3>iCalendar</h3><p class="muted">Move this calendar between CalDen and other calendar software using standard .ics files.</p></div>
+            <div class="interop-actions">
+              <button id="export-calendar-ics" class="button secondary" type="button">Export .ics</button>
+              <label class="file-button">Choose .ics<input id="import-calendar-file" type="file" accept=".ics,text/calendar"></label>
+              <button id="import-calendar-ics" class="button secondary" type="button">Import .ics</button>
+            </div>
+            <p id="calendar-interop-status" class="status-line"></p>
+          </section>
           <fieldset><legend>Who can see it?</legend><div id="calendar-viewers" class="check-list"></div></fieldset>
           <fieldset><legend>Who can make changes?</legend><div id="calendar-editors" class="check-list"></div></fieldset>
           <div class="form-actions"><button id="delete-calendar" type="button" class="button danger hidden">Delete</button><span class="grow"></span><button id="cancel-calendar-edit" type="button" class="button secondary hidden">Cancel</button><button type="submit" class="button">Save calendar</button></div>
