@@ -20,7 +20,8 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 FROM alpine:3.22
 
-RUN addgroup -S calden \
+RUN apk add --no-cache ca-certificates postgresql-client tzdata \
+    && addgroup -S calden \
     && adduser -S -G calden calden \
     && mkdir -p /data /app \
     && chown -R calden:calden /data /app
@@ -29,6 +30,11 @@ WORKDIR /app
 
 COPY --from=build /out/calden /app/calden
 COPY web /app/web
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+
+USER root
+RUN chmod 0755 /app/docker-entrypoint.sh /app/calden \
+    && chown -R calden:calden /app /data
 
 USER calden
 
@@ -41,4 +47,4 @@ EXPOSE 8787
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=5 \
     CMD wget -q -O - http://127.0.0.1:8787/api/health | grep -q '"ok":true' || exit 1
 
-ENTRYPOINT ["/app/calden"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
