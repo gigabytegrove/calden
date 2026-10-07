@@ -489,6 +489,12 @@ function beginCategoryEdit(id){
   $("#category-error").textContent="";$("#category-status").textContent="";
 }
 
+function activateSettingsTab(tab){
+  if(tab==="general"&&state.me?.role!=="admin")tab="calendar";
+  state.settingsTab=tab;
+  $$(".settings-nav-item").forEach(button=>button.classList.toggle("active",button.dataset.settingsTab===tab));
+  $$("[data-settings-pane]").forEach(pane=>pane.classList.toggle("hidden",pane.dataset.settingsPane!==tab));
+}
 function renderSettings(){
   const form=$("#general-settings-form");
   if(form){
@@ -497,8 +503,22 @@ function renderSettings(){
     form.week_start.value=state.settings?.week_start||"sunday";
     form.default_view.value=String(state.settings?.default_view||7);
   }
+  renderEventControls();
+  const duration=$("#settings-default-duration"),scroll=$("#settings-scroll-now");
+  if(duration)duration.value=String(state.defaultDuration);
+  if(scroll)scroll.checked=state.scrollNow;
+  const visibility=$("#settings-calendar-visibility");
+  if(visibility){
+    visibility.innerHTML=state.calendars.map(cal=>`<label class="settings-calendar-choice"><input type="checkbox" data-calendar-visibility="${cal.id}" ${state.hiddenCalendars.has(cal.id)?"":"checked"}><span class="dot" style="--cal:${safeColor(cal.color)}"></span><span>${escapeHTML(cal.name)}</span></label>`).join("");
+    visibility.querySelectorAll("[data-calendar-visibility]").forEach(input=>input.addEventListener("change",()=>{
+      const id=input.dataset.calendarVisibility;
+      if(input.checked)state.hiddenCalendars.delete(id);else state.hiddenCalendars.add(id);
+      localStorage.setItem("calden_hidden_calendars",JSON.stringify([...state.hiddenCalendars]));
+      renderCalendar();renderAgenda();
+    }));
+  }
+  activateSettingsTab(state.settingsTab);
 }
-
 function updateRepeatUI(){
   const form=$("#event-form"),frequency=form.repeat_frequency.value,endType=form.repeat_end_type.value;
   $("#repeat-options").classList.toggle("hidden",!frequency);
