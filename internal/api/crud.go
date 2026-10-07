@@ -154,6 +154,9 @@ func (s *server) updateEvent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "Could not save event")
 		return
 	}
+	s.audit(r, "update", "event", &id, "Updated event "+cleanText(in.Title, 200), map[string]any{
+		"calendar_id": in.CalendarID, "category_id": in.CategoryID, "starts_at": in.StartsAt, "recurring": in.Recurrence != nil,
+	})
 	writeJSON(w, 200, map[string]any{"id": id})
 }
 
@@ -176,6 +179,7 @@ func (s *server) deleteEvent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "Could not delete event")
 		return
 	}
+	s.audit(r, "delete", "event", &id, "Deleted event", nil)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -208,6 +212,7 @@ func (s *server) updateCalendar(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 404, "Calendar not found")
 		return
 	}
+	s.audit(r, "update", "calendar", &id, "Updated calendar "+cleanText(in.Name, 100), map[string]any{"color": in.Color})
 	writeJSON(w, 200, map[string]any{"id": id})
 }
 
@@ -235,5 +240,6 @@ func (s *server) deleteCalendar(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 404, "Calendar not found")
 		return
 	}
+	s.audit(r, "delete", "calendar", &id, "Deleted calendar", nil)
 	w.WriteHeader(http.StatusNoContent)
 }
