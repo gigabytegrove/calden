@@ -85,6 +85,7 @@
       <button class="nav-item" data-page="notifications">Notifications</button>
       <button class="nav-item admin-only" data-page="integrations">Integrations</button>
       <button class="nav-item admin-only" data-page="updates">Updates</button>
+      <button class="nav-item admin-only" data-page="backups">Backups</button>
       <button class="nav-item admin-only" data-page="activity">Activity</button>
       <button class="nav-item" data-page="settings">Settings</button>
     </nav>
@@ -219,6 +220,31 @@
           <p id="update-pref-status" class="status-line"></p>
           <div class="safety-note"><strong>Update safety</strong><span>CalDen creates a PostgreSQL safety dump before installing, verifies SHA-256 checksums, verifies the new binary, and retains rollback metadata.</span></div>
         </aside>
+      </div>
+    </section>
+
+    <section id="page-backups" class="app-page hidden admin-only">
+      <div class="page-header">
+        <div><p class="eyebrow">Data protection</p><h2>Backups & Restore</h2><p class="muted">Create complete CalDen backups, keep server-side safety copies, and restore a validated backup without rebuilding the installation.</p></div>
+        <button id="create-backup" class="button" type="button">Create & download backup</button>
+      </div>
+      <div class="backup-layout">
+        <section class="panel stack">
+          <div><h3>Restore CalDen</h3><p class="muted">A restore is validated and staged first. CalDen creates another database safety backup before it applies the restore on restart.</p></div>
+          <label>CalDen backup file<input id="restore-file" type="file" accept=".tar.gz,.tgz,application/gzip"></label>
+          <div class="form-actions">
+            <button id="stage-restore" class="button secondary" type="button">Validate & stage restore</button>
+            <button id="cancel-restore" class="button secondary hidden" type="button">Cancel staged restore</button>
+            <span class="grow"></span>
+            <button id="restart-for-restore" class="button danger hidden" type="button">Restart & restore</button>
+          </div>
+          <p id="restore-status" class="status-line"></p>
+          <div id="restore-last-result" class="restore-result hidden"></div>
+        </section>
+        <section class="panel">
+          <div class="backup-heading"><div><h3>Saved safety backups</h3><p class="muted">Backups retained on the CalDen data volume, including automatic pre-update and pre-restore dumps.</p></div><button id="refresh-backups" class="button secondary compact" type="button">Refresh</button></div>
+          <div id="saved-backups" class="saved-backup-list"></div>
+        </section>
       </div>
     </section>
 
