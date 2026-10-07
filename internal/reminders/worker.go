@@ -25,6 +25,7 @@ type monitaSettings struct {
 
 type reminderSource struct {
 	ReminderID     uuid.UUID
+	EventID        uuid.UUID
 	MinutesBefore  int
 	Title          string
 	Location       string
@@ -85,6 +86,9 @@ func run(ctx context.Context, db *pgxpool.Pool) {
 			if occurrence.Start.Add(-offset).After(now) {
 				continue
 			}
+			if source.Rule != nil && occurrenceExcepted(ctx, db, source.EventID, occurrence.Start) {
+				continue
+			}
 			if alreadyDelivered(ctx, db, source.ReminderID, occurrence.Start) {
 				continue
 			}
@@ -125,7 +129,7 @@ func run(ctx context.Context, db *pgxpool.Pool) {
 
 func loadReminderSources(ctx context.Context, db *pgxpool.Pool) ([]reminderSource, error) {
 	rows, err := db.Query(ctx, `
-		SELECT r.id,r.minutes_before,e.title,e.location,e.starts_at,e.ends_at,r.destination,
+		SELECT r.id,e.id,r.minutes_before,e.title,e.location,e.starts_at,e.ends_at,r.destination,
 		       er.frequency,er.interval_value,er.weekdays,er.until_at,er.occurrence_count
 		FROM reminders r
 		JOIN events e ON e.id=r.event_id
@@ -152,7 +156,7 @@ func loadReminderSources(ctx context.Context, db *pgxpool.Pool) ([]reminderSourc
 		var until *time.Time
 		var count *int
 		if err := rows.Scan(
-			&source.ReminderID, &source.MinutesBefore, &source.Title, &source.Location,
+			&source.ReminderID, &source.EventID, &source.MinutesBefore, &source.Title, &source.Location,
 			&source.SeriesStart, &source.SeriesEnd, &source.Destination,
 			&frequency, &interval, &weekdaysRaw, &until, &count,
 		); err != nil {
@@ -171,6 +175,17 @@ func loadReminderSources(ctx context.Context, db *pgxpool.Pool) ([]reminderSourc
 		out = append(out, source)
 	}
 	return out, rows.Err()
+}
+
+func occurrenceExcepted(ctx context.Context, db *pgxpool.Pool, eventID uuid.UUID, occurrenceStart time.Time) bool {
+	var exists bool
+	if err := db.QueryRow(ctx, `SELECT EXISTS(
+		SELECT 1 FROM event_occurrence_exceptions
+		WHERE event_id=$1 AND original_start=$2
+	)`, eventID, occurrenceStart).Scan(&exists); err != nil {
+		return false
+	}
+	return exists
 }
 
 func alreadyDelivered(ctx context.Context, db *pgxpool.Pool, reminderID uuid.UUID, occurrenceStart time.Time) bool {
