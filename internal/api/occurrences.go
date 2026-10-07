@@ -72,11 +72,11 @@ func (s *server) updateOccurrence(w http.ResponseWriter, r *http.Request) {
 
 	if replacementID == uuid.Nil {
 		err = tx.QueryRow(r.Context(), `INSERT INTO events(
-				calendar_id,title,notes,location,starts_at,ends_at,all_day,created_by,
+				calendar_id,category_id,title,notes,location,starts_at,ends_at,all_day,created_by,
 				recurrence_parent_id,recurrence_original_start
-			) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+			) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
 			RETURNING id`,
-			in.Event.CalendarID, cleanText(in.Event.Title, 200), cleanText(in.Event.Notes, 5000),
+			in.Event.CalendarID, in.Event.CategoryID, cleanText(in.Event.Title, 200), cleanText(in.Event.Notes, 5000),
 			cleanText(in.Event.Location, 500), in.Event.StartsAt, in.Event.EndsAt, in.Event.AllDay,
 			currentActor(r).ID, parentID, in.OriginalStart).Scan(&replacementID)
 		if err != nil {
@@ -85,9 +85,9 @@ func (s *server) updateOccurrence(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		if _, err = tx.Exec(r.Context(), `UPDATE events
-			SET calendar_id=$2,title=$3,notes=$4,location=$5,starts_at=$6,ends_at=$7,all_day=$8,status='confirmed',updated_at=now()
+			SET calendar_id=$2,category_id=$3,title=$4,notes=$5,location=$6,starts_at=$7,ends_at=$8,all_day=$9,status='confirmed',updated_at=now()
 			WHERE id=$1`,
-			replacementID, in.Event.CalendarID, cleanText(in.Event.Title, 200), cleanText(in.Event.Notes, 5000),
+			replacementID, in.Event.CalendarID, in.Event.CategoryID, cleanText(in.Event.Title, 200), cleanText(in.Event.Notes, 5000),
 			cleanText(in.Event.Location, 500), in.Event.StartsAt, in.Event.EndsAt, in.Event.AllDay); err != nil {
 			writeError(w, 500, "Could not update occurrence override")
 			return
