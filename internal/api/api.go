@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	_ "time/tzdata"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
