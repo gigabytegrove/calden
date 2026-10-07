@@ -55,3 +55,21 @@ CalDen does not guess when it cannot establish a safe canonical destination.
 If the original export does not provide enough information to identify which stored event should survive, that duplicate group is left unchanged and reported for review.
 
 Backups are still recommended before any bulk repair operation.
+
+
+## Consecutive-day all-day display bug
+
+CalDen 0.1.0-alpha11.1 fixes a separate issue that could look like duplicate imported data even when only one event row existed.
+
+RFC 5545/iCalendar uses an **exclusive** `DTEND`. A one-day all-day event represented as:
+
+```text
+DTSTART;VALUE=DATE:20261006
+DTEND;VALUE=DATE:20261007
+```
+
+means **October 6 only**. October 7 is the exclusive end boundary.
+
+Earlier CalDen calendar rendering treated the end boundary as inclusive, so that single event could appear on both October 6 and October 7. That was a display/range-overlap bug, not necessarily two stored events.
+
+Alpha11.1 uses half-open ranges (`[start, end)`) consistently in the calendar UI and event-range queries. If a one-day all-day event appears on consecutive dates, update to Alpha11.1 before using the database duplicate repair tool.
