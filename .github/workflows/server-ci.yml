@@ -218,7 +218,7 @@ jobs:
             await categoryForm.locator('input[name="color"]').fill('#0ea5e9');
             await categoryForm.locator('textarea[name="description"]').fill('Trips and travel plans');
             await categoryForm.locator('button[type="submit"]').click();
-            await page.locator('#category-list').getByText('Travel').waitFor({ state: 'visible' });
+            await page.locator('#category-list').getByText('Travel', { exact: true }).waitFor({ state: 'visible' });
 
             await page.locator('.nav-item[data-page="settings"]').click();
             await page.locator('#page-settings').waitFor({ state: 'visible' });
