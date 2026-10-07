@@ -112,3 +112,24 @@ func TestGoogleCalendarDisplayNameUsesSpecialExportFilename(t *testing.T) {
 		t.Fatalf("expected normal Google calendar name to be preserved, got %q", got)
 	}
 }
+
+
+func TestChooseGoogleCalendarCandidateDoesNotGuessOnTie(t *testing.T) {
+	candidates := []googleCalendarCandidate{
+		{Name: "Family"},
+		{Name: "Appointments"},
+		{Name: "Work"},
+	}
+	best, score, _, ambiguous := chooseGoogleCalendarCandidate("Family Appointments", candidates)
+	if best == nil || score < 80 {
+		t.Fatalf("expected plausible candidates, got best=%#v score=%d", best, score)
+	}
+	if !ambiguous {
+		t.Fatalf("expected Family Appointments to require manual choice when Family and Appointments tie")
+	}
+
+	best, score, _, ambiguous = chooseGoogleCalendarCandidate("Bill Pay Calendar", []googleCalendarCandidate{{Name: "Bills"}, {Name: "Family"}})
+	if best == nil || best.Name != "Bills" || score < 90 || ambiguous {
+		t.Fatalf("expected unique Bills match, got best=%#v score=%d ambiguous=%v", best, score, ambiguous)
+	}
+}
