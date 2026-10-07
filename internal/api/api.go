@@ -213,10 +213,10 @@ func (s *server) setup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	settings := map[string]string{
-		"household_name": in.HouseholdName,
-		"timezone": in.Timezone,
+		"household_name":  in.HouseholdName,
+		"timezone":        in.Timezone,
 		"setup_completed": "true",
-		"setup_version": "1",
+		"setup_version":   "1",
 	}
 	for key, value := range settings {
 		if _, err = tx.Exec(r.Context(), `INSERT INTO app_settings(key,value) VALUES($1,$2)
