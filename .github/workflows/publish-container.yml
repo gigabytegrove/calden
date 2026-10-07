@@ -76,7 +76,10 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: |
             ghcr.io/gigabytegrove/calden:latest
+            ghcr.io/gigabytegrove/calden:0.1.0-alpha1
             ghcr.io/gigabytegrove/calden:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           labels: |
             org.opencontainers.image.title=CalDen
             org.opencontainers.image.description=A family calendar and scheduling system you control.
