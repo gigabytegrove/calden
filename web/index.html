@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#111827">
+  <meta name="theme-color" content="#f7f8fb">
   <title>CalDen</title>
   <link rel="stylesheet" href="/app.css">
 </head>
@@ -13,56 +13,42 @@
     <img class="brand-logo" src="/calden-logo-official.webp" alt="CalDen">
     <p class="brand-tagline">Your family calendar.</p>
     <div id="boot-status" class="boot-status" role="status">Starting CalDen…</div>
+
     <form id="setup-form" class="setup-wizard hidden" novalidate>
       <div class="setup-progress" aria-label="Setup progress">
-        <span class="setup-dot active" data-dot="0"></span>
-        <span class="setup-dot" data-dot="1"></span>
-        <span class="setup-dot" data-dot="2"></span>
-        <span class="setup-dot" data-dot="3"></span>
+        <span class="setup-dot active" data-dot="0"></span><span class="setup-dot" data-dot="1"></span>
+        <span class="setup-dot" data-dot="2"></span><span class="setup-dot" data-dot="3"></span>
       </div>
-
       <section class="setup-step" data-step="0">
-        <p class="eyebrow">Welcome to CalDen</p>
-        <h1>Set up your family calendar</h1>
+        <p class="eyebrow">Welcome to CalDen</p><h1>Set up your family calendar</h1>
         <p class="setup-copy">A few quick choices and CalDen will be ready to use.</p>
-        <label>What should we call your family calendar?
-          <input name="household_name" maxlength="100" placeholder="The Smith Family" required>
-        </label>
+        <label>What should we call your family calendar?<input name="household_name" maxlength="100" placeholder="The Smith Family" required></label>
         <input name="timezone" type="hidden">
-        <div class="setup-info">
-          <strong>Your time zone</strong>
-          <span id="setup-timezone">Detecting…</span>
-        </div>
+        <div class="setup-info"><strong>Your time zone</strong><span id="setup-timezone">Detecting…</span></div>
       </section>
-
       <section class="setup-step hidden" data-step="1">
-        <p class="eyebrow">Your account</p>
-        <h1>Create the administrator</h1>
+        <p class="eyebrow">Your account</p><h1>Create the administrator</h1>
         <p class="setup-copy">This is the first CalDen account. You can add everyone else after setup.</p>
         <label>Your name<input name="display_name" autocomplete="name" maxlength="100" required></label>
         <label>Username<input name="username" autocomplete="username" minlength="3" maxlength="50" required></label>
         <label>Password<input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
         <label>Confirm password<input name="confirm_password" type="password" autocomplete="new-password" minlength="8" required></label>
       </section>
-
       <section class="setup-step hidden" data-step="2">
-        <p class="eyebrow">Starter calendars</p>
-        <h1>What do you want to start with?</h1>
-        <p class="setup-copy">Pick any that are useful. You can add, rename, recolor, or remove calendars later.</p>
+        <p class="eyebrow">Starter calendars</p><h1>What do you want to start with?</h1>
+        <p class="setup-copy">Pick any that are useful. You can change these later.</p>
         <div class="starter-grid">
-          <label class="starter-option"><input type="checkbox" name="starter_calendar" value="family" checked><span><i style="--starter:#2563EB"></i><b>Family</b><small>Plans everyone shares</small></span></label>
-          <label class="starter-option"><input type="checkbox" name="starter_calendar" value="bills" checked><span><i style="--starter:#16A34A"></i><b>Bills</b><small>Payments and due dates</small></span></label>
-          <label class="starter-option"><input type="checkbox" name="starter_calendar" value="appointments" checked><span><i style="--starter:#7C3AED"></i><b>Appointments</b><small>Visits and scheduled appointments</small></span></label>
-          <label class="starter-option"><input type="checkbox" name="starter_calendar" value="school"><span><i style="--starter:#EAB308"></i><b>School</b><small>School events and deadlines</small></span></label>
-          <label class="starter-option"><input type="checkbox" name="starter_calendar" value="birthdays" checked><span><i style="--starter:#EC4899"></i><b>Birthdays</b><small>Birthdays and celebrations</small></span></label>
-          <label class="starter-option"><input type="checkbox" name="starter_calendar" value="work"><span><i style="--starter:#64748B"></i><b>Work</b><small>Work schedules and commitments</small></span></label>
+          <label class="starter-option"><input type="checkbox" name="starter_calendar" value="family" checked><span><i class="starter-blue"></i><b>Family</b><small>Plans everyone shares</small></span></label>
+          <label class="starter-option"><input type="checkbox" name="starter_calendar" value="bills" checked><span><i class="starter-green"></i><b>Bills</b><small>Payments and due dates</small></span></label>
+          <label class="starter-option"><input type="checkbox" name="starter_calendar" value="appointments" checked><span><i class="starter-purple"></i><b>Appointments</b><small>Visits and appointments</small></span></label>
+          <label class="starter-option"><input type="checkbox" name="starter_calendar" value="school"><span><i class="starter-yellow"></i><b>School</b><small>Events and deadlines</small></span></label>
+          <label class="starter-option"><input type="checkbox" name="starter_calendar" value="birthdays" checked><span><i class="starter-pink"></i><b>Birthdays</b><small>Birthdays and celebrations</small></span></label>
+          <label class="starter-option"><input type="checkbox" name="starter_calendar" value="work"><span><i class="starter-gray"></i><b>Work</b><small>Schedules and commitments</small></span></label>
         </div>
       </section>
-
       <section class="setup-step hidden" data-step="3">
-        <p class="eyebrow">Ready to go</p>
-        <h1>Finish setting up CalDen</h1>
-        <p class="setup-copy">CalDen will create your family space, administrator account, and starter calendars now.</p>
+        <p class="eyebrow">Ready to go</p><h1>Finish setting up CalDen</h1>
+        <p class="setup-copy">CalDen will create your family space, administrator, and starter calendars now.</p>
         <div class="setup-summary">
           <div><span>Family calendar</span><strong id="summary-household"></strong></div>
           <div><span>Administrator</span><strong id="summary-admin"></strong></div>
@@ -70,130 +56,202 @@
           <div><span>Starter calendars</span><strong id="summary-calendars"></strong></div>
         </div>
       </section>
-
       <div class="setup-actions">
-        <button id="setup-back" type="button" class="quiet hidden">Back</button>
-        <span class="grow"></span>
-        <button id="setup-next" type="button">Continue</button>
-        <button id="setup-finish" type="submit" class="hidden">Finish setup</button>
+        <button id="setup-back" type="button" class="button secondary hidden">Back</button><span class="grow"></span>
+        <button id="setup-next" type="button" class="button">Continue</button>
+        <button id="setup-finish" type="submit" class="button hidden">Finish setup</button>
       </div>
     </form>
+
     <form id="login-form" class="stack hidden">
       <h1>Welcome back</h1>
       <label>Username<input name="username" autocomplete="username" required></label>
       <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
-      <button type="submit">Sign in</button>
+      <button type="submit" class="button">Sign in</button>
     </form>
     <p id="auth-error" class="error"></p>
   </main>
 </div>
 
-<div id="app" class="app hidden">
-  <header class="topbar">
-    <img class="brand-logo" src="/calden-logo-official.webp" alt="CalDen">
-    <div class="top-actions"><button id="manage" class="quiet hidden">Manage</button><span id="me"></span><button id="logout" class="quiet">Sign out</button></div>
-  </header>
-  <main class="page">
-    <section class="hero">
-      <div><p class="eyebrow" id="today-label"></p><h1 id="view-title">Calendar</h1><p id="household-label" class="hero-household"></p></div>
-      <button id="new-event">+ Add event</button>
-    </section>
+<div id="app" class="app-shell hidden">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><img src="/calden-logo-official.webp" alt="CalDen"></div>
+    <nav class="primary-nav" aria-label="Main navigation">
+      <button class="nav-item active" data-page="calendar">Calendar</button>
+      <button class="nav-item" data-page="agenda">Agenda</button>
+      <button class="nav-item admin-only" data-page="people">People</button>
+      <button class="nav-item admin-only" data-page="calendars">Calendars</button>
+      <button class="nav-item" data-page="notifications">Notifications</button>
+      <button class="nav-item admin-only" data-page="integrations">Integrations</button>
+      <button class="nav-item admin-only" data-page="updates">Updates</button>
+      <button class="nav-item" data-page="settings">Settings</button>
+    </nav>
+    <div class="sidebar-account">
+      <div class="account-badge" id="sidebar-avatar">?</div>
+      <div class="account-copy"><strong id="sidebar-name"></strong><span id="sidebar-role"></span></div>
+      <button id="logout" class="text-button" type="button">Sign out</button>
+    </div>
+  </aside>
 
-    <section class="calendar-toolbar" aria-label="Calendar controls">
-      <div class="date-nav">
-        <button id="calendar-prev" class="quiet" type="button" aria-label="Previous period">‹</button>
-        <button id="calendar-today" class="quiet" type="button">Today</button>
-        <button id="calendar-next" class="quiet" type="button" aria-label="Next period">›</button>
-        <strong id="calendar-range-label"></strong>
+  <main class="workspace">
+    <header class="workspace-topbar">
+      <button id="mobile-menu" class="icon-button mobile-only" type="button" aria-label="Open menu">☰</button>
+      <div><p class="workspace-household" id="household-label"></p><h1 id="page-title">Calendar</h1></div>
+      <button id="new-event" class="button">+ Add event</button>
+    </header>
+
+    <section id="page-calendar" class="app-page">
+      <div class="calendar-toolbar">
+        <div class="date-nav">
+          <button id="calendar-prev" class="button secondary compact" type="button" aria-label="Previous period">‹</button>
+          <button id="calendar-today" class="button secondary compact" type="button">Today</button>
+          <button id="calendar-next" class="button secondary compact" type="button" aria-label="Next period">›</button>
+          <strong id="calendar-range-label"></strong>
+        </div>
+        <div class="view-switcher" role="group" aria-label="Calendar view">
+          <button type="button" data-days="1">1 Day</button><button type="button" data-days="7">7 Day</button>
+          <button type="button" data-days="14">14 Day</button><button type="button" data-days="30">30 Day</button>
+        </div>
       </div>
-      <div class="view-switcher" role="group" aria-label="Calendar view">
-        <button type="button" data-days="1">1 Day</button>
-        <button type="button" data-days="7">7 Day</button>
-        <button type="button" data-days="14">14 Day</button>
-        <button type="button" data-days="30">30 Day</button>
-      </div>
-    </section>
-
-    <section id="calendar-strip" class="calendar-strip" aria-label="Visible calendars"></section>
-
-    <section class="calendar-shell">
+      <div id="calendar-strip" class="calendar-strip" aria-label="Visible calendars"></div>
       <div id="calendar-view" class="calendar-view"></div>
     </section>
 
-    <section class="agenda-section">
-      <div class="section-title"><h2>Agenda</h2><span id="event-count"></span></div>
+    <section id="page-agenda" class="app-page hidden">
+      <div class="page-header"><div><p class="eyebrow">Everything in order</p><h2>Agenda</h2></div>
+        <div class="agenda-tools"><input id="agenda-search" type="search" placeholder="Search events"><span id="event-count"></span></div></div>
       <div id="events" class="events"></div>
     </section>
+
+    <section id="page-people" class="app-page hidden admin-only">
+      <div class="page-header"><div><p class="eyebrow">Family members</p><h2>People</h2><p class="muted">Manage sign-in access, roles, passwords, and who events can be assigned to.</p></div></div>
+      <div class="management-layout">
+        <div id="people-list" class="card-list"></div>
+        <form id="person-form" class="panel stack">
+          <input type="hidden" name="user_id">
+          <div><p class="eyebrow" id="person-form-eyebrow">New person</p><h3 id="person-form-title">Add a family member</h3></div>
+          <label>Name<input name="display_name" required maxlength="100"></label>
+          <label>Username<input name="username" minlength="3" maxlength="50"></label>
+          <label id="person-password-label">Temporary password<input name="password" type="password" minlength="8" autocomplete="new-password"></label>
+          <label>Account type<select name="role"><option value="member">Family member</option><option value="restricted">Restricted member</option><option value="admin">Administrator</option></select></label>
+          <label id="person-active-row" class="toggle-row hidden"><input name="active" type="checkbox" checked><span>Account is active</span></label>
+          <div class="form-actions"><button id="cancel-person-edit" type="button" class="button secondary hidden">Cancel</button><button type="submit" class="button">Save person</button></div>
+          <p id="person-error" class="error"></p><p id="person-status" class="success"></p>
+        </form>
+      </div>
+    </section>
+
+    <section id="page-calendars" class="app-page hidden admin-only">
+      <div class="page-header"><div><p class="eyebrow">Schedule organization</p><h2>Calendars</h2><p class="muted">A calendar owns its event color. Access and editing are controlled per calendar.</p></div></div>
+      <div class="management-layout">
+        <div id="calendar-list" class="card-list"></div>
+        <form id="calendar-form" class="panel stack">
+          <input type="hidden" name="calendar_id">
+          <div><p class="eyebrow" id="calendar-form-eyebrow">New calendar</p><h3 id="calendar-form-title">Create a calendar</h3></div>
+          <label>Name<input name="name" required maxlength="100" placeholder="Bills"></label>
+          <label>Color<input name="color" type="color" value="#2f6fed" required></label>
+          <label>Description<textarea name="description" rows="3" maxlength="500" placeholder="Optional"></textarea></label>
+          <fieldset><legend>Who can see it?</legend><div id="calendar-viewers" class="check-list"></div></fieldset>
+          <fieldset><legend>Who can make changes?</legend><div id="calendar-editors" class="check-list"></div></fieldset>
+          <div class="form-actions"><button id="delete-calendar" type="button" class="button danger hidden">Delete</button><span class="grow"></span><button id="cancel-calendar-edit" type="button" class="button secondary hidden">Cancel</button><button type="submit" class="button">Save calendar</button></div>
+          <p id="calendar-error" class="error"></p><p id="calendar-status" class="success"></p>
+        </form>
+      </div>
+    </section>
+
+    <section id="page-notifications" class="app-page hidden">
+      <div class="page-header"><div><p class="eyebrow">Reminders and alerts</p><h2>Notifications</h2><p class="muted">Personal reminders and household reminders are separate on purpose.</p></div></div>
+      <div class="settings-grid">
+        <article class="panel"><h3>Personal phone reminders</h3><p>Phone reminders belong to the person using the Android app. Each event can have its own lead time.</p><div class="feature-row"><strong>Provider</strong><span>Android</span></div><div class="feature-row"><strong>Configured</strong><span>Per event</span></div></article>
+        <article class="panel"><h3>Household reminders</h3><p>Household reminders are sent by the CalDen server through Monita and continue even if a phone is offline.</p><div class="feature-row"><strong>Provider</strong><span>Monita</span></div><div class="feature-row"><strong>Delivery retry</strong><span>Automatic</span></div></article>
+      </div>
+    </section>
+
+    <section id="page-integrations" class="app-page hidden admin-only">
+      <div class="page-header"><div><p class="eyebrow">Connected services</p><h2>Integrations</h2><p class="muted">Connect CalDen to the services your household already uses.</p></div></div>
+      <div class="integration-layout">
+        <article class="panel integration-summary"><div class="integration-icon">M</div><div><h3>Monita</h3><p>Send household-wide event reminders through Monita.</p></div></article>
+        <form id="monita-form" class="panel stack">
+          <label class="toggle-row"><input name="enabled" type="checkbox"><span>Use Monita for family reminders</span></label>
+          <label>Monita server<input name="server_url" placeholder="https://notify.example.com"></label>
+          <label>Token<input name="token" type="password" autocomplete="off" placeholder="Your Monita token"></label>
+          <label>Default channel<input name="default_channel" placeholder="Family"></label>
+          <div class="form-actions"><button id="test-monita" type="button" class="button secondary">Send test</button><button type="submit" class="button">Save Monita</button></div>
+          <p id="monita-status" class="status-line"></p>
+        </form>
+      </div>
+    </section>
+
+    <section id="page-updates" class="app-page hidden admin-only">
+      <div class="page-header"><div><p class="eyebrow">System maintenance</p><h2>Updates</h2><p class="muted">Review releases, safety backup status, installation progress, and rollback before changing the running system.</p></div></div>
+      <div class="update-layout">
+        <article class="panel update-card">
+          <div class="update-version-row"><div><span>Installed</span><strong id="update-current">Checking…</strong></div><div><span>Latest eligible</span><strong id="update-latest">Checking…</strong></div></div>
+          <div id="update-state" class="update-state">Checking for updates…</div>
+          <div id="update-progress-wrap" class="progress-wrap hidden"><div class="progress-track"><span id="update-progress"></span></div><strong id="update-progress-label">0%</strong></div>
+          <div id="update-release-notes" class="release-notes"></div>
+          <div id="update-activity" class="activity-list"></div>
+          <div class="form-actions"><button id="check-updates" class="button secondary" type="button">Check again</button><button id="rollback-update" class="button secondary hidden" type="button">Roll back</button><button id="apply-update" class="button hidden" type="button">Install update</button></div>
+        </article>
+        <aside class="panel stack">
+          <div><h3>Update preferences</h3><p class="muted">Choose how early you want to see development releases.</p></div>
+          <label>Update channel<select id="update-channel"><option value="stable">Stable</option><option value="rc">Release candidate</option><option value="beta">Beta</option><option value="alpha">Alpha</option><option value="preview">Preview</option></select></label>
+          <label class="toggle-row"><input id="update-auto-check" type="checkbox" checked><span>Automatically check when Updates is opened</span></label>
+          <button id="save-update-prefs" type="button" class="button">Save update preferences</button>
+          <p id="update-pref-status" class="status-line"></p>
+          <div class="safety-note"><strong>Update safety</strong><span>CalDen creates a PostgreSQL safety dump before installing, verifies SHA-256 checksums, verifies the new binary, and retains rollback metadata.</span></div>
+        </aside>
+      </div>
+    </section>
+
+    <section id="page-settings" class="app-page hidden">
+      <div class="page-header"><div><p class="eyebrow">CalDen preferences</p><h2>Settings</h2><p class="muted">Household, calendar display, and account information live here.</p></div></div>
+      <div class="settings-grid">
+        <form id="general-settings-form" class="panel stack admin-settings">
+          <div><h3>Household</h3><p class="muted">These settings affect dates and schedule layout throughout CalDen.</p></div>
+          <label>Family calendar name<input name="household_name" maxlength="100" required></label>
+          <label>Time zone<input name="timezone" required placeholder="America/New_York"></label>
+          <label>Week starts on<select name="week_start"><option value="sunday">Sunday</option><option value="monday">Monday</option></select></label>
+          <label>Default calendar view<select name="default_view"><option value="1">1 Day</option><option value="7">7 Day</option><option value="14">14 Day</option><option value="30">30 Day</option></select></label>
+          <button type="submit" class="button">Save household settings</button>
+          <p id="general-settings-status" class="status-line"></p>
+        </form>
+        <article class="panel"><h3>Your account</h3><div class="feature-row"><strong>Name</strong><span id="settings-account-name"></span></div><div class="feature-row"><strong>Username</strong><span id="settings-account-username"></span></div><div class="feature-row"><strong>Role</strong><span id="settings-account-role"></span></div></article>
+      </div>
+    </section>
   </main>
-  <nav class="bottom-nav">
-    <button id="nav-today" class="active">Today</button><button id="nav-calendar">Calendar</button><button id="nav-add">Add</button><button>Notifications</button><button id="nav-more">More</button>
+
+  <nav class="mobile-nav">
+    <button class="active" data-page="calendar">Calendar</button><button data-page="agenda">Agenda</button><button id="nav-add" type="button">Add</button><button data-page="settings">Settings</button>
   </nav>
 </div>
 
 <dialog id="event-dialog">
-  <form id="event-form" class="stack">
-    <div class="dialog-head"><h2 id="event-dialog-title">Add event</h2><button type="button" class="icon-button" data-close-event>×</button></div><input type="hidden" name="event_id">
-    <label>What?<input name="title" required maxlength="200" placeholder="Electric bill"></label>
-    <label>Calendar<select name="calendar_id" id="calendar-select" required></select></label>
-    <div class="two"><label>Starts<input name="starts_at" type="datetime-local" required></label><label>Ends<input name="ends_at" type="datetime-local" required></label></div>
-    <fieldset><legend>Who is this for?</legend><div id="people-picker" class="people-picker"></div></fieldset>
-    <label>Where?<input name="location" maxlength="500" placeholder="Optional"></label>
-    <label>Notes<textarea name="notes" rows="3" maxlength="5000" placeholder="Optional"></textarea></label>
-    <label>Phone reminder
-      <select name="personal_reminder"><option value="">None</option><option value="10">10 minutes before</option><option value="30">30 minutes before</option><option value="60">1 hour before</option><option value="1440">1 day before</option></select>
-    </label>
-    <label class="toggle-row"><input name="system_reminder_enabled" type="checkbox"> <span>Also remind the family through Monita</span></label>
-    <label id="system-reminder-time" class="hidden">Family reminder
-      <select name="system_reminder"><option value="60">1 hour before</option><option value="120">2 hours before</option><option value="1440">1 day before</option><option value="4320">3 days before</option><option value="10080">1 week before</option></select>
-    </label>
-    <div class="dialog-actions"><button id="delete-event" type="button" class="danger hidden">Delete</button><span class="grow"></span><button type="button" class="quiet" data-close-event>Cancel</button><button type="submit">Save event</button></div>
+  <form id="event-form" class="event-editor">
+    <div class="dialog-head"><div><p class="eyebrow">Schedule</p><h2 id="event-dialog-title">Add event</h2></div><button type="button" class="icon-button" data-close-event>×</button></div>
+    <input type="hidden" name="event_id">
+    <div class="event-editor-grid">
+      <div class="stack">
+        <label>Event name<input name="title" required maxlength="200" placeholder="Electric bill"></label>
+        <label>Calendar<select name="calendar_id" id="calendar-select" required></select></label>
+        <div class="two"><label>Starts<input name="starts_at" type="datetime-local" required></label><label>Ends<input name="ends_at" type="datetime-local" required></label></div>
+        <label class="toggle-row"><input name="all_day" type="checkbox"><span>All-day event</span></label>
+        <fieldset><legend>Who is this for?</legend><div id="people-picker" class="people-picker"></div></fieldset>
+        <label>Location<input name="location" maxlength="500" placeholder="Optional"></label>
+        <label>Notes<textarea name="notes" rows="4" maxlength="5000" placeholder="Optional"></textarea></label>
+      </div>
+      <div class="stack reminder-panel">
+        <div><h3>Reminders</h3><p class="muted">Choose personal and household reminders separately.</p></div>
+        <label>Phone reminder<select name="personal_reminder"><option value="">None</option><option value="10">10 minutes before</option><option value="30">30 minutes before</option><option value="60">1 hour before</option><option value="120">2 hours before</option><option value="1440">1 day before</option></select></label>
+        <label class="toggle-row"><input name="system_reminder_enabled" type="checkbox"><span>Also remind the household through Monita</span></label>
+        <label id="system-reminder-time" class="hidden">Household reminder<select name="system_reminder"><option value="60">1 hour before</option><option value="120">2 hours before</option><option value="1440">1 day before</option><option value="4320">3 days before</option><option value="10080">1 week before</option></select></label>
+      </div>
+    </div>
+    <div class="dialog-actions"><button id="delete-event" type="button" class="button danger hidden">Delete event</button><span class="grow"></span><button type="button" class="button secondary" data-close-event>Cancel</button><button type="submit" class="button">Save event</button></div>
     <p id="event-error" class="error"></p>
   </form>
 </dialog>
 
-<dialog id="manage-dialog">
-  <div class="manage-shell">
-    <div class="dialog-head"><div><p class="eyebrow">Family settings</p><h2>Manage CalDen</h2></div><button type="button" class="icon-button" data-close-manage>×</button></div>
-    <div class="manage-grid">
-      <section>
-        <h3>People</h3>
-        <div id="people-list" class="simple-list"></div>
-        <form id="person-form" class="stack compact">
-          <h4>Add a person</h4>
-          <label>Name<input name="display_name" required maxlength="100"></label>
-          <label>Username<input name="username" required minlength="3" maxlength="50"></label>
-          <label>Temporary password<input name="password" type="password" required minlength="8"></label>
-          <label>Account type<select name="role"><option value="member">Family member</option><option value="restricted">Restricted member</option><option value="admin">Administrator</option></select></label>
-          <button type="submit">Add person</button><p id="person-error" class="error"></p>
-        </form>
-      </section>
-      <section>
-        <h3>Calendars</h3>
-        <div id="calendar-list" class="simple-list"></div>
-        <form id="calendar-form" class="stack compact">
-          <h4>Add a calendar</h4>
-          <label>Name<input name="name" required maxlength="100" placeholder="Bills"></label>
-          <label>Color<input name="color" type="color" value="#2f6fed" required></label>
-          <label>Description<input name="description" maxlength="500" placeholder="Optional"></label>
-          <fieldset><legend>Who can see it?</legend><div id="calendar-viewers" class="check-list"></div></fieldset>
-          <fieldset><legend>Who can make changes?</legend><div id="calendar-editors" class="check-list"></div></fieldset>
-          <button type="submit">Create calendar</button><p id="calendar-error" class="error"></p>
-        </form>
-      </section>
-    </div>
-    <section class="integration-card">
-      <div><p class="eyebrow">System reminders</p><h3>Monita</h3><p class="muted">CalDen can send household-wide reminders through your Monita server.</p></div>
-      <form id="monita-form" class="stack">
-        <label class="toggle-row"><input name="enabled" type="checkbox"> <span>Use Monita for family reminders</span></label>
-        <label>Monita server<input name="server_url" placeholder="https://notify.example.com"></label>
-        <label>Token<input name="token" type="password" autocomplete="off" placeholder="Your Monita token"></label>
-        <label>Default channel<input name="default_channel" placeholder="Family"></label>
-        <div class="dialog-actions"><button id="test-monita" type="button" class="quiet">Send test</button><button type="submit">Save Monita</button></div>
-        <p id="monita-status" class="muted"></p>
-      </form>
-    </section>
-  </div>
-</dialog>
 <script src="/app.js" defer></script>
 </body>
 </html>
