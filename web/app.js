@@ -1,3 +1,19 @@
+window.addEventListener("error",()=>showBootFailure());
+window.addEventListener("unhandledrejection",()=>showBootFailure());
+
+function showBootFailure(){
+  const el=document.querySelector("#boot-status");
+  if(!el)return;
+  el.classList.remove("hidden");
+  el.classList.add("boot-error");
+  el.textContent="CalDen could not finish loading. Refresh the page. If this continues, check the CalDen container logs.";
+}
+
+function hideBootStatus(){
+  const el=document.querySelector("#boot-status");
+  if(el)el.classList.add("hidden");
+}
+
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 const state={token:localStorage.getItem("calden_token")||"",me:null,settings:null,users:[],calendars:[],events:[],editingEvent:null,setupStep:0};
 
@@ -12,6 +28,7 @@ async function api(path,options={}){
 function setToken(token){state.token=token||"";if(token)localStorage.setItem("calden_token",token);else localStorage.removeItem("calden_token")}
 function formJSON(form){return Object.fromEntries(new FormData(form).entries())}
 function showAuth(which){
+  hideBootStatus();
   $("#app").classList.add("hidden");
   $("#auth").classList.remove("hidden");
   $("#setup-form").classList.toggle("hidden",which!=="setup");
@@ -48,6 +65,7 @@ async function loadEvents(){
   state.events=await api(`/api/events?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`);
 }
 function render(){
+  hideBootStatus();
   $("#auth").classList.add("hidden");$("#app").classList.remove("hidden");
   $("#me").textContent=state.me.display_name;
   $("#household-label").textContent=state.settings?.household_name||"";
