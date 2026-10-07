@@ -86,6 +86,7 @@ func New(cfg Config) http.Handler {
 	mux.Handle("GET /api/integrations/monita", s.auth(s.admin(http.HandlerFunc(s.getMonitaIntegration))))
 	mux.Handle("PUT /api/integrations/monita", s.auth(s.admin(http.HandlerFunc(s.saveMonitaIntegration))))
 	mux.Handle("POST /api/integrations/monita/test", s.auth(s.admin(http.HandlerFunc(s.testMonitaIntegration))))
+	mux.Handle("POST /api/integrations/google/preview", s.auth(s.admin(http.HandlerFunc(s.previewGoogleCalendarExport))))
 	mux.Handle("POST /api/integrations/google/import", s.auth(s.admin(http.HandlerFunc(s.importGoogleCalendarExport))))
 	mux.Handle("GET /api/system/update", s.auth(s.admin(http.HandlerFunc(s.updateCheck))))
 	mux.Handle("GET /api/system/update/status", s.auth(s.admin(http.HandlerFunc(s.updateStatus))))
