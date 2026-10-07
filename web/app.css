@@ -83,7 +83,7 @@ dialog{border:0;padding:0;width:min(900px,calc(100% - 28px));max-height:92vh;box
 /* Mobile */
 @media(max-width:900px){
   .app-shell{grid-template-columns:1fr}.sidebar{position:fixed;left:-260px;width:240px;box-shadow:12px 0 30px rgba(20,30,45,.12);transition:left .18s}.sidebar.open{left:0}.mobile-only{display:block}.workspace-topbar{padding:0 18px}.app-page{padding:20px 16px 85px}
-  .mobile-nav{display:grid;position:fixed;bottom:0;left:0;right:0;grid-template-columns:repeat(4,1fr);height:60px;background:#fff;border-top:1px solid #dde2e9;z-index:18}.mobile-nav button{border:0;background:#fff;color:#737e8e;font-size:.72rem;font-weight:750}.mobile-nav button.active{color:#1c293d;background:#f3f5f8}
+  .mobile-nav{display:grid;position:fixed;bottom:0;left:0;right:0;grid-template-columns:repeat(auto-fit,minmax(58px,1fr));height:60px;background:#fff;border-top:1px solid #dde2e9;z-index:18}.mobile-nav button{border:0;background:#fff;color:#737e8e;font-size:.72rem;font-weight:750}.mobile-nav button.active{color:#1c293d;background:#f3f5f8}
   .calendar-toolbar{align-items:flex-start;flex-direction:column}.management-layout,.settings-grid,.integration-layout,.update-layout,.event-editor-grid{grid-template-columns:1fr}.reminder-panel{border-left:0;border-top:1px solid #e6e9ee;padding-left:0;padding-top:18px}
 }
 @media(max-width:620px){
@@ -255,3 +255,43 @@ input:focus,select:focus,textarea:focus{border-color:#596b83;box-shadow:0 0 0 3p
   .google-import-calendar{grid-template-columns:1fr}.google-import-calendar>span{justify-self:start}
 }
 
+
+
+/* Bill Pay */
+.field-help{font-size:.72rem;line-height:1.4;color:#7b8696;font-weight:500}
+.bill-month-toolbar{display:flex;justify-content:space-between;align-items:center;margin:-4px 0 16px;background:#fff;border:1px solid var(--panel-border);border-radius:10px;padding:10px 12px;box-shadow:0 1px 2px rgba(16,24,40,.025)}
+.bill-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:18px}
+.bill-stat{background:#fff;border:1px solid var(--panel-border);border-radius:10px;padding:15px 16px;display:grid;gap:3px;box-shadow:var(--panel-shadow)}
+.bill-stat span{font-size:.69rem;text-transform:uppercase;letter-spacing:.055em;color:#7f8998;font-weight:800}
+.bill-stat strong{font-size:1.42rem;color:#263248}.bill-stat small{font-size:.72rem;color:#7b8594}
+.bill-breakdown-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-bottom:18px}
+.bill-breakdown{padding:0;overflow:hidden}.bill-section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:16px 18px;border-bottom:1px solid #e8ebef}
+.bill-section-head h3{margin:0 0 3px}.bill-section-head p{margin:0}.bill-section-head>span{font-size:.75rem;color:#7c8796;padding-top:3px}
+.bill-breakdown-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:center;padding:11px 18px;border-bottom:1px solid #edf0f3}
+.bill-breakdown-row:last-child{border-bottom:0}.bill-breakdown-row>div{display:grid;gap:2px;min-width:0}.bill-breakdown-row>div:last-child{text-align:right}
+.bill-breakdown-row strong{font-size:.84rem}.bill-breakdown-row small{font-size:.7rem;color:#7a8494}
+.bill-empty-small{padding:18px;color:#7a8494;font-size:.8rem}
+.bill-schedule{padding:0;overflow:hidden}.bill-list{display:grid}
+.bill-row{display:grid;grid-template-columns:92px minmax(0,1fr) auto;gap:15px;align-items:center;border:0;border-bottom:1px solid #edf0f3;background:#fff;color:#263248;text-align:left;padding:12px 18px}
+.bill-row:last-child{border-bottom:0}.bill-row:hover{background:#f8fafb}.bill-due,.bill-row-main,.bill-row-amount{display:grid;gap:2px}
+.bill-due strong,.bill-row-main strong,.bill-row-amount strong{font-size:.85rem}.bill-due small,.bill-row-main small,.bill-row-amount small{font-size:.7rem;color:#7b8594}
+.bill-row-amount{text-align:right;min-width:105px}.bill-row-amount.estimated strong{font-style:italic}
+.bill-event-details{display:grid;gap:12px;border:1px solid #dfe5ec;background:#f8fafb;padding:14px;border-radius:8px}
+.bill-event-details h3{margin-bottom:3px}.money-input{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;border:1px solid #cdd5e0;border-radius:8px;background:#fff;overflow:hidden}
+.money-input:focus-within{border-color:#596b83;box-shadow:0 0 0 3px rgba(64,82,110,.11)}
+.money-input>span{padding-left:11px;color:#697586;font-weight:750}.money-input input{border:0;box-shadow:none!important}
+@media(max-width:900px){.bill-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.bill-breakdown-grid{grid-template-columns:1fr}}
+@media(max-width:620px){.bill-summary{grid-template-columns:1fr 1fr;gap:8px}.bill-stat{padding:12px}.bill-stat strong{font-size:1.15rem}.bill-row{grid-template-columns:72px minmax(0,1fr)}.bill-row-amount{grid-column:2;text-align:left}.bill-month-toolbar .date-nav{width:100%}}
+
+/* Google Calendar mapping review */
+.google-import-mapping{border-top:1px solid #e8ecf1;padding-top:13px;display:grid;gap:10px}
+.google-mapping-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;padding:3px 0 5px}
+.google-mapping-head>div{display:grid;gap:2px}.google-mapping-head strong{font-size:.86rem}.google-mapping-head span{font-size:.71rem;color:#7c8796}
+.google-mapping-head>span{white-space:nowrap;background:#eef2f6;border-radius:999px;padding:4px 7px;font-weight:750}
+.google-mapping-list{display:grid;gap:8px}
+.google-mapping-row{display:grid;grid-template-columns:minmax(150px,.8fr) minmax(230px,1fr) minmax(180px,.8fr);gap:12px;align-items:center;border:1px solid #dfe5ec;border-radius:9px;padding:11px;background:#fff}
+.google-mapping-source{display:grid;gap:2px;min-width:0}.google-mapping-source strong{font-size:.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.google-mapping-source small{font-size:.68rem;color:#7c8796;line-height:1.35}
+.google-mapping-row label{font-size:.7rem}.google-mapping-row select{padding:.58rem .65rem;font-size:.78rem}
+.google-match-reason{display:grid;gap:2px;border-left:3px solid #b8c1cd;padding-left:9px}.google-match-reason.match-good{border-left-color:#278154}.google-match-reason strong{font-size:.7rem}.google-match-reason span{font-size:.67rem;color:#758193;line-height:1.35}
+.google-import-warnings{display:grid;gap:5px;border:1px solid #e4d7ae;background:#fffaf0;border-radius:8px;padding:10px 11px;font-size:.73rem;color:#695c34}.google-import-warnings strong{font-size:.76rem}
+@media(max-width:900px){.google-mapping-row{grid-template-columns:1fr}.google-match-reason{border-left:0;border-top:3px solid #b8c1cd;padding:8px 0 0}.google-match-reason.match-good{border-top-color:#278154}}
