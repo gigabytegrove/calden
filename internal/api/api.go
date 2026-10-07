@@ -134,6 +134,20 @@ func (s *server) static() http.Handler {
 			writeError(w, http.StatusNotFound, "Not found")
 			return
 		}
+
+		// CalDen is frequently updated in place. HTML, JavaScript, and CSS must
+		// be revalidated after an update so an older app.js cannot keep running
+		// against a newer server and make a fixed calendar bug appear unchanged.
+		switch strings.ToLower(filepath.Ext(r.URL.Path)) {
+		case ".html", ".js", ".css":
+			w.Header().Set("Cache-Control", "no-store, max-age=0")
+			w.Header().Set("Pragma", "no-cache")
+		}
+		if r.URL.Path == "/" {
+			w.Header().Set("Cache-Control", "no-store, max-age=0")
+			w.Header().Set("Pragma", "no-cache")
+		}
+
 		path := filepath.Join(s.webDir, filepath.Clean(r.URL.Path))
 		if r.URL.Path != "/" {
 			if info, err := os.Stat(path); err == nil && !info.IsDir() {
@@ -141,6 +155,8 @@ func (s *server) static() http.Handler {
 				return
 			}
 		}
+		w.Header().Set("Cache-Control", "no-store, max-age=0")
+		w.Header().Set("Pragma", "no-cache")
 		http.ServeFile(w, r, filepath.Join(s.webDir, "index.html"))
 	})
 }
