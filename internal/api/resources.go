@@ -251,10 +251,11 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows, err := s.db.Query(r.Context(), `SELECT e.id,e.calendar_id,e.title,e.notes,e.location,e.starts_at,e.ends_at,e.all_day,e.status,
-		c.name,c.color,er.frequency,er.interval_value,er.weekdays,er.until_at,er.occurrence_count
+	rows, err := s.db.Query(r.Context(), `SELECT e.id,e.calendar_id,e.category_id,e.title,e.notes,e.location,e.starts_at,e.ends_at,e.all_day,e.status,
+		c.name,c.color,cat.name,cat.color,er.frequency,er.interval_value,er.weekdays,er.until_at,er.occurrence_count
 		FROM events e
 		JOIN calendars c ON c.id=e.calendar_id
+		LEFT JOIN categories cat ON cat.id=e.category_id
 		LEFT JOIN calendar_permissions p ON p.calendar_id=c.id AND p.user_id=$1
 		LEFT JOIN event_recurrence er ON er.event_id=e.id
 		WHERE e.recurrence_parent_id IS NULL
@@ -274,7 +275,9 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 	out := []map[string]any{}
 	for rows.Next() {
 		var id, calID uuid.UUID
-		var title, notes, location, status, calName, color string
+		var categoryID *uuid.UUID
+		var title, notes, location, status, calName, calendarColor string
+		var categoryName, categoryColor *string
 		var startAt, endAt time.Time
 		var allDay bool
 		var frequency *string
@@ -283,7 +286,8 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 		var until *time.Time
 		var count *int
 
-		if rows.Scan(&id, &calID, &title, &notes, &location, &startAt, &endAt, &allDay, &status, &calName, &color,
+		if rows.Scan(&id, &calID, &categoryID, &title, &notes, &location, &startAt, &endAt, &allDay, &status,
+			&calName, &calendarColor, &categoryName, &categoryColor,
 			&frequency, &interval, &weekdaysRaw, &until, &count) != nil {
 			continue
 		}
@@ -323,12 +327,17 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 			if exceptions[occurrence.Start] {
 				continue
 			}
+			displayColor := calendarColor
+			if categoryColor != nil && *categoryColor != "" {
+				displayColor = *categoryColor
+			}
 			out = append(out, map[string]any{
-				"id": id, "series_id": id, "calendar_id": calID,
+				"id": id, "series_id": id, "calendar_id": calID, "category_id": categoryID,
+				"category_name": categoryName, "category_color": categoryColor, "calendar_color": calendarColor,
 				"title": title, "notes": notes, "location": location,
 				"starts_at": occurrence.Start, "ends_at": occurrence.End,
 				"series_starts_at": startAt, "series_ends_at": endAt,
-				"all_day": allDay, "status": status, "calendar_name": calName, "color": color,
+				"all_day": allDay, "status": status, "calendar_name": calName, "color": displayColor,
 				"assignees": assignees, "reminders": reminders, "recurrence": rule,
 				"is_recurring": rule != nil, "is_occurrence_override": false,
 				"occurrence_index": occurrence.Index, "occurrence_start": occurrence.Start,
@@ -341,17 +350,19 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	overrideRows, err := s.db.Query(r.Context(), `SELECT
-		parent.id,parent.calendar_id,parent.title,parent.notes,parent.location,parent.starts_at,parent.ends_at,parent.all_day,parent.status,
-		pc.name,pc.color,
+		parent.id,parent.calendar_id,parent.category_id,parent.title,parent.notes,parent.location,parent.starts_at,parent.ends_at,parent.all_day,parent.status,
+		pc.name,pc.color,pcat.name,pcat.color,
 		er.frequency,er.interval_value,er.weekdays,er.until_at,er.occurrence_count,
-		replacement.id,replacement.calendar_id,replacement.title,replacement.notes,replacement.location,
+		replacement.id,replacement.calendar_id,replacement.category_id,replacement.title,replacement.notes,replacement.location,
 		replacement.starts_at,replacement.ends_at,replacement.all_day,replacement.status,
-		rc.name,rc.color,replacement.recurrence_original_start
+		rc.name,rc.color,rcat.name,rcat.color,replacement.recurrence_original_start
 		FROM events replacement
 		JOIN events parent ON parent.id=replacement.recurrence_parent_id
 		JOIN event_recurrence er ON er.event_id=parent.id
 		JOIN calendars pc ON pc.id=parent.calendar_id
+		LEFT JOIN categories pcat ON pcat.id=parent.category_id
 		JOIN calendars rc ON rc.id=replacement.calendar_id
+		LEFT JOIN categories rcat ON rcat.id=replacement.category_id
 		LEFT JOIN calendar_permissions rp ON rp.calendar_id=rc.id AND rp.user_id=$1
 		WHERE replacement.recurrence_parent_id IS NOT NULL
 		  AND ($2='admin' OR COALESCE(rp.can_view,false)=true)
@@ -366,8 +377,11 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 
 	for overrideRows.Next() {
 		var parentID, parentCalID, replacementID, replacementCalID uuid.UUID
-		var parentTitle, parentNotes, parentLocation, parentStatus, parentCalName, parentColor string
-		var replacementTitle, replacementNotes, replacementLocation, replacementStatus, replacementCalName, replacementColor string
+		var parentCategoryID, replacementCategoryID *uuid.UUID
+		var parentTitle, parentNotes, parentLocation, parentStatus, parentCalName, parentCalendarColor string
+		var parentCategoryName, parentCategoryColor *string
+		var replacementTitle, replacementNotes, replacementLocation, replacementStatus, replacementCalName, replacementCalendarColor string
+		var replacementCategoryName, replacementCategoryColor *string
 		var parentStart, parentEnd, replacementStart, replacementEnd, originalStart time.Time
 		var parentAllDay, replacementAllDay bool
 		var frequency string
@@ -377,12 +391,12 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 		var count *int
 
 		if overrideRows.Scan(
-			&parentID, &parentCalID, &parentTitle, &parentNotes, &parentLocation, &parentStart, &parentEnd, &parentAllDay, &parentStatus,
-			&parentCalName, &parentColor,
+			&parentID, &parentCalID, &parentCategoryID, &parentTitle, &parentNotes, &parentLocation, &parentStart, &parentEnd, &parentAllDay, &parentStatus,
+			&parentCalName, &parentCalendarColor, &parentCategoryName, &parentCategoryColor,
 			&frequency, &interval, &weekdaysRaw, &until, &count,
-			&replacementID, &replacementCalID, &replacementTitle, &replacementNotes, &replacementLocation,
+			&replacementID, &replacementCalID, &replacementCategoryID, &replacementTitle, &replacementNotes, &replacementLocation,
 			&replacementStart, &replacementEnd, &replacementAllDay, &replacementStatus,
-			&replacementCalName, &replacementColor, &originalStart,
+			&replacementCalName, &replacementCalendarColor, &replacementCategoryName, &replacementCategoryColor, &originalStart,
 		) != nil {
 			continue
 		}
@@ -396,19 +410,31 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 			Until: until, OccurrenceCount: count,
 		}, parentStart)
 
+		replacementDisplayColor := replacementCalendarColor
+		if replacementCategoryColor != nil && *replacementCategoryColor != "" {
+			replacementDisplayColor = *replacementCategoryColor
+		}
+		parentDisplayColor := parentCalendarColor
+		if parentCategoryColor != nil && *parentCategoryColor != "" {
+			parentDisplayColor = *parentCategoryColor
+		}
 		out = append(out, map[string]any{
 			"id": parentID, "series_id": parentID, "replacement_event_id": replacementID,
-			"calendar_id": replacementCalID, "title": replacementTitle, "notes": replacementNotes, "location": replacementLocation,
+			"calendar_id": replacementCalID, "category_id": replacementCategoryID,
+			"category_name": replacementCategoryName, "category_color": replacementCategoryColor, "calendar_color": replacementCalendarColor,
+			"title": replacementTitle, "notes": replacementNotes, "location": replacementLocation,
 			"starts_at": replacementStart, "ends_at": replacementEnd,
 			"series_starts_at": parentStart, "series_ends_at": parentEnd,
 			"all_day": replacementAllDay, "status": replacementStatus,
-			"calendar_name": replacementCalName, "color": replacementColor,
+			"calendar_name": replacementCalName, "color": replacementDisplayColor,
 			"assignees": s.eventAssignees(r, replacementID), "reminders": s.eventReminders(r, replacementID),
 			"recurrence": rule, "is_recurring": true, "is_occurrence_override": true,
 			"occurrence_start": originalStart,
-			"series_calendar_id": parentCalID, "series_title": parentTitle, "series_notes": parentNotes,
+			"series_calendar_id": parentCalID, "series_category_id": parentCategoryID,
+			"series_category_name": parentCategoryName, "series_category_color": parentCategoryColor,
+			"series_title": parentTitle, "series_notes": parentNotes,
 			"series_location": parentLocation, "series_all_day": parentAllDay, "series_status": parentStatus,
-			"series_calendar_name": parentCalName, "series_color": parentColor,
+			"series_calendar_name": parentCalName, "series_color": parentDisplayColor,
 			"series_assignees": s.eventAssignees(r, parentID), "series_reminders": s.eventReminders(r, parentID),
 		})
 	}
@@ -492,9 +518,9 @@ func (s *server) createEvent(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback(r.Context())
 
 	var id uuid.UUID
-	err = tx.QueryRow(r.Context(), `INSERT INTO events(calendar_id,title,notes,location,starts_at,ends_at,all_day,created_by)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-		in.CalendarID, cleanText(in.Title, 200), cleanText(in.Notes, 5000), cleanText(in.Location, 500),
+	err = tx.QueryRow(r.Context(), `INSERT INTO events(calendar_id,category_id,title,notes,location,starts_at,ends_at,all_day,created_by)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+		in.CalendarID, in.CategoryID, cleanText(in.Title, 200), cleanText(in.Notes, 5000), cleanText(in.Location, 500),
 		in.StartsAt, in.EndsAt, in.AllDay, a.ID).Scan(&id)
 	if err != nil {
 		writeError(w, 400, "Could not create event")
