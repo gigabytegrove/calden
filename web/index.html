@@ -229,6 +229,7 @@
 <dialog id="event-dialog">
   <form id="event-form" class="event-editor">
     <div class="dialog-head"><div><p class="eyebrow">Schedule</p><h2 id="event-dialog-title">Add event</h2></div><button type="button" class="icon-button" data-close-event>×</button></div>
+    <div id="series-scope-note" class="series-scope-note hidden"></div>
     <input type="hidden" name="event_id">
     <div class="event-editor-grid">
       <div class="stack">
@@ -237,7 +238,7 @@
         <div class="two"><label>Starts<input name="starts_at" type="datetime-local" required></label><label>Ends<input name="ends_at" type="datetime-local" required></label></div>
         <label class="toggle-row"><input name="all_day" type="checkbox"><span>All-day event</span></label>
 
-        <section class="repeat-editor">
+        <section id="repeat-editor" class="repeat-editor">
           <div><h3>Repeat</h3><p class="muted">Make this a repeating event without creating each date manually.</p></div>
           <label>Repeats
             <select name="repeat_frequency">
@@ -290,6 +291,20 @@
     <div class="dialog-actions"><button id="delete-event" type="button" class="button danger hidden">Delete event</button><span class="grow"></span><button type="button" class="button secondary" data-close-event>Cancel</button><button type="submit" class="button">Save event</button></div>
     <p id="event-error" class="error"></p>
   </form>
+</dialog>
+
+<dialog id="recurrence-scope-dialog" class="scope-dialog">
+  <div class="scope-dialog-body">
+    <p class="eyebrow">Repeating event</p>
+    <h2 id="scope-dialog-title">Edit repeating event</h2>
+    <p id="scope-dialog-copy">Do you want to change just this occurrence, or the entire series?</p>
+    <div class="scope-dialog-actions">
+      <button id="scope-cancel" type="button" class="button secondary">Cancel</button>
+      <span class="grow"></span>
+      <button id="scope-occurrence" type="button" class="button secondary">This occurrence</button>
+      <button id="scope-series" type="button" class="button">Entire series</button>
+    </div>
+  </div>
 </dialog>
 
 <script src="/app.js" defer></script>
