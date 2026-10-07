@@ -300,14 +300,43 @@ func parseGoogleCalendarUpload(filename string, raw []byte, loc *time.Location) 
 
 func googleCalendarDisplayName(calendarName, filename string) string {
 	name := strings.TrimSpace(calendarName)
+	filenameLabel := googleCalendarFilenameLabel(filename)
+
+	// Google's generated Birthdays export can report the account email as
+	// X-WR-CALNAME even though the filename identifies it as Birthdays.
+	// Prefer that semantic filename label so it can be matched correctly.
+	if looksLikeCalendarEmail(name) && filenameLabel != "" && !looksLikeCalendarEmail(filenameLabel) {
+		name = filenameLabel
+	}
 	if name == "" {
-		name = strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename))
+		name = filenameLabel
 	}
 	name = strings.TrimSpace(name)
 	if name == "" {
 		name = "Imported Google Calendar"
 	}
 	return cleanText(name, 100)
+}
+
+func googleCalendarFilenameLabel(filename string) string {
+	base := strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename))
+	base = strings.TrimSpace(base)
+	if base == "" {
+		return ""
+	}
+	if underscore := strings.Index(base, "_"); underscore > 0 {
+		prefix := strings.TrimSpace(base[:underscore])
+		suffix := strings.TrimSpace(base[underscore+1:])
+		if prefix != "" && strings.Contains(suffix, "@") {
+			return prefix
+		}
+	}
+	return base
+}
+
+func looksLikeCalendarEmail(value string) bool {
+	value = strings.TrimSpace(value)
+	return value != "" && !strings.ContainsAny(value, " \t") && strings.Count(value, "@") == 1
 }
 
 func normalizeGoogleCalendarName(name string) string {
