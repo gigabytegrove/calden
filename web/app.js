@@ -505,9 +505,9 @@ async function saveBillPayment(paid){
   $("#bill-payment-unpaid").disabled=true;
   try{
     await api("/api/bills/"+event.id+"/payment",{method:"PUT",body:JSON.stringify(payload)});
+    await refreshBillPaymentViews();
     $("#bill-payment-dialog").close();
     state.billPaymentEvent=null;
-    await refreshBillPaymentViews();
   }catch(err){
     $("#bill-payment-error").textContent=err.message;
   }finally{
