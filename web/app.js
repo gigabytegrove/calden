@@ -112,18 +112,19 @@ function renderApp(){
 }
 
 function navigate(page,load=true){
-  const adminPages=new Set(["people","calendars","categories","integrations","updates","activity"]);
+  const adminPages=new Set(["people","calendars","categories","integrations","updates","backups","activity"]);
   if(adminPages.has(page)&&state.me?.role!=="admin")page="calendar";
   state.currentPage=page;
   $$(".app-page").forEach(el=>el.classList.toggle("hidden",el.id!==`page-${page}`));
   $$("[data-page]").forEach(el=>el.classList.toggle("active",el.dataset.page===page));
-  const titles={calendar:"Calendar",agenda:"Agenda",people:"People",calendars:"Calendars",categories:"Categories",notifications:"Notifications",integrations:"Integrations",updates:"Updates",activity:"Activity",settings:"Settings"};
+  const titles={calendar:"Calendar",agenda:"Agenda",people:"People",calendars:"Calendars",categories:"Categories",notifications:"Notifications",integrations:"Integrations",updates:"Updates",backups:"Backups & Restore",activity:"Activity",settings:"Settings"};
   $("#page-title").textContent=titles[page]||"CalDen";
   $("#new-event").classList.toggle("hidden",!["calendar","agenda"].includes(page));
   $("#sidebar").classList.remove("open");
   if(!load)return;
   if(page==="integrations")loadMonita();
   if(page==="updates")loadUpdater();
+  if(page==="backups")loadBackups();
   if(page==="activity")loadActivity();
 }
 
@@ -479,6 +480,67 @@ function openEvent(existing=null,dateHint=null,scope="series"){
   $("#event-error").textContent="";$("#event-dialog").showModal();
 }
 
+function humanSize(bytes){
+  const value=Number(bytes)||0;if(value<1024)return value+" B";
+  const units=["KB","MB","GB","TB"];let n=value/1024,i=0;
+  while(n>=1024&&i<units.length-1){n/=1024;i++}
+  return n.toFixed(n>=10?1:2)+" "+units[i];
+}
+function downloadBlob(blob,filename){
+  const url=URL.createObjectURL(blob);const a=document.createElement("a");
+  a.href=url;a.download=filename||"calden-backup";document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1500);
+}
+async function authenticatedDownload(path,fallbackName){
+  const res=await fetch(path,{headers:{Authorization:"Bearer "+state.token}});
+  if(!res.ok){
+    const body=await res.json().catch(()=>null);throw new Error(body?.error||"Download failed");
+  }
+  const disposition=res.headers.get("Content-Disposition")||"";
+  const match=disposition.match(/filename="?([^"]+)"?/i);
+  const blob=await res.blob();downloadBlob(blob,match?.[1]||fallbackName);
+}
+async function loadBackups(){
+  if(state.me.role!=="admin")return;
+  try{
+    const status=await api("/api/system/backup/status");
+    renderBackupStatus(status);
+  }catch(err){
+    $("#restore-status").textContent=err.message;
+    $("#saved-backups").innerHTML='<div class="empty-state"><strong>Could not load backups</strong></div>';
+  }
+}
+function renderBackupStatus(status){
+  $("#cancel-restore").classList.toggle("hidden",!status.pending);
+  $("#restart-for-restore").classList.toggle("hidden",!status.pending);
+  if(status.pending){
+    $("#restore-status").textContent="A validated restore is staged and ready. Restart CalDen to apply it.";
+  }else if(!$("#restore-status").textContent.includes("staged")){
+    $("#restore-status").textContent="No restore is currently staged.";
+  }
+  const last=status.last||null,box=$("#restore-last-result");
+  box.classList.toggle("hidden",!last);
+  if(last){
+    const ok=last.status==="success";
+    box.className="restore-result "+(ok?"restore-success":"restore-failed");
+    box.innerHTML=`<strong>${ok?"Last restore completed":"Last restore did not complete"}</strong><span>Status: ${escapeHTML(last.status||"unknown")}${last.safety_backup?" · Safety backup: "+escapeHTML(last.safety_backup):""}</span>`;
+  }
+  const backups=status.backups||[];
+  $("#saved-backups").innerHTML=backups.length?backups.map(b=>`<article class="saved-backup">
+    <div><strong>${escapeHTML(b.name)}</strong><span>${humanSize(b.size)} · ${escapeHTML(formatDate(new Date(b.created_at),{month:"short",day:"numeric",year:"numeric"}))} at ${escapeHTML(formatTime(new Date(b.created_at)))}</span></div>
+    <div class="saved-backup-actions"><button class="button secondary compact backup-download" data-name="${escapeAttr(b.name)}" type="button">Download</button><button class="text-button backup-delete" data-name="${escapeAttr(b.name)}" type="button">Delete</button></div>
+  </article>`).join(""):'<div class="empty-state"><strong>No saved backups yet</strong><span>Create a backup or install an update to create safety copies.</span></div>';
+  $("#saved-backups").querySelectorAll(".backup-download").forEach(b=>b.addEventListener("click",async()=>{
+    try{await authenticatedDownload("/api/system/backups/"+encodeURIComponent(b.dataset.name),b.dataset.name)}
+    catch(err){$("#restore-status").textContent=err.message}
+  }));
+  $("#saved-backups").querySelectorAll(".backup-delete").forEach(b=>b.addEventListener("click",async()=>{
+    if(!confirm(`Delete saved backup "${b.dataset.name}"? This cannot be undone.`))return;
+    try{await api("/api/system/backups/"+encodeURIComponent(b.dataset.name),{method:"DELETE"});await loadBackups()}
+    catch(err){$("#restore-status").textContent=err.message}
+  }));
+}
+
 function activityVerb(item){
   const labels={
     create:"Created",update:"Updated",delete:"Deleted",archive:"Archived",deactivate:"Deactivated",
@@ -769,6 +831,47 @@ $("#test-monita").addEventListener("click",async()=>{
   $("#monita-status").textContent="Sending test…";
   try{await api("/api/integrations/monita/test",{method:"POST",body:"{}"});$("#monita-status").textContent="Test reminder sent."}
   catch(err){$("#monita-status").textContent=err.message}
+});
+
+$("#create-backup").addEventListener("click",async()=>{
+  const button=$("#create-backup");button.disabled=true;button.textContent="Creating backup…";$("#restore-status").textContent="Creating PostgreSQL backup…";
+  try{await authenticatedDownload("/api/system/backup/download","calden-backup.tar.gz");$("#restore-status").textContent="Backup created and downloaded.";await loadBackups()}
+  catch(err){$("#restore-status").textContent=err.message}
+  finally{button.disabled=false;button.textContent="Create & download backup"}
+});
+$("#refresh-backups").addEventListener("click",loadBackups);
+$("#stage-restore").addEventListener("click",async()=>{
+  const input=$("#restore-file"),file=input.files?.[0];if(!file){$("#restore-status").textContent="Choose a CalDen backup file first.";return}
+  if(!confirm("Validate and stage this backup for restore? Nothing will be changed until CalDen restarts."))return;
+  const button=$("#stage-restore");button.disabled=true;button.textContent="Validating…";$("#restore-status").textContent="Uploading and validating backup…";
+  try{
+    const form=new FormData();form.append("backup",file,file.name);
+    const res=await fetch("/api/system/backup/restore",{method:"POST",headers:{Authorization:"Bearer "+state.token},body:form});
+    const body=await res.json().catch(()=>null);if(!res.ok)throw new Error(body?.error||"Restore could not be staged");
+    $("#restore-status").textContent=body.message||"Restore staged.";await loadBackups();
+  }catch(err){$("#restore-status").textContent=err.message}
+  finally{button.disabled=false;button.textContent="Validate & stage restore"}
+});
+$("#cancel-restore").addEventListener("click",async()=>{
+  try{await api("/api/system/backup/restore",{method:"DELETE"});$("#restore-status").textContent="Staged restore cancelled.";$("#restore-file").value="";await loadBackups()}
+  catch(err){$("#restore-status").textContent=err.message}
+});
+$("#restart-for-restore").addEventListener("click",async()=>{
+  if(!confirm("Restart CalDen now and apply the staged restore? A pre-restore safety backup will be created automatically."))return;
+  $("#restore-status").textContent="Restarting CalDen to apply restore…";
+  try{
+    await api("/api/system/restart",{method:"POST",body:"{}"});
+    let attempts=0;
+    const wait=async()=>{
+      attempts++;
+      try{
+        const res=await fetch("/api/health",{cache:"no-store"});
+        if(res.ok){location.reload();return}
+      }catch{}
+      if(attempts<90)setTimeout(wait,1500);else $("#restore-status").textContent="CalDen has not returned yet. Check container logs.";
+    };
+    setTimeout(wait,1800);
+  }catch(err){$("#restore-status").textContent=err.message}
 });
 
 $("#activity-filter").addEventListener("change",loadActivity);
