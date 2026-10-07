@@ -214,6 +214,18 @@ jobs:
             await page.locator('#login-form button[type="submit"]').click();
             await page.locator('#page-calendar').waitFor({ state: 'visible' });
 
+            const sidebarLogoLoaded = await page.locator('.sidebar-logo-surface img').evaluate(img =>
+              img.complete && img.naturalWidth > 0 && img.naturalHeight > 0
+            );
+            if (!sidebarLogoLoaded) throw new Error('Sidebar logo did not load');
+            const sidebarBackground = await page.locator('#sidebar').evaluate(el => getComputedStyle(el).backgroundColor);
+            if (sidebarBackground !== 'rgb(15, 23, 42)') {
+              throw new Error('Tailwind product shell was not applied: ' + sidebarBackground);
+            }
+            if (!await page.locator('link[href="/styles.css"]').count()) {
+              throw new Error('Compiled Tailwind stylesheet is not linked');
+            }
+
             for (const days of ['1', '7', '14', '30']) {
               await page.locator('.view-switcher button[data-days="' + days + '"]').click();
               if (days === '1' || days === '7') {
@@ -252,6 +264,10 @@ jobs:
 
             await page.locator('.nav-item[data-page="notifications"]').click();
             await page.locator('#page-notifications').waitFor({ state: 'visible' });
+            await page.locator('#notification-inbox-list').getByText('Web UI CI Event', { exact: true }).waitFor({ state: 'visible' });
+            if (await page.locator('#notification-nav-badge').isHidden()) {
+              throw new Error('Unread notification badge was not shown after event assignment.');
+            }
             await page.locator('#scheduled-reminders').getByText('Web UI CI Event', { exact: true }).first().waitFor({ state: 'visible' });
             if (await page.locator('#scheduled-reminders .scheduled-reminder').count() < 3) {
               throw new Error('Scheduled reminder view did not show all event reminders.');
@@ -336,6 +352,13 @@ jobs:
             await categoryForm.locator('textarea[name="description"]').fill('Trips and travel plans');
             await categoryForm.locator('button[type="submit"]').click();
             await page.locator('#category-list').getByText('Travel', { exact: true }).waitFor({ state: 'visible' });
+            const travelCard = page.locator('#category-list .management-card').filter({ hasText: 'Travel' });
+            await travelCard.locator('.edit-category').click();
+            page.once('dialog', dialog => dialog.accept());
+            await page.locator('#delete-category').click();
+            if (await page.locator('#category-list').getByText('Travel', { exact: true }).count()) {
+              throw new Error('Category was not permanently deleted.');
+            }
 
             await page.locator('.nav-item[data-page="integrations"]').click();
             await page.locator('#page-integrations').waitFor({ state: 'visible' });
