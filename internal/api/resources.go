@@ -1,11 +1,15 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/gigabytegrove/calden/internal/recurrence"
 )
 
 func (s *server) me(w http.ResponseWriter, r *http.Request) {
@@ -242,27 +246,50 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 			to = t
 		}
 	}
+	if !to.After(from) || to.Sub(from) > 370*24*time.Hour {
+		writeError(w, 400, "Choose a calendar range of one year or less")
+		return
+	}
+
 	rows, err := s.db.Query(r.Context(), `SELECT e.id,e.calendar_id,e.title,e.notes,e.location,e.starts_at,e.ends_at,e.all_day,e.status,
-		c.name,c.color FROM events e JOIN calendars c ON c.id=e.calendar_id
+		c.name,c.color,er.frequency,er.interval_value,er.weekdays,er.until_at,er.occurrence_count
+		FROM events e
+		JOIN calendars c ON c.id=e.calendar_id
 		LEFT JOIN calendar_permissions p ON p.calendar_id=c.id AND p.user_id=$1
-		WHERE ($2='admin' OR COALESCE(p.can_view,false)=true) AND e.starts_at < $4 AND e.ends_at >= $3
+		LEFT JOIN event_recurrence er ON er.event_id=e.id
+		WHERE ($2='admin' OR COALESCE(p.can_view,false)=true)
+		  AND (
+			(er.event_id IS NULL AND e.starts_at < $4 AND e.ends_at >= $3)
+			OR
+			(er.event_id IS NOT NULL AND e.starts_at < $4 AND (er.until_at IS NULL OR er.until_at >= $3))
+		  )
 		ORDER BY e.starts_at`, a.ID, a.Role, from, to)
 	if err != nil {
 		writeError(w, 500, "Could not load events")
 		return
 	}
 	defer rows.Close()
+
 	out := []map[string]any{}
 	for rows.Next() {
 		var id, calID uuid.UUID
 		var title, notes, location, status, calName, color string
 		var start, end time.Time
 		var allDay bool
-		if rows.Scan(&id, &calID, &title, &notes, &location, &start, &end, &allDay, &status, &calName, &color) != nil {
+		var frequency *string
+		var interval *int
+		var weekdaysRaw []byte
+		var until *time.Time
+		var count *int
+
+		if rows.Scan(&id, &calID, &title, &notes, &location, &start, &end, &allDay, &status, &calName, &color,
+			&frequency, &interval, &weekdaysRaw, &until, &count) != nil {
 			continue
 		}
+
 		assignees := []map[string]any{}
-		arows, _ := s.db.Query(r.Context(), `SELECT u.id,u.display_name,u.initials,u.avatar_url FROM event_assignees ea JOIN users u ON u.id=ea.user_id WHERE ea.event_id=$1 ORDER BY u.display_name`, id)
+		arows, _ := s.db.Query(r.Context(), `SELECT u.id,u.display_name,u.initials,u.avatar_url FROM event_assignees ea
+			JOIN users u ON u.id=ea.user_id WHERE ea.event_id=$1 AND u.active=true ORDER BY u.display_name`, id)
 		if arows != nil {
 			for arows.Next() {
 				var uid uuid.UUID
@@ -274,8 +301,10 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 			}
 			arows.Close()
 		}
+
 		reminders := []map[string]any{}
-		rrows, _ := s.db.Query(r.Context(), `SELECT kind,provider,minutes_before,destination FROM reminders WHERE event_id=$1 AND enabled=true ORDER BY minutes_before DESC`, id)
+		rrows, _ := s.db.Query(r.Context(), `SELECT kind,provider,minutes_before,destination FROM reminders
+			WHERE event_id=$1 AND enabled=true ORDER BY minutes_before DESC`, id)
 		if rrows != nil {
 			for rrows.Next() {
 				var kind, provider string
@@ -287,40 +316,53 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 			}
 			rrows.Close()
 		}
-		out = append(out, map[string]any{"id": id, "calendar_id": calID, "title": title, "notes": notes, "location": location, "starts_at": start, "ends_at": end, "all_day": allDay, "status": status, "calendar_name": calName, "color": color, "assignees": assignees, "reminders": reminders})
+
+		var rule *recurrence.Rule
+		if frequency != nil && interval != nil {
+			weekdays := []int{}
+			if len(weekdaysRaw) > 0 {
+				_ = json.Unmarshal(weekdaysRaw, &weekdays)
+			}
+			rule = recurrence.Normalize(&recurrence.Rule{
+				Frequency: *frequency, Interval: *interval, Weekdays: weekdays,
+				Until: until, OccurrenceCount: count,
+			}, start)
+		}
+
+		occurrences := recurrence.Expand(start, end, rule, from, to, 1500)
+		for _, occurrence := range occurrences {
+			out = append(out, map[string]any{
+				"id": id, "calendar_id": calID, "title": title, "notes": notes, "location": location,
+				"starts_at": occurrence.Start, "ends_at": occurrence.End,
+				"series_starts_at": start, "series_ends_at": end,
+				"all_day": allDay, "status": status, "calendar_name": calName, "color": color,
+				"assignees": assignees, "reminders": reminders, "recurrence": rule,
+				"is_recurring": rule != nil, "occurrence_index": occurrence.Index,
+				"occurrence_start": occurrence.Start,
+			})
+		}
 	}
+
+	sort.SliceStable(out, func(i, j int) bool {
+		left, _ := out[i]["starts_at"].(time.Time)
+		right, _ := out[j]["starts_at"].(time.Time)
+		return left.Before(right)
+	})
 	writeJSON(w, 200, out)
 }
 
 func (s *server) createEvent(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		CalendarID  uuid.UUID   `json:"calendar_id"`
-		Title       string      `json:"title"`
-		Notes       string      `json:"notes"`
-		Location    string      `json:"location"`
-		StartsAt    time.Time   `json:"starts_at"`
-		EndsAt      time.Time   `json:"ends_at"`
-		AllDay      bool        `json:"all_day"`
-		AssigneeIDs []uuid.UUID `json:"assignee_ids"`
-		Reminders   []struct {
-			Kind          string `json:"kind"`
-			Provider      string `json:"provider"`
-			MinutesBefore int    `json:"minutes_before"`
-			Destination   string `json:"destination"`
-		} `json:"reminders"`
-	}
-	if decode(r, &in) != nil || strings.TrimSpace(in.Title) == "" || in.CalendarID == uuid.Nil || in.StartsAt.IsZero() || in.EndsAt.Before(in.StartsAt) {
+	var in eventInput
+	if decode(r, &in) != nil {
 		writeError(w, 400, "Check the event details")
 		return
 	}
-	a := currentActor(r)
-	var allowed bool
-	if a.Role == "admin" {
-		allowed = true
-	} else {
-		_ = s.db.QueryRow(r.Context(), `SELECT COALESCE(can_edit,false) FROM calendar_permissions WHERE calendar_id=$1 AND user_id=$2`, in.CalendarID, a.ID).Scan(&allowed)
+	if msg := validateEventInput(in); msg != "" {
+		writeError(w, 400, msg)
+		return
 	}
-	if !allowed {
+	a := currentActor(r)
+	if !s.canEditCalendar(r, in.CalendarID) {
 		writeError(w, 403, "You cannot add events to this calendar")
 		return
 	}
@@ -331,29 +373,42 @@ func (s *server) createEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer tx.Rollback(r.Context())
+
 	var id uuid.UUID
-	err = tx.QueryRow(r.Context(), `INSERT INTO events(calendar_id,title,notes,location,starts_at,ends_at,all_day,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-		in.CalendarID, cleanText(in.Title, 200), cleanText(in.Notes, 5000), cleanText(in.Location, 500), in.StartsAt, in.EndsAt, in.AllDay, a.ID).Scan(&id)
+	err = tx.QueryRow(r.Context(), `INSERT INTO events(calendar_id,title,notes,location,starts_at,ends_at,all_day,created_by)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+		in.CalendarID, cleanText(in.Title, 200), cleanText(in.Notes, 5000), cleanText(in.Location, 500),
+		in.StartsAt, in.EndsAt, in.AllDay, a.ID).Scan(&id)
 	if err != nil {
 		writeError(w, 400, "Could not create event")
 		return
 	}
+
 	for _, uid := range in.AssigneeIDs {
 		if _, err = tx.Exec(r.Context(), `INSERT INTO event_assignees(event_id,user_id) VALUES($1,$2)`, id, uid); err != nil {
 			writeError(w, 400, "One of the selected people is invalid")
 			return
 		}
 	}
-	for _, rm := range in.Reminders {
-		if (rm.Kind != "personal" && rm.Kind != "system") || (rm.Provider != "android" && rm.Provider != "monita") || rm.MinutesBefore < 0 {
-			writeError(w, 400, "Check reminder settings")
+
+	if in.Recurrence != nil {
+		rule := recurrence.Normalize(in.Recurrence, in.StartsAt)
+		weekdays, _ := json.Marshal(rule.Weekdays)
+		if _, err = tx.Exec(r.Context(), `INSERT INTO event_recurrence(event_id,frequency,interval_value,weekdays,until_at,occurrence_count)
+			VALUES($1,$2,$3,$4,$5,$6)`, id, rule.Frequency, rule.Interval, weekdays, rule.Until, rule.OccurrenceCount); err != nil {
+			writeError(w, 400, "Could not save repeat settings")
 			return
 		}
-		if _, err = tx.Exec(r.Context(), `INSERT INTO reminders(event_id,kind,provider,minutes_before,destination) VALUES($1,$2,$3,$4,NULLIF($5,''))`, id, rm.Kind, rm.Provider, rm.MinutesBefore, cleanText(rm.Destination, 200)); err != nil {
+	}
+
+	for _, rm := range in.Reminders {
+		if _, err = tx.Exec(r.Context(), `INSERT INTO reminders(event_id,kind,provider,minutes_before,destination)
+			VALUES($1,$2,$3,$4,NULLIF($5,''))`, id, rm.Kind, rm.Provider, rm.MinutesBefore, cleanText(rm.Destination, 200)); err != nil {
 			writeError(w, 400, "Could not save reminder")
 			return
 		}
 	}
+
 	if err = tx.Commit(r.Context()); err != nil {
 		writeError(w, 500, "Could not save event")
 		return
