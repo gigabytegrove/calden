@@ -133,6 +133,13 @@
         <form id="person-form" class="panel stack">
           <input type="hidden" name="user_id">
           <div><p class="eyebrow" id="person-form-eyebrow">New person</p><h3 id="person-form-title">Add a family member</h3></div>
+          <div class="avatar-editor">
+            <div id="person-avatar-preview" class="avatar-preview large"><span>?</span></div>
+            <div class="stack compact-stack">
+              <label>Profile image<input id="person-avatar-file" type="file" accept="image/png,image/jpeg,image/webp"></label>
+              <div class="form-actions"><button id="remove-person-avatar" type="button" class="button secondary compact hidden">Remove image</button><span class="muted">JPG, PNG, or WebP. Up to 4 MB.</span></div>
+            </div>
+          </div>
           <label>Name<input name="display_name" required maxlength="100"></label>
           <label>Username<input name="username" minlength="3" maxlength="50"></label>
           <label id="person-password-label">Temporary password<input name="password" type="password" minlength="8" autocomplete="new-password"></label>
@@ -271,7 +278,20 @@
           <button type="submit" class="button">Save household settings</button>
           <p id="general-settings-status" class="status-line"></p>
         </form>
-        <article class="panel"><h3>Your account</h3><div class="feature-row"><strong>Name</strong><span id="settings-account-name"></span></div><div class="feature-row"><strong>Username</strong><span id="settings-account-username"></span></div><div class="feature-row"><strong>Role</strong><span id="settings-account-role"></span></div></article>
+        <article class="panel stack">
+          <div><h3>Your account</h3><p class="muted">Your profile image is shown on events and anywhere CalDen identifies you.</p></div>
+          <div class="account-avatar-settings">
+            <div id="settings-avatar-preview" class="avatar-preview xlarge"><span>?</span></div>
+            <div class="stack compact-stack">
+              <label>Profile image<input id="settings-avatar-file" type="file" accept="image/png,image/jpeg,image/webp"></label>
+              <div class="form-actions"><button id="save-settings-avatar" type="button" class="button">Upload image</button><button id="remove-settings-avatar" type="button" class="button secondary">Remove</button></div>
+              <p id="settings-avatar-status" class="status-line"></p>
+            </div>
+          </div>
+          <div class="feature-row"><strong>Name</strong><span id="settings-account-name"></span></div>
+          <div class="feature-row"><strong>Username</strong><span id="settings-account-username"></span></div>
+          <div class="feature-row"><strong>Role</strong><span id="settings-account-role"></span></div>
+        </article>
       </div>
     </section>
   </main>
