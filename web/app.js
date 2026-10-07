@@ -23,9 +23,9 @@ const state={
   scrollNow:savedScrollNow,
   settingsTab:"general",
   billMonth:new Date(new Date().getFullYear(),new Date().getMonth(),1),
-  billEvents:[],billPaymentEvent:null,
+  billEvents:[],billPaymentEvent:null,billPaymentEditingId:null,
   notifications:[],unreadNotifications:0,notificationKnown:new Set(),notificationPoll:null,
-  googleImportFile:null,googleImportPreview:null,
+  googleImportFile:null,googleImportPreview:null,googleRepairFile:null,googleRepairPreview:null,
   updateInfo:null,updatePoll:null
 };
 
@@ -111,17 +111,24 @@ function billAmountLabel(event){
   return `${event.bill_amount_is_estimate?"~":""}${money(event.bill_amount)}`;
 }
 function billOccurrenceStart(event){return event?.occurrence_start||event?.starts_at}
+function billPaymentStatus(event){return event?.bill_payment_status||(event?.bill_paid?"paid":"due")}
+function billPayments(event){return Array.isArray(event?.bill_payments)?event.bill_payments:[]}
 function billPaidAmount(event){
-  if(!event?.bill_paid)return null;
-  if(event.bill_amount_paid!==null&&event.bill_amount_paid!==undefined)return Number(event.bill_amount_paid)||0;
-  if(event.bill_amount!==null&&event.bill_amount!==undefined)return Number(event.bill_amount)||0;
-  return null;
+  if(event?.bill_amount_paid!==null&&event?.bill_amount_paid!==undefined)return Number(event.bill_amount_paid)||0;
+  return billPayments(event).reduce((sum,payment)=>sum+(Number(payment.amount_paid)||0),0);
 }
 function canUpdateBill(event){return !!state.calendars.find(cal=>cal.id===event?.calendar_id&&cal.calendar_type==="bill_pay"&&cal.can_edit)}
 function billPaymentLabel(event){
-  if(!event?.bill_paid)return "";
+  const status=billPaymentStatus(event);
+  if(status==="no_balance")return "No balance";
+  if(status==="partial")return `Partially paid ${money(billPaidAmount(event))}`;
+  if(status!=="paid")return "";
   const who=event.bill_paid_by?.display_name;
   return who?`Paid by ${who}`:"Paid";
+}
+function dateInputValue(value=new Date()){
+  const d=new Date(value),p=n=>String(n).padStart(2,"0");
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
 }
 function clamp(n,min,max){return Math.min(max,Math.max(min,n))}
 function eventKey(e){return `${e.id}|${e.occurrence_start||e.starts_at}`}
@@ -320,6 +327,7 @@ function billGroupRows(events,keyFn,labelFn){
     const key=keyFn(event),label=labelFn(event);
     if(!groups.has(key))groups.set(key,{label,total:0,known:0,estimated:0,count:0,unpriced:0});
     const group=groups.get(key);group.count++;
+    if(billPaymentStatus(event)==="no_balance"){group.noBalance=(group.noBalance||0)+1;return}
     if(event.bill_amount===null||event.bill_amount===undefined){group.unpriced++;return}
     const amount=Number(event.bill_amount)||0;group.total+=amount;
     if(event.bill_amount_is_estimate)group.estimated+=amount;else group.known+=amount;
@@ -330,31 +338,37 @@ function billGroupRows(events,keyFn,labelFn){
 function billBreakdownMarkup(rows){
   if(!rows.length)return '<div class="bill-empty-small">No bills in this month.</div>';
   return rows.map(row=>`<div class="bill-breakdown-row">
-    <div><strong>${escapeHTML(row.label)}</strong><small>${row.count} bill${row.count===1?"":"s"}${row.unpriced?" · "+row.unpriced+" without amount":""}</small></div>
+    <div><strong>${escapeHTML(row.label)}</strong><small>${row.count} bill${row.count===1?"":"s"}${row.noBalance?" · "+row.noBalance+" no balance":""}${row.unpriced?" · "+row.unpriced+" without amount":""}</small></div>
     <div><strong>${money(row.total)}</strong>${row.estimated?`<small>${money(row.estimated)} estimated</small>`:""}</div>
   </div>`).join("");
 }
 
 function billPaidRows(events){
   const groups=new Map();
-  events.filter(event=>event.bill_paid).forEach(event=>{
-    const key=event.bill_paid_by?.id||"__unknown__";
-    const label=event.bill_paid_by?.display_name||"Unknown payer";
-    if(!groups.has(key))groups.set(key,{label,total:0,count:0,unpriced:0});
-    const group=groups.get(key);group.count++;
-    const amount=billPaidAmount(event);
-    if(amount===null){group.unpriced++;return}
-    group.total+=amount;
+  events.forEach(event=>{
+    billPayments(event).forEach(payment=>{
+      const key=payment.paid_by?.id||"__unknown__";
+      const label=payment.paid_by?.display_name||"Unknown payer";
+      if(!groups.has(key))groups.set(key,{label,total:0,count:0,unpriced:0});
+      const group=groups.get(key);group.count++;group.total+=Number(payment.amount_paid)||0;
+    });
   });
   return [...groups.values()].sort((a,b)=>b.total-a.total||a.label.localeCompare(b.label));
 }
 
 function billPaidBreakdownMarkup(rows){
-  if(!rows.length)return '<div class="bill-empty-small">No bills have been marked paid this month.</div>';
+  if(!rows.length)return '<div class="bill-empty-small">No payments recorded this month.</div>';
   return rows.map(row=>`<div class="bill-breakdown-row paid-breakdown-row">
-    <div><strong>${escapeHTML(row.label)}</strong><small>${row.count} payment${row.count===1?"":"s"}${row.unpriced?" · "+row.unpriced+" without amount":""}</small></div>
+    <div><strong>${escapeHTML(row.label)}</strong><small>${row.count} payment${row.count===1?"":"s"}</small></div>
     <div><strong>${money(row.total)}</strong><small>actually paid</small></div>
   </div>`).join("");
+}
+
+function billRemaining(event){
+  const status=billPaymentStatus(event);
+  if(status==="paid"||status==="no_balance")return 0;
+  if(event.bill_amount===null||event.bill_amount===undefined)return null;
+  return Math.max(0,(Number(event.bill_amount)||0)-billPaidAmount(event));
 }
 
 function renderBills(){
@@ -381,29 +395,32 @@ function renderBills(){
   });
   const events=(state.currentPage==="bills"?state.billEvents:fallback).slice().sort((a,b)=>new Date(a.starts_at)-new Date(b.starts_at));
 
-  let known=0,estimated=0,unpriced=0,paidTotal=0,paidUnknown=0,outstanding=0;
+  let known=0,estimated=0,unpriced=0,paidTotal=0,outstanding=0;
+  let paidCount=0,partialCount=0,noBalanceCount=0,dueCount=0;
   events.forEach(event=>{
+    const status=billPaymentStatus(event);
     const dueAmount=event.bill_amount===null||event.bill_amount===undefined?null:Number(event.bill_amount)||0;
-    if(dueAmount===null)unpriced++;
-    else if(event.bill_amount_is_estimate)estimated+=dueAmount;
-    else known+=dueAmount;
-
-    if(event.bill_paid){
-      const paidAmount=billPaidAmount(event);
-      if(paidAmount===null)paidUnknown++;else paidTotal+=paidAmount;
-    }else if(dueAmount!==null){
-      outstanding+=dueAmount;
+    if(status!=="no_balance"){
+      if(dueAmount===null)unpriced++;
+      else if(event.bill_amount_is_estimate)estimated+=dueAmount;
+      else known+=dueAmount;
     }
+    paidTotal+=billPaidAmount(event);
+
+    if(status==="paid")paidCount++;
+    else if(status==="partial")partialCount++;
+    else if(status==="no_balance")noBalanceCount++;
+    else dueCount++;
+    const remaining=billRemaining(event);
+    if(remaining!==null)outstanding+=remaining;
   });
   const total=known+estimated;
-  const paidCount=events.filter(event=>event.bill_paid).length;
-  const unpaidCount=events.length-paidCount;
   summary.innerHTML=`
     <article class="bill-stat"><span>Expected this month</span><strong>${money(total)}</strong><small>known + estimated bills</small></article>
     <article class="bill-stat"><span>Known amounts</span><strong>${money(known)}</strong><small>fixed or confirmed amounts</small></article>
     <article class="bill-stat"><span>Estimated</span><strong>${money(estimated)}</strong><small>variable bills marked as estimates</small></article>
-    <article class="bill-stat paid-stat"><span>Paid so far</span><strong>${money(paidTotal)}</strong><small>${paidCount} of ${events.length} bills${paidUnknown?" · "+paidUnknown+" without amount":""}</small></article>
-    <article class="bill-stat outstanding-stat"><span>Outstanding</span><strong>${money(outstanding)}</strong><small>${unpaidCount} bill${unpaidCount===1?"":"s"} not marked paid${unpriced?" · "+unpriced+" without amount":""}</small></article>`;
+    <article class="bill-stat paid-stat"><span>Paid so far</span><strong>${money(paidTotal)}</strong><small>${paidCount} paid · ${partialCount} partial · ${noBalanceCount} no balance</small></article>
+    <article class="bill-stat outstanding-stat"><span>Outstanding</span><strong>${money(outstanding)}</strong><small>${dueCount+partialCount} bill${dueCount+partialCount===1?"":"s"} still open${unpriced?" · "+unpriced+" without amount":""}</small></article>`;
 
   const byPerson=billGroupRows(events,event=>event.bill_payer?.id||"__unassigned__",event=>event.bill_payer?.display_name||"Unassigned");
   const byCalendar=billGroupRows(events,event=>event.calendar_id,event=>event.calendar_name||"Bill calendar");
@@ -411,109 +428,174 @@ function renderBills(){
   $("#bill-by-person").innerHTML=billBreakdownMarkup(byPerson);
   $("#bill-by-calendar").innerHTML=billBreakdownMarkup(byCalendar);
   $("#bill-paid-by-person").innerHTML=billPaidBreakdownMarkup(paidByPerson);
-  $("#bill-count").textContent=`${paidCount} paid · ${unpaidCount} outstanding`;
+  $("#bill-count").textContent=`${paidCount} paid · ${partialCount} partial · ${noBalanceCount} no balance · ${dueCount} due`;
 
   host.innerHTML=events.length?events.map(event=>{
     const due=new Date(event.starts_at),amount=billAmountLabel(event);
     const payer=event.bill_payer?.display_name||"Not assigned";
-    const actualPayer=event.bill_paid_by?.display_name||"Unknown payer";
-    const paidAmount=billPaidAmount(event);
-    const paidAt=event.bill_paid_at?new Date(event.bill_paid_at):null;
-    const canUpdate=canUpdateBill(event);
-    const paymentState=event.bill_paid
-      ?`<span class="bill-paid-status"><span class="bill-status-pill paid">Paid</span><strong>${paidAmount===null?"Amount not recorded":escapeHTML(money(paidAmount))}</strong><small>by ${escapeHTML(actualPayer)}${paidAt?" · "+escapeHTML(formatDate(paidAt,{month:"short",day:"numeric"})):""}</small></span>`
-      :`<span class="bill-paid-status"><span class="bill-status-pill due">Due</span><strong>Not paid yet</strong><small>Assigned to ${escapeHTML(payer)}</small></span>`;
-    return `<article class="bill-row ${event.bill_paid?"is-paid":""}">
+    const status=billPaymentStatus(event);
+    const paidAmount=billPaidAmount(event),remaining=billRemaining(event);
+    const payments=billPayments(event);
+    const last=payments[payments.length-1];
+    const paymentState=status==="paid"
+      ?`<span class="bill-paid-status"><span class="bill-status-pill paid">Paid</span><strong>${money(paidAmount)}</strong><small>${last?.paid_on?"Paid "+escapeHTML(formatDate(new Date(last.paid_on+"T12:00:00"),{month:"short",day:"numeric"})):"Payment recorded"}${last?.cleared_on?" · cleared "+escapeHTML(formatDate(new Date(last.cleared_on+"T12:00:00"),{month:"short",day:"numeric"})):""}</small></span>`
+      :status==="partial"
+        ?`<span class="bill-paid-status"><span class="bill-status-pill partial">Partial</span><strong>${money(paidAmount)} paid</strong><small>${payments.length} payment${payments.length===1?"":"s"}${remaining===null?"":" · "+money(remaining)+" remaining"}</small></span>`
+        :status==="no_balance"
+          ?`<span class="bill-paid-status"><span class="bill-status-pill no-balance">No balance</span><strong>${money(0)}</strong><small>Nothing due this month</small></span>`
+          :`<span class="bill-paid-status"><span class="bill-status-pill due">Due</span><strong>Not paid yet</strong><small>Assigned to ${escapeHTML(payer)}</small></span>`;
+    return `<article class="bill-row is-${status}">
       <button type="button" class="bill-row-edit" data-event-key="${escapeAttr(eventKey(event))}" aria-label="Edit ${escapeAttr(event.title)}">
         <span class="bill-due"><strong>${formatDate(due,{month:"short",day:"numeric"})}</strong><small>${event.all_day?"Due date":formatTime(due)}</small></span>
         <span class="bill-row-main"><strong>${escapeHTML(event.title)}</strong><small>${escapeHTML(event.calendar_name||"Bills")} · assigned ${escapeHTML(payer)}</small></span>
         <span class="bill-row-amount ${event.bill_amount_is_estimate?"estimated":""}"><strong>${amount?escapeHTML(amount):"Amount not set"}</strong><small>${event.bill_amount_is_estimate?"Estimated":"Amount due"}</small></span>
       </button>
-      <span class="bill-row-payment">${paymentState}${canUpdate?`<button type="button" class="button ${event.bill_paid?"secondary":""} compact bill-payment-action" data-event-key="${escapeAttr(eventKey(event))}">${event.bill_paid?"Change payment":"Mark paid"}</button>`:""}</span>
+      <span class="bill-row-payment">${paymentState}${canUpdateBill(event)?`<button type="button" class="button ${status==="due"?"":"secondary"} compact bill-payment-action" data-event-key="${escapeAttr(eventKey(event))}">${status==="due"?"Record payment":"Payments"}</button>`:""}</span>
     </article>`;
   }).join(""):'<div class="empty-state"><strong>Nothing due this month</strong><span>Add a bill or move to another month.</span></div>';
+
   host.querySelectorAll(".bill-row-edit[data-event-key]").forEach(button=>button.addEventListener("click",()=>{
-    const key=button.dataset.eventKey;
-    const event=events.find(item=>eventKey(item)===key);
+    const event=events.find(item=>eventKey(item)===button.dataset.eventKey);
     if(event)requestEventEdit(event);
   }));
-  host.querySelectorAll(".bill-payment-action[data-event-key]").forEach(button=>button.addEventListener("click",event=>{
-    event.stopPropagation();
+  host.querySelectorAll(".bill-payment-action[data-event-key]").forEach(button=>button.addEventListener("click",e=>{
+    e.stopPropagation();
     const item=events.find(entry=>eventKey(entry)===button.dataset.eventKey);
     if(item)openBillPayment(item);
   }));
 }
 
+function resetBillPaymentEntry(event=state.billPaymentEvent){
+  state.billPaymentEditingId=null;
+  $("#bill-payment-entry-title").textContent="Add a payment";
+  $("#bill-payment-save").textContent="Add payment";
+  $("#bill-payment-reset").classList.add("hidden");
+  const remaining=event?billRemaining(event):null;
+  $("#bill-payment-amount").value=remaining!==null&&remaining>0?String(Math.round(remaining*100)/100):"";
+  $("#bill-payment-date").value=dateInputValue();
+  $("#bill-cleared-date").value="";
+  $("#bill-payment-settles").checked=remaining!==null&&remaining>0;
+  const preferred=event?.bill_payer?.id||state.me?.id||state.users.find(user=>user.active!==false)?.id||"";
+  if(preferred)$("#bill-payment-person").value=preferred;
+  $("#bill-payment-error").textContent="";
+}
+
+function renderBillPaymentModal(){
+  const event=state.billPaymentEvent;if(!event)return;
+  const due=new Date(event.starts_at),assigned=event.bill_payer?.display_name||"Not assigned";
+  const dueAmount=event.bill_amount===null||event.bill_amount===undefined?null:Number(event.bill_amount)||0;
+  const paidAmount=billPaidAmount(event),remaining=billRemaining(event),status=billPaymentStatus(event);
+  $("#bill-payment-title").textContent="Bill payments";
+  $("#bill-payment-copy").textContent=`${event.title} · due ${formatDate(due,{month:"long",day:"numeric",year:"numeric"})}`;
+  $("#bill-payment-assignment").innerHTML=`<span>Originally assigned</span><strong>${escapeHTML(assigned)}</strong><span>Due date</span><strong>${escapeHTML(formatDate(due,{month:"short",day:"numeric",year:"numeric"}))}</strong>${event.bill_amount_is_estimate?'<small>Expected amount is currently an estimate.</small>':""}`;
+  $("#bill-payment-summary").innerHTML=`
+    <div><span>Due</span><strong>${dueAmount===null?"Not set":money(dueAmount)}</strong></div>
+    <div><span>Paid</span><strong>${money(paidAmount)}</strong></div>
+    <div><span>Remaining</span><strong>${remaining===null?"Unknown":money(remaining)}</strong></div>
+    <div><span>Status</span><strong>${status==="no_balance"?"No balance":status==="partial"?"Partial":status==="paid"?"Paid":"Due"}</strong></div>`;
+
+  const history=$("#bill-payment-history"),payments=billPayments(event);
+  history.innerHTML=payments.length?payments.map(payment=>{
+    const person=payment.paid_by?.display_name||"Unknown payer";
+    const paidOn=payment.paid_on?formatDate(new Date(payment.paid_on+"T12:00:00"),{month:"short",day:"numeric",year:"numeric"}):"Date unknown";
+    const cleared=payment.cleared_on?formatDate(new Date(payment.cleared_on+"T12:00:00"),{month:"short",day:"numeric",year:"numeric"}):"Not marked cleared";
+    return `<article class="bill-payment-history-row">
+      <div><strong>${money(payment.amount_paid)}</strong><span>${escapeHTML(person)}</span></div>
+      <div><span>Paid ${escapeHTML(paidOn)}</span><small>${escapeHTML(cleared)}</small></div>
+      <span class="bill-status-pill ${payment.settles_bill?"paid":"partial"}">${payment.settles_bill?"Final":"Partial"}</span>
+      <div class="bill-payment-history-actions"><button type="button" class="text-button edit-bill-payment" data-payment-id="${payment.id}">Edit</button><button type="button" class="text-button danger-text delete-bill-payment" data-payment-id="${payment.id}">Delete</button></div>
+    </article>`;
+  }).join(""):status==="no_balance"
+    ?'<div class="bill-no-balance-state"><strong>No balance this month</strong><span>No payment was required for this occurrence.</span></div>'
+    :'<div class="bill-empty-small">No payments recorded for this month.</div>';
+
+  $("#bill-payment-no-balance").textContent=status==="no_balance"?"Reopen bill":"No balance this month";
+  history.querySelectorAll(".edit-bill-payment").forEach(button=>button.addEventListener("click",()=>editBillPayment(button.dataset.paymentId)));
+  history.querySelectorAll(".delete-bill-payment").forEach(button=>button.addEventListener("click",()=>deleteBillPaymentEntry(button.dataset.paymentId)));
+}
+
 function openBillPayment(event){
   if(!event||!canUpdateBill(event))return;
   state.billPaymentEvent=event;
-  const dialog=$("#bill-payment-dialog");
-  const paid=!!event.bill_paid;
-  const due=new Date(event.starts_at);
-  const assigned=event.bill_payer?.display_name||"Not assigned";
-  const paidBy=event.bill_paid_by?.display_name||"";
+  state.billPaymentEditingId=null;
   const users=state.users.filter(user=>user.active!==false);
-  const select=$("#bill-payment-person");
-  select.innerHTML=users.map(user=>`<option value="${user.id}">${escapeHTML(user.display_name)}</option>`).join("");
-  const preferred=event.bill_paid_by?.id||event.bill_payer?.id||state.me?.id||users[0]?.id||"";
-  if(users.some(user=>user.id===preferred))select.value=preferred;
-
-  const amount=event.bill_paid&&event.bill_amount_paid!==null&&event.bill_amount_paid!==undefined
-    ?Number(event.bill_amount_paid)
-    :(event.bill_amount!==null&&event.bill_amount!==undefined?Number(event.bill_amount):null);
-  $("#bill-payment-amount").value=amount===null?"":String(amount);
-  $("#bill-payment-title").textContent=paid?"Update payment":"Mark bill paid";
-  $("#bill-payment-copy").textContent=`${event.title} · due ${formatDate(due,{month:"long",day:"numeric",year:"numeric"})}`;
-  $("#bill-payment-assignment").innerHTML=`<span>Originally assigned</span><strong>${escapeHTML(assigned)}</strong>${event.bill_amount_is_estimate?'<small>Amount due is currently an estimate.</small>':""}`;
-  const existing=$("#bill-payment-existing");
-  existing.classList.toggle("hidden",!paid);
-  if(paid){
-    const paidAt=event.bill_paid_at?new Date(event.bill_paid_at):null;
-    existing.innerHTML=`<strong>Currently marked paid</strong><span>${escapeHTML(paidBy||"Unknown payer")}${paidAt?" · "+escapeHTML(formatDate(paidAt,{month:"long",day:"numeric",year:"numeric"})):""}</span>`;
-  }else existing.innerHTML="";
-  $("#bill-payment-unpaid").classList.toggle("hidden",!paid);
-  $("#bill-payment-save").textContent=paid?"Update payment":"Mark paid";
-  $("#bill-payment-error").textContent="";
-  dialog.showModal();
+  $("#bill-payment-person").innerHTML=users.map(user=>`<option value="${user.id}">${escapeHTML(user.display_name)}</option>`).join("");
+  renderBillPaymentModal();
+  resetBillPaymentEntry(event);
+  $("#bill-payment-dialog").showModal();
 }
 
-async function refreshBillPaymentViews(){
+function editBillPayment(paymentID){
+  const event=state.billPaymentEvent,payment=billPayments(event).find(item=>item.id===paymentID);
+  if(!payment)return;
+  state.billPaymentEditingId=paymentID;
+  $("#bill-payment-entry-title").textContent="Edit payment";
+  $("#bill-payment-save").textContent="Update payment";
+  $("#bill-payment-reset").classList.remove("hidden");
+  if(payment.paid_by?.id)$("#bill-payment-person").value=payment.paid_by.id;
+  $("#bill-payment-amount").value=String(Number(payment.amount_paid)||0);
+  $("#bill-payment-date").value=payment.paid_on||dateInputValue();
+  $("#bill-cleared-date").value=payment.cleared_on||"";
+  $("#bill-payment-settles").checked=!!payment.settles_bill;
+  $("#bill-payment-error").textContent="";
+}
+
+async function refreshBillPaymentViews(keepOpen=false){
   await loadEvents();
   if(state.currentPage==="bills")await loadBillMonth();
   else renderBills();
-  renderCalendar();
-  renderAgenda();
+  renderCalendar();renderAgenda();
+  if(keepOpen&&state.billPaymentEvent){
+    const key=eventKey(state.billPaymentEvent);
+    const updated=(state.currentPage==="bills"?state.billEvents:state.events).find(item=>eventKey(item)===key);
+    if(updated){state.billPaymentEvent=updated;renderBillPaymentModal()}
+  }
 }
 
-async function saveBillPayment(paid){
-  const event=state.billPaymentEvent;
-  if(!event)return;
-  const amountRaw=$("#bill-payment-amount").value.trim();
-  const amount=amountRaw===""?null:Number(amountRaw);
-  if(paid&&amount!==null&&(!Number.isFinite(amount)||amount<0)){
-    $("#bill-payment-error").textContent="Check the amount paid.";
-    return;
-  }
+async function saveBillPaymentEntry(){
+  const event=state.billPaymentEvent;if(!event)return;
+  const amount=Number($("#bill-payment-amount").value);
+  if(!Number.isFinite(amount)||amount<=0){$("#bill-payment-error").textContent="Enter the amount paid.";return}
   const payload={
     occurrence_start:billOccurrenceStart(event),
-    paid,
-    paid_by_user_id:paid?$("#bill-payment-person").value:null,
-    amount_paid:paid?amount:null
+    paid_by_user_id:$("#bill-payment-person").value,
+    amount_paid:amount,
+    paid_on:$("#bill-payment-date").value,
+    cleared_on:$("#bill-cleared-date").value||"",
+    settles_bill:$("#bill-payment-settles").checked
   };
-  $("#bill-payment-error").textContent="";
-  $("#bill-payment-save").disabled=true;
-  $("#bill-payment-unpaid").disabled=true;
+  if(!payload.paid_on){$("#bill-payment-error").textContent="Choose the payment date.";return}
+  const button=$("#bill-payment-save");button.disabled=true;$("#bill-payment-error").textContent="";
   try{
-    await api("/api/bills/"+event.id+"/payment",{method:"PUT",body:JSON.stringify(payload)});
-    await refreshBillPaymentViews();
-    $("#bill-payment-dialog").close();
-    state.billPaymentEvent=null;
-  }catch(err){
-    $("#bill-payment-error").textContent=err.message;
-  }finally{
-    $("#bill-payment-save").disabled=false;
-    $("#bill-payment-unpaid").disabled=false;
-  }
+    const editing=state.billPaymentEditingId;
+    const path=editing?`/api/bills/${event.id}/payments/${editing}`:`/api/bills/${event.id}/payments`;
+    await api(path,{method:editing?"PUT":"POST",body:JSON.stringify(payload)});
+    state.billPaymentEditingId=null;
+    await refreshBillPaymentViews(true);
+    resetBillPaymentEntry(state.billPaymentEvent);
+  }catch(err){$("#bill-payment-error").textContent=err.message}
+  finally{button.disabled=false}
+}
+
+async function deleteBillPaymentEntry(paymentID){
+  const event=state.billPaymentEvent;if(!event)return;
+  if(!confirm("Delete this payment entry? The bill itself will stay on the calendar."))return;
+  try{
+    await api(`/api/bills/${event.id}/payments/${paymentID}`,{method:"DELETE",body:JSON.stringify({occurrence_start:billOccurrenceStart(event)})});
+    await refreshBillPaymentViews(true);
+    resetBillPaymentEntry(state.billPaymentEvent);
+  }catch(err){$("#bill-payment-error").textContent=err.message}
+}
+
+async function toggleBillNoBalance(){
+  const event=state.billPaymentEvent;if(!event)return;
+  const enable=billPaymentStatus(event)!=="no_balance";
+  if(enable&&billPayments(event).length&&!confirm("Mark no balance this month? Existing payment entries for this month will be removed."))return;
+  try{
+    await api(`/api/bills/${event.id}/no-balance`,{method:"PUT",body:JSON.stringify({occurrence_start:billOccurrenceStart(event),no_balance:enable})});
+    await refreshBillPaymentViews(true);
+    resetBillPaymentEntry(state.billPaymentEvent);
+  }catch(err){$("#bill-payment-error").textContent=err.message}
 }
 
 function renderCalendar(){
@@ -1478,9 +1560,10 @@ $("#mobile-menu").addEventListener("click",()=>$("#sidebar").classList.toggle("o
 $("#new-event").addEventListener("click",()=>openEvent());
 $("#nav-add").addEventListener("click",()=>openEvent());
 $("#add-bill")?.addEventListener("click",openBillEvent);
-$("#bill-payment-cancel")?.addEventListener("click",()=>{$("#bill-payment-dialog").close();state.billPaymentEvent=null});
-$("#bill-payment-form")?.addEventListener("submit",async e=>{e.preventDefault();await saveBillPayment(true)});
-$("#bill-payment-unpaid")?.addEventListener("click",async()=>{await saveBillPayment(false)});
+$("#bill-payment-cancel")?.addEventListener("click",()=>{$("#bill-payment-dialog").close();state.billPaymentEvent=null;state.billPaymentEditingId=null});
+$("#bill-payment-form")?.addEventListener("submit",async e=>{e.preventDefault();await saveBillPaymentEntry()});
+$("#bill-payment-reset")?.addEventListener("click",()=>resetBillPaymentEntry());
+$("#bill-payment-no-balance")?.addEventListener("click",toggleBillNoBalance);
 $("#bill-prev")?.addEventListener("click",async()=>{state.billMonth=new Date(state.billMonth.getFullYear(),state.billMonth.getMonth()-1,1);await loadBillMonth()});
 $("#bill-next")?.addEventListener("click",async()=>{state.billMonth=new Date(state.billMonth.getFullYear(),state.billMonth.getMonth()+1,1);await loadBillMonth()});
 $("#bill-current")?.addEventListener("click",async()=>{const now=new Date();state.billMonth=new Date(now.getFullYear(),now.getMonth(),1);await loadBillMonth()});
@@ -1856,6 +1939,17 @@ $("#remove-settings-avatar").addEventListener("click",async()=>{
   }catch(err){$("#settings-avatar-status").textContent=err.message}
 });
 
+const googleRepairInput=$("#google-repair-export");
+googleRepairInput?.addEventListener("change",()=>{state.googleRepairFile=googleRepairInput.files?.[0]||null;state.googleRepairPreview=null;$("#google-repair-confirm-wrap")?.classList.add("hidden");$("#repair-google-duplicates").disabled=true});
+$("#scan-google-duplicates")?.addEventListener("click",scanGoogleDuplicateData);
+$("#preview-google-repair")?.addEventListener("click",previewGoogleDuplicateRepair);
+$("#repair-google-duplicates")?.addEventListener("click",repairGoogleDuplicateData);
+$("#google-repair-confirmation")?.addEventListener("input",()=>{
+  const body=state.googleRepairPreview;if(!body)return;
+  const phrase=`REPAIR ${Number(body.export_repairable_groups)||0}`;
+  $("#repair-google-duplicates").disabled=$("#google-repair-confirmation").value!==phrase;
+});
+
 const googleImportInput=$("#google-calendar-export");
 const googleImportDrop=$("#google-import-drop");
 googleImportInput?.addEventListener("change",()=>setGoogleImportFile(googleImportInput.files?.[0]||null));
@@ -1885,6 +1979,72 @@ $("#review-google-calendar")?.addEventListener("click",async()=>{
     button.disabled=false;button.textContent="Review calendars";
   }
 });
+function renderGoogleDuplicateSummary(body){
+  const host=$("#google-duplicate-summary"),workflow=$("#google-repair-workflow"),examples=$("#google-duplicate-examples");
+  const groups=Number(body?.duplicate_groups)||0,copies=Number(body?.extra_copies)||0;
+  host.classList.remove("hidden");
+  host.innerHTML=groups
+    ?`<div><strong>${groups}</strong><span>duplicate UID group${groups===1?"":"s"}</span></div><div><strong>${copies}</strong><span>redundant CalDen event cop${copies===1?"y":"ies"}</span></div><div><strong>${Number(body?.export_needed)||0}</strong><span>need export ownership check</span></div>`
+    :'<div class="google-repair-clean"><strong>No duplicate imported UIDs found.</strong><span>CalDen did not find multiple stored events sharing the same imported Google UID.</span></div>';
+  workflow.classList.toggle("hidden",groups===0);
+  examples.innerHTML=(body?.examples||[]).map(item=>`<div class="google-duplicate-example"><strong>${escapeHTML(item.title||"Untitled event")}</strong><span>${Number(item.copies)||0} copies · ${escapeHTML((item.calendars||[]).join(" / "))}</span></div>`).join("");
+}
+
+async function scanGoogleDuplicateData(){
+  const button=$("#scan-google-duplicates"),status=$("#google-repair-status");
+  button.disabled=true;button.textContent="Scanning…";
+  try{
+    const body=await api("/api/integrations/google/duplicates");
+    state.googleRepairPreview=null;
+    renderGoogleDuplicateSummary(body);
+    status.textContent=Number(body.duplicate_groups)?"Duplicates found in CalDen. Choose the original Google export to determine the correct surviving copy.":"No duplicate imported Google UIDs were found.";
+    $("#google-repair-confirm-wrap").classList.add("hidden");
+    $("#repair-google-duplicates").disabled=true;
+  }catch(err){status.textContent=err.message}
+  finally{button.disabled=false;button.textContent="Scan CalDen"}
+}
+
+async function previewGoogleDuplicateRepair(){
+  const file=state.googleRepairFile||$("#google-repair-export")?.files?.[0]||state.googleImportFile;
+  const status=$("#google-repair-status"),button=$("#preview-google-repair");
+  if(!file){status.textContent="Choose the original Google Calendar export first.";return}
+  button.disabled=true;button.textContent="Checking…";status.textContent="Comparing the existing CalDen duplicates with the original Google export…";
+  try{
+    const form=new FormData();form.append("archive",file,file.name);
+    const res=await fetch("/api/integrations/google/duplicates/preview",{method:"POST",headers:{Authorization:"Bearer "+state.token},body:form});
+    const body=await res.json().catch(()=>null);if(!res.ok)throw new Error(body?.error||"Could not preview duplicate repair");
+    state.googleRepairPreview=body;renderGoogleDuplicateSummary(body);
+    const repairable=Number(body.export_repairable_groups)||0;
+    if(!repairable){status.textContent="CalDen could not safely identify a canonical copy for the remaining duplicates. Nothing has been changed.";return}
+    const phrase=`REPAIR ${repairable}`;
+    $("#google-repair-phrase").textContent=phrase;
+    $("#google-repair-confirmation").value="";
+    $("#google-repair-confirm-wrap").classList.remove("hidden");
+    $("#repair-google-duplicates").disabled=true;
+    status.textContent=`${repairable} duplicate group${repairable===1?" is":"s are"} safely repairable in place. No calendars will be deleted and no events will be imported.`;
+  }catch(err){status.textContent=err.message}
+  finally{button.disabled=false;button.textContent="Preview repair"}
+}
+
+async function repairGoogleDuplicateData(){
+  const body=state.googleRepairPreview,file=state.googleRepairFile||$("#google-repair-export")?.files?.[0]||state.googleImportFile;
+  if(!body||!file)return;
+  const phrase=`REPAIR ${Number(body.export_repairable_groups)||0}`;
+  if($("#google-repair-confirmation").value!==phrase)return;
+  const button=$("#repair-google-duplicates"),status=$("#google-repair-status");
+  button.disabled=true;button.textContent="Repairing…";
+  try{
+    const form=new FormData();form.append("archive",file,file.name);
+    const res=await fetch("/api/integrations/google/duplicates/repair",{method:"POST",headers:{Authorization:"Bearer "+state.token},body:form});
+    const result=await res.json().catch(()=>null);if(!res.ok)throw new Error(result?.error||"Could not repair duplicate events");
+    await reloadSharedData();renderCalendar();renderAgenda();renderBills();
+    renderGoogleDuplicateSummary(result);
+    $("#google-repair-confirm-wrap").classList.add("hidden");
+    status.textContent=`Removed ${Number(result.removed_copies)||0} redundant CalDen event cop${Number(result.removed_copies)===1?"y":"ies"}. Calendars and nonduplicate events were left in place.`;
+  }catch(err){status.textContent=err.message}
+  finally{button.textContent="Repair duplicates"}
+}
+
 $("#import-google-calendar")?.addEventListener("click",async()=>{
   const file=state.googleImportFile||googleImportInput?.files?.[0];
   const status=$("#google-import-status"),button=$("#import-google-calendar"),results=$("#google-import-results");

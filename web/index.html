@@ -277,7 +277,7 @@
             <div class="integration-icon google-icon">G</div>
             <div class="integration-card-copy">
               <div class="integration-title-row"><h3>Google Calendar</h3><span class="integration-badge">Migration</span></div>
-              <p>Bring your existing Google Calendar setup into CalDen without creating duplicate calendars or duplicate events. CalDen detects the same Google event repeated in multiple exported calendar files, keeps the newest revision, previews calendar matches, and lets you approve where every calendar goes before anything is created.</p>
+              <p>Bring your existing Google Calendar setup into CalDen without creating duplicate calendars or duplicate events. Google Takeout can carry older copies of the same event UID in more than one source file after an event has moved; CalDen treats those as one logical event, previews calendar matches, and lets you approve where every calendar goes.</p>
             </div>
           </div>
           <div class="google-import-grid">
@@ -301,9 +301,34 @@
               <p id="google-import-status" class="status-line"></p>
               <div id="google-import-mapping" class="google-import-mapping hidden"></div>
               <div id="google-import-results" class="google-import-results hidden"></div>
-              <p class="import-privacy-note">Nothing is created until you review the mapping and start the import. Re-importing the same Google export can also reconcile event copies created by older CalDen imports when Google placed the same UID in more than one exported calendar. CalDen preserves attached people, reminders, bill metadata, and payment history when it consolidates those copies. The file stays on your CalDen server.</p>
+              <p class="import-privacy-note">Nothing is created until you review the mapping and start the import. The export stays on your CalDen server. If an older CalDen import already created duplicate database rows, use the repair tool below instead of deleting calendars or importing everything again.</p>
             </div>
           </div>
+          <section id="google-duplicate-repair" class="google-repair-panel">
+            <div class="google-repair-head">
+              <div><p class="eyebrow">Existing CalDen data</p><h4>Repair duplicate Google events</h4><p>Scan the events already stored in CalDen. This does not delete calendars and does not re-import your calendar. Your original Google export is used only to identify which existing CalDen copy is the current one.</p></div>
+              <button id="scan-google-duplicates" type="button" class="button secondary">Scan CalDen</button>
+            </div>
+            <div id="google-duplicate-summary" class="google-duplicate-summary hidden"></div>
+            <div id="google-repair-workflow" class="google-repair-workflow hidden">
+              <label>Original Google Calendar export
+                <input id="google-repair-export" type="file" accept=".zip,.ics,application/zip,text/calendar">
+                <span class="field-help">Use the same export the events came from. CalDen reads it as a reference only; it will not import events from this action.</span>
+              </label>
+              <div class="form-actions">
+                <button id="preview-google-repair" type="button" class="button secondary">Preview repair</button>
+                <span class="grow"></span>
+                <button id="repair-google-duplicates" type="button" class="button danger" disabled>Repair duplicates</button>
+              </div>
+              <div id="google-repair-confirm-wrap" class="google-repair-confirm hidden">
+                <label>Type <code id="google-repair-phrase"></code> to confirm
+                  <input id="google-repair-confirmation" type="text" autocomplete="off" spellcheck="false">
+                </label>
+              </div>
+              <p id="google-repair-status" class="status-line"></p>
+              <div id="google-duplicate-examples" class="google-duplicate-examples"></div>
+            </div>
+          </section>
         </section>
 
         <section class="panel integration-card monita-integration-card">
@@ -532,28 +557,42 @@
   </form>
 </dialog>
 
-<dialog id="bill-payment-dialog" class="scope-dialog">
+<dialog id="bill-payment-dialog" class="scope-dialog bill-payment-shell">
   <form id="bill-payment-form" class="scope-dialog-body bill-payment-dialog">
-    <p class="eyebrow">Bill status</p>
-    <h2 id="bill-payment-title">Mark bill paid</h2>
-    <p id="bill-payment-copy" class="muted"></p>
-    <div id="bill-payment-assignment" class="bill-payment-assignment"></div>
-    <label>Paid by
-      <select id="bill-payment-person" required></select>
-      <span class="field-help">This can be different from the person originally assigned to pay the bill.</span>
-    </label>
-    <label>Amount actually paid
-      <div class="money-input"><span>$</span><input id="bill-payment-amount" type="number" min="0" max="9999999999.99" step="0.01" inputmode="decimal" placeholder="Optional"></div>
-      <span class="field-help">CalDen starts with the amount due. Change it here if the actual payment was different from the estimate.</span>
-    </label>
-    <div id="bill-payment-existing" class="bill-payment-existing hidden"></div>
-    <p id="bill-payment-error" class="error"></p>
-    <div class="scope-dialog-actions">
-      <button id="bill-payment-unpaid" type="button" class="button danger hidden">Mark unpaid</button>
-      <span class="grow"></span>
-      <button id="bill-payment-cancel" type="button" class="button secondary">Cancel</button>
-      <button id="bill-payment-save" type="submit" class="button">Mark paid</button>
+    <div class="bill-payment-heading">
+      <div><p class="eyebrow">Bill activity</p><h2 id="bill-payment-title">Record payment</h2><p id="bill-payment-copy" class="muted"></p></div>
+      <button id="bill-payment-cancel" type="button" class="dialog-close" aria-label="Close">×</button>
     </div>
+    <div id="bill-payment-assignment" class="bill-payment-assignment"></div>
+    <div id="bill-payment-summary" class="bill-payment-summary"></div>
+    <section class="bill-payment-history-section">
+      <div class="bill-section-head"><div><h3>Payment history</h3><p class="muted">Each payment keeps its own payer, payment date, and optional cleared date.</p></div></div>
+      <div id="bill-payment-history" class="bill-payment-history"></div>
+    </section>
+    <section class="bill-payment-entry-form">
+      <div class="bill-section-head"><div><h3 id="bill-payment-entry-title">Add a payment</h3><p class="muted">Use multiple entries for partial or split payments.</p></div></div>
+      <div class="two">
+        <label>Paid by
+          <select id="bill-payment-person" required></select>
+          <span class="field-help">This can be different from the assigned payer.</span>
+        </label>
+        <label>Amount paid
+          <div class="money-input"><span>$</span><input id="bill-payment-amount" type="number" min="0.01" max="9999999999.99" step="0.01" inputmode="decimal" required></div>
+        </label>
+      </div>
+      <div class="two">
+        <label>Payment date<input id="bill-payment-date" type="date" required><span class="field-help">When the payment was actually made.</span></label>
+        <label>Cleared date<input id="bill-cleared-date" type="date"><span class="field-help">Optional. When it cleared the account or processor.</span></label>
+      </div>
+      <label class="toggle-row"><input id="bill-payment-settles" type="checkbox"><span>This payment completes the bill for this month</span></label>
+      <p id="bill-payment-error" class="error"></p>
+      <div class="scope-dialog-actions">
+        <button id="bill-payment-no-balance" type="button" class="button secondary">No balance this month</button>
+        <button id="bill-payment-reset" type="button" class="button secondary hidden">Cancel edit</button>
+        <span class="grow"></span>
+        <button id="bill-payment-save" type="submit" class="button">Add payment</button>
+      </div>
+    </section>
   </form>
 </dialog>
 
