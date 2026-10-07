@@ -247,10 +247,12 @@ function layoutTimedEvents(events,day){
   const items=events.map(event=>{
     const clippedStart=new Date(Math.max(new Date(event.starts_at).getTime(),dayStart.getTime()));
     const clippedEnd=new Date(Math.min(new Date(event.ends_at).getTime(),dayEnd.getTime()));
+    const startMin=(clippedStart.getTime()-dayStart.getTime())/60000;
+    const rawEndMin=(clippedEnd.getTime()-dayStart.getTime())/60000;
     return {
       event,
-      startMin:clippedStart.getHours()*60+clippedStart.getMinutes(),
-      endMin:Math.max(clippedStart.getHours()*60+clippedStart.getMinutes()+15,clippedEnd.getHours()*60+clippedEnd.getMinutes())
+      startMin,
+      endMin:Math.max(startMin+15,rawEndMin)
     };
   }).sort((a,b)=>a.startMin-b.startMin||a.endMin-b.endMin);
 
