@@ -392,6 +392,100 @@ jobs:
           })();
           NODE
 
+      - name: Verify event assignment and whole-family notifications
+        run: |
+          python - <<'PY'
+          import datetime as dt
+          import json
+          import urllib.request
+
+          base = "http://127.0.0.1:8787"
+
+          def request(path, method="GET", payload=None, token=None):
+              headers = {"Content-Type": "application/json"}
+              if token:
+                  headers["Authorization"] = "Bearer " + token
+              data = None if payload is None else json.dumps(payload).encode()
+              req = urllib.request.Request(base + path, data=data, headers=headers, method=method)
+              with urllib.request.urlopen(req) as response:
+                  if response.status == 204:
+                      return None
+                  return json.load(response)
+
+          admin_token = request("/api/login", "POST", {
+              "username": "testadmin",
+              "password": "test-password-123",
+          })["token"]
+          second_token = request("/api/login", "POST", {
+              "username": "seconduser",
+              "password": "another-password-123",
+          })["token"]
+
+          admin = request("/api/me", token=admin_token)
+          users = request("/api/users", token=admin_token)
+          second = next(u for u in users if u["username"] == "seconduser")
+
+          created_calendar = request("/api/calendars", "POST", {
+              "name": "Notification CI",
+              "color": "#2563EB",
+              "icon": "calendar",
+              "description": "Notification recipient verification",
+              "calendar_type": "standard",
+              "visible_to": [admin["id"], second["id"]],
+              "editable_by": [admin["id"]],
+          }, admin_token)
+          calendar_id = created_calendar["id"]
+
+          start = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=2)).replace(
+              hour=15, minute=0, second=0, microsecond=0
+          )
+          end = start + dt.timedelta(hours=1)
+          base_event = {
+              "calendar_id": calendar_id,
+              "category_id": None,
+              "notes": "",
+              "location": "",
+              "starts_at": start.isoformat().replace("+00:00", "Z"),
+              "ends_at": end.isoformat().replace("+00:00", "Z"),
+              "all_day": False,
+              "reminders": [],
+              "recurrence": None,
+          }
+
+          request("/api/events", "POST", {
+              **base_event,
+              "title": "Assigned Notification CI",
+              "assignee_ids": [second["id"]],
+          }, admin_token)
+
+          notices = request("/api/notifications", token=second_token)
+          assigned = next(n for n in notices["items"] if n["title"] == "Assigned Notification CI")
+          assert assigned["kind"] == "event_assigned", assigned
+          assert assigned["read_at"] is None, assigned
+          request(f'/api/notifications/{assigned["id"]}/read', "PUT", token=second_token)
+
+          request("/api/events", "POST", {
+              **base_event,
+              "title": "Family Notification CI",
+              "assignee_ids": [],
+          }, admin_token)
+
+          notices = request("/api/notifications", token=second_token)
+          family = next(n for n in notices["items"] if n["title"] == "Family Notification CI")
+          assert family["kind"] == "event_family", family
+          assert notices["unread"] >= 1, notices
+
+          request("/api/notifications/read-all", "PUT", token=second_token)
+          notices = request("/api/notifications", token=second_token)
+          assert notices["unread"] == 0, notices
+
+          request(f"/api/calendars/{calendar_id}", "DELETE", {
+              "force": True,
+              "confirmation": "DELETE Notification CI",
+          }, admin_token)
+          print("Assignment and whole-family notification test passed.")
+          PY
+
       - name: Verify recurring series and single-occurrence exceptions
         run: |
           python - <<'PY'
