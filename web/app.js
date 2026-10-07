@@ -640,7 +640,7 @@ function renderCalendarPermissionChecks(){
   $("#calendar-viewers").innerHTML=checks;$("#calendar-editors").innerHTML=checks;
 }
 function resetCalendarForm(){
-  const form=$("#calendar-form");form.reset();form.color.value="#2f6fed";form.calendar_id.value="";state.editingCalendar=null;
+  const form=$("#calendar-form");form.reset();form.color.value="#2f6fed";form.calendar_type.value="standard";form.calendar_id.value="";state.editingCalendar=null;
   $("#calendar-form-eyebrow").textContent="New calendar";$("#calendar-form-title").textContent="Create a calendar";
   $("#delete-calendar").classList.add("hidden");$("#cancel-calendar-edit").classList.add("hidden");
   $("#calendar-interop").classList.add("hidden");$("#calendar-interop-status").textContent="";$("#import-calendar-file").value="";
@@ -651,7 +651,7 @@ function resetCalendarForm(){
 async function beginCalendarEdit(id){
   const cal=state.calendars.find(c=>c.id===id);if(!cal)return;
   state.editingCalendar=cal;const form=$("#calendar-form");
-  form.calendar_id.value=cal.id;form.name.value=cal.name;form.color.value=cal.color;form.description.value=cal.description||"";
+  form.calendar_id.value=cal.id;form.name.value=cal.name;form.calendar_type.value=cal.calendar_type||"standard";form.color.value=cal.color;form.description.value=cal.description||"";
   $("#calendar-form-eyebrow").textContent="Edit calendar";$("#calendar-form-title").textContent=cal.name;
   $("#delete-calendar").classList.remove("hidden");$("#cancel-calendar-edit").classList.remove("hidden");
   $("#calendar-interop").classList.remove("hidden");$("#calendar-interop-status").textContent="";$("#import-calendar-file").value="";
@@ -1263,7 +1263,7 @@ $("#calendar-form").addEventListener("submit",async e=>{
   const editors=[...$("#calendar-editors").querySelectorAll("input:checked")].map(i=>i.value);
   editors.forEach(id=>{if(!visible.includes(id))visible.push(id)});
   if(!visible.includes(state.me.id))visible.push(state.me.id);if(!editors.includes(state.me.id))editors.push(state.me.id);
-  const payload={name:fd.get("name"),color:fd.get("color"),icon:"calendar",description:fd.get("description")};
+  const payload={name:fd.get("name"),color:fd.get("color"),icon:fd.get("calendar_type")==="bill_pay"?"receipt":"calendar",description:fd.get("description"),calendar_type:fd.get("calendar_type")||"standard"};
   try{
     if(state.editingCalendar){
       const id=state.editingCalendar.id;
@@ -1274,7 +1274,7 @@ $("#calendar-form").addEventListener("submit",async e=>{
       await api("/api/calendars",{method:"POST",body:JSON.stringify({...payload,visible_to:visible,editable_by:editors})});
       $("#calendar-status").textContent="Calendar created.";
     }
-    state.calendars=await api("/api/calendars");resetCalendarForm();renderCalendars();renderCalendar();renderEventControls();
+    state.calendars=await api("/api/calendars");resetCalendarForm();renderCalendars();renderBillNavigation();renderBills();renderCalendar();renderEventControls();
   }catch(err){$("#calendar-error").textContent=err.message}
 });
 $("#cancel-calendar-edit").addEventListener("click",resetCalendarForm);
@@ -1306,7 +1306,7 @@ $("#import-calendar-ics").addEventListener("click",async()=>{
 
 $("#delete-calendar").addEventListener("click",async()=>{
   if(!state.editingCalendar||!confirm(`Delete "${state.editingCalendar.name}"? The calendar must be empty first.`))return;
-  try{await api("/api/calendars/"+state.editingCalendar.id,{method:"DELETE"});state.calendars=await api("/api/calendars");resetCalendarForm();renderCalendars();renderCalendar();renderEventControls()}
+  try{await api("/api/calendars/"+state.editingCalendar.id,{method:"DELETE"});state.calendars=await api("/api/calendars");resetCalendarForm();renderCalendars();renderBillNavigation();renderBills();renderCalendar();renderEventControls()}
   catch(err){$("#calendar-error").textContent=err.message}
 });
 
