@@ -439,6 +439,78 @@ function renderBills(){
   }));
 }
 
+function openBillPayment(event){
+  if(!event||!canUpdateBill(event))return;
+  state.billPaymentEvent=event;
+  const dialog=$("#bill-payment-dialog");
+  const paid=!!event.bill_paid;
+  const due=new Date(event.starts_at);
+  const assigned=event.bill_payer?.display_name||"Not assigned";
+  const paidBy=event.bill_paid_by?.display_name||"";
+  const users=state.users.filter(user=>user.active!==false);
+  const select=$("#bill-payment-person");
+  select.innerHTML=users.map(user=>`<option value="${user.id}">${escapeHTML(user.display_name)}</option>`).join("");
+  const preferred=event.bill_paid_by?.id||event.bill_payer?.id||state.me?.id||users[0]?.id||"";
+  if(users.some(user=>user.id===preferred))select.value=preferred;
+
+  const amount=event.bill_paid&&event.bill_amount_paid!==null&&event.bill_amount_paid!==undefined
+    ?Number(event.bill_amount_paid)
+    :(event.bill_amount!==null&&event.bill_amount!==undefined?Number(event.bill_amount):null);
+  $("#bill-payment-amount").value=amount===null?"":String(amount);
+  $("#bill-payment-title").textContent=paid?"Update payment":"Mark bill paid";
+  $("#bill-payment-copy").textContent=`${event.title} · due ${formatDate(due,{month:"long",day:"numeric",year:"numeric"})}`;
+  $("#bill-payment-assignment").innerHTML=`<span>Originally assigned</span><strong>${escapeHTML(assigned)}</strong>${event.bill_amount_is_estimate?'<small>Amount due is currently an estimate.</small>':""}`;
+  const existing=$("#bill-payment-existing");
+  existing.classList.toggle("hidden",!paid);
+  if(paid){
+    const paidAt=event.bill_paid_at?new Date(event.bill_paid_at):null;
+    existing.innerHTML=`<strong>Currently marked paid</strong><span>${escapeHTML(paidBy||"Unknown payer")}${paidAt?" · "+escapeHTML(formatDate(paidAt,{month:"long",day:"numeric",year:"numeric"})):""}</span>`;
+  }else existing.innerHTML="";
+  $("#bill-payment-unpaid").classList.toggle("hidden",!paid);
+  $("#bill-payment-save").textContent=paid?"Update payment":"Mark paid";
+  $("#bill-payment-error").textContent="";
+  dialog.showModal();
+}
+
+async function refreshBillPaymentViews(){
+  await loadEvents();
+  if(state.currentPage==="bills")await loadBillMonth();
+  else renderBills();
+  renderCalendar();
+  renderAgenda();
+}
+
+async function saveBillPayment(paid){
+  const event=state.billPaymentEvent;
+  if(!event)return;
+  const amountRaw=$("#bill-payment-amount").value.trim();
+  const amount=amountRaw===""?null:Number(amountRaw);
+  if(paid&&amount!==null&&(!Number.isFinite(amount)||amount<0)){
+    $("#bill-payment-error").textContent="Check the amount paid.";
+    return;
+  }
+  const payload={
+    occurrence_start:billOccurrenceStart(event),
+    paid,
+    paid_by_user_id:paid?$("#bill-payment-person").value:null,
+    amount_paid:paid?amount:null
+  };
+  $("#bill-payment-error").textContent="";
+  $("#bill-payment-save").disabled=true;
+  $("#bill-payment-unpaid").disabled=true;
+  try{
+    await api("/api/bills/"+event.id+"/payment",{method:"PUT",body:JSON.stringify(payload)});
+    $("#bill-payment-dialog").close();
+    state.billPaymentEvent=null;
+    await refreshBillPaymentViews();
+  }catch(err){
+    $("#bill-payment-error").textContent=err.message;
+  }finally{
+    $("#bill-payment-save").disabled=false;
+    $("#bill-payment-unpaid").disabled=false;
+  }
+}
+
 function renderCalendar(){
   const label=$("#calendar-range-label");
   $$(".view-switcher button").forEach(b=>b.classList.toggle("active",Number(b.dataset.days)===state.viewDays));
@@ -1396,6 +1468,9 @@ $("#mobile-menu").addEventListener("click",()=>$("#sidebar").classList.toggle("o
 $("#new-event").addEventListener("click",()=>openEvent());
 $("#nav-add").addEventListener("click",()=>openEvent());
 $("#add-bill")?.addEventListener("click",openBillEvent);
+$("#bill-payment-cancel")?.addEventListener("click",()=>{$("#bill-payment-dialog").close();state.billPaymentEvent=null});
+$("#bill-payment-form")?.addEventListener("submit",async e=>{e.preventDefault();await saveBillPayment(true)});
+$("#bill-payment-unpaid")?.addEventListener("click",async()=>{await saveBillPayment(false)});
 $("#bill-prev")?.addEventListener("click",async()=>{state.billMonth=new Date(state.billMonth.getFullYear(),state.billMonth.getMonth()-1,1);await loadBillMonth()});
 $("#bill-next")?.addEventListener("click",async()=>{state.billMonth=new Date(state.billMonth.getFullYear(),state.billMonth.getMonth()+1,1);await loadBillMonth()});
 $("#bill-current")?.addEventListener("click",async()=>{const now=new Date();state.billMonth=new Date(now.getFullYear(),now.getMonth(),1);await loadBillMonth()});
