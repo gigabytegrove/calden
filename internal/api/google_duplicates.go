@@ -9,6 +9,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+
+	calical "github.com/gigabytegrove/calden/internal/ical"
 )
 
 type googleDuplicateEventRow struct {
@@ -600,13 +602,21 @@ func (s *server) previewGoogleDuplicateRepair(w http.ResponseWriter, r *http.Req
 		writeError(w, 500, "Could not scan imported events")
 		return
 	}
-	repairable, _, err := s.exportRepairableGoogleDuplicates(r.Context(), tx, bundles, groups, false)
+	sameUIDRepairable, _, err := s.exportRepairableGoogleDuplicates(r.Context(), tx, bundles, groups, false)
 	if err != nil {
 		writeError(w, 500, "Could not compare the export with existing imported events")
 		return
 	}
+	replacements, err := s.googleStaleReplacementCandidates(r.Context(), tx, bundles)
+	if err != nil {
+		writeError(w, 500, "Could not compare changed Google event identities")
+		return
+	}
 	out := googleDuplicateSummary(groups)
-	out["export_repairable_groups"] = repairable
+	out["same_uid_repairable_groups"] = sameUIDRepairable
+	out["replacement_repairable_groups"] = len(replacements)
+	out["export_repairable_groups"] = sameUIDRepairable + len(replacements)
+	out["replacement_examples"] = googleReplacementSummary(replacements)
 	writeJSON(w, 200, out)
 }
 
@@ -628,25 +638,46 @@ func (s *server) repairGoogleDuplicatesWithExport(w http.ResponseWriter, r *http
 		return
 	}
 
-	_, removed, err := s.exportRepairableGoogleDuplicates(r.Context(), tx, bundles, groups, true)
+	_, sameUIDRemoved, err := s.exportRepairableGoogleDuplicates(r.Context(), tx, bundles, groups, true)
 	if err != nil {
 		writeError(w, 500, "Could not repair imported duplicates")
 		return
 	}
+	replacements, err := s.googleStaleReplacementCandidates(r.Context(), tx, bundles)
+	if err != nil {
+		writeError(w, 500, "Could not compare changed Google event identities")
+		return
+	}
+	replacementRemoved, err := s.applyGoogleStaleReplacementRepair(r.Context(), tx, replacements)
+	if err != nil {
+		writeError(w, 500, "Could not remove stale replaced Google events")
+		return
+	}
+	removed := sameUIDRemoved + replacementRemoved
 	if err := tx.Commit(r.Context()); err != nil {
 		writeError(w, 500, "Could not finish duplicate repair")
 		return
 	}
-	s.audit(r, "repair", "integration", nil, "Repaired Google Calendar duplicates using export revision data", map[string]any{"removed_copies": removed})
+	s.audit(r, "repair", "integration", nil, "Repaired Google Calendar duplicates and stale replacements", map[string]any{
+		"removed_copies": removed,
+		"same_uid_removed": sameUIDRemoved,
+		"replacement_removed": replacementRemoved,
+	})
 
 	checkTx, err := s.db.Begin(r.Context())
 	if err != nil {
-		writeJSON(w, 200, map[string]any{"removed_copies": removed})
+		writeJSON(w, 200, map[string]any{
+			"removed_copies": removed,
+			"same_uid_removed": sameUIDRemoved,
+			"replacement_removed": replacementRemoved,
+		})
 		return
 	}
 	defer checkTx.Rollback(r.Context())
 	remaining, _ := s.googleDuplicateGroups(r.Context(), checkTx)
 	out := googleDuplicateSummary(remaining)
 	out["removed_copies"] = removed
+	out["same_uid_removed"] = sameUIDRemoved
+	out["replacement_removed"] = replacementRemoved
 	writeJSON(w, 200, out)
 }
