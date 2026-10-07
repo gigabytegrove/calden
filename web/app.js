@@ -25,6 +25,14 @@ async function api(path,options={}){
   if(!res.ok)throw new Error(body?.error||`Request failed (${res.status})`);
   return body;
 }
+async function apiForm(path,formData,method="POST"){
+  const headers={};
+  if(state.token)headers.Authorization=`Bearer ${state.token}`;
+  const res=await fetch(path,{method,headers,body:formData});
+  const body=res.status===204?null:await res.json().catch(()=>null);
+  if(!res.ok)throw new Error(body?.error||`Request failed (${res.status})`);
+  return body;
+}
 function setToken(token){state.token=token||"";if(token)localStorage.setItem("calden_token",token);else localStorage.removeItem("calden_token")}
 function formJSON(form){return Object.fromEntries(new FormData(form).entries())}
 function escapeHTML(v=""){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
@@ -35,6 +43,18 @@ function addDays(value,days){const d=new Date(value);d.setDate(d.getDate()+days)
 function sameDay(a,b){return startOfDay(a).getTime()===startOfDay(b).getTime()}
 function localInput(d){const p=n=>String(n).padStart(2,"0");return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`}
 function roleLabel(role){return role==="admin"?"Administrator":role==="restricted"?"Restricted member":"Family member"}
+function avatarMarkup(user,sizeClass=""){
+  if(user?.avatar_url){
+    return `<img class="avatar-image ${sizeClass}" src="${escapeAttr(user.avatar_url)}" alt="">`;
+  }
+  return `<span class="avatar-fallback ${sizeClass}">${escapeHTML(user?.initials||"?")}</span>`;
+}
+function setAvatarPreview(el,user){
+  if(!el)return;
+  el.innerHTML=user?.avatar_url
+    ?`<img src="${escapeAttr(user.avatar_url)}" alt="">`
+    :`<span>${escapeHTML(user?.initials||"?")}</span>`;
+}
 function formatDate(d,opts={month:"short",day:"numeric"}){return new Intl.DateTimeFormat(undefined,opts).format(d)}
 function formatTime(d){return new Intl.DateTimeFormat(undefined,{hour:"numeric",minute:"2-digit"}).format(d)}
 function clamp(n,min,max){return Math.min(max,Math.max(min,n))}
@@ -96,12 +116,14 @@ function renderApp(){
   $("#household-label").textContent=state.settings?.household_name||"";
   $("#sidebar-name").textContent=state.me.display_name;
   $("#sidebar-role").textContent=roleLabel(state.me.role);
-  $("#sidebar-avatar").textContent=state.me.initials||"?";
+  $("#sidebar-avatar").innerHTML=state.me.avatar_url?`<img src="${escapeAttr(state.me.avatar_url)}" alt="">`:escapeHTML(state.me.initials||"?");
   $$(".admin-only").forEach(el=>el.classList.toggle("hidden",state.me.role!=="admin"));
   $(".admin-settings")?.classList.toggle("hidden",state.me.role!=="admin");
   $("#settings-account-name").textContent=state.me.display_name;
   $("#settings-account-username").textContent=state.me.username;
   $("#settings-account-role").textContent=roleLabel(state.me.role);
+  setAvatarPreview($("#settings-avatar-preview"),state.me);
+  $("#remove-settings-avatar")?.classList.toggle("hidden",!state.me.avatar_url);
   renderEventControls();
   renderCalendar();
   renderAgenda();
@@ -249,7 +271,7 @@ function eventCard(e){
 function renderPeople(){
   if(state.me.role!=="admin")return;
   $("#people-list").innerHTML=state.users.map(u=>`<article class="management-card ${u.active===false?"inactive":""}">
-    <div class="management-avatar">${escapeHTML(u.initials)}</div>
+    <div class="management-avatar">${avatarMarkup(u)}</div>
     <div class="management-copy"><strong>${escapeHTML(u.display_name)}</strong><span>@${escapeHTML(u.username)}</span><small>${roleLabel(u.role)} · ${u.active===false?"Inactive":"Active"}</small></div>
     <button class="button secondary compact edit-person" type="button" data-user-id="${u.id}">Edit</button>
   </article>`).join("");
@@ -262,6 +284,8 @@ function resetPersonForm(){
   $("#person-active-row").classList.add("hidden");$("#cancel-person-edit").classList.add("hidden");
   $("#person-form-eyebrow").textContent="New person";$("#person-form-title").textContent="Add a family member";
   $("#person-password-label").firstChild.textContent="Temporary password";
+  $("#person-avatar-file").value="";setAvatarPreview($("#person-avatar-preview"),null);
+  $("#remove-person-avatar").classList.add("hidden");
   $("#person-error").textContent="";$("#person-status").textContent="";
 }
 function beginPersonEdit(id){
@@ -272,6 +296,8 @@ function beginPersonEdit(id){
   $("#person-active-row").classList.remove("hidden");$("#cancel-person-edit").classList.remove("hidden");
   $("#person-form-eyebrow").textContent="Edit person";$("#person-form-title").textContent=user.display_name;
   $("#person-password-label").firstChild.textContent="New password (leave blank to keep current)";
+  $("#person-avatar-file").value="";setAvatarPreview($("#person-avatar-preview"),user);
+  $("#remove-person-avatar").classList.toggle("hidden",!user.avatar_url);
   $("#person-error").textContent="";$("#person-status").textContent="";
 }
 
@@ -751,19 +777,44 @@ $("#person-form").addEventListener("submit",async e=>{
   e.preventDefault();const form=e.currentTarget;$("#person-error").textContent="";$("#person-status").textContent="";
   const editing=state.editingUser;
   try{
+    let userID=editing?.id||"";
     if(editing){
       const payload={display_name:form.display_name.value.trim(),role:form.role.value,active:form.active.checked,password:form.password.value};
       await api("/api/users/"+editing.id,{method:"PUT",body:JSON.stringify(payload)});
-      $("#person-status").textContent="Person updated.";
     }else{
       const payload={display_name:form.display_name.value.trim(),username:form.username.value.trim(),role:form.role.value,password:form.password.value};
-      await api("/api/users",{method:"POST",body:JSON.stringify(payload)});
-      $("#person-status").textContent="Person added.";
+      const created=await api("/api/users",{method:"POST",body:JSON.stringify(payload)});
+      userID=created.id;
     }
-    state.users=await api("/api/users");resetPersonForm();renderPeople();renderCalendarPermissionChecks();renderEventControls();
+    const avatarFile=$("#person-avatar-file").files?.[0];
+    if(avatarFile&&userID){
+      const data=new FormData();data.append("avatar",avatarFile);
+      await apiForm("/api/users/"+userID+"/avatar",data);
+    }
+    state.users=await api("/api/users");
+    $("#person-status").textContent=editing?"Person updated.":"Person added.";
+    resetPersonForm();renderPeople();renderCalendarPermissionChecks();renderEventControls();
   }catch(err){$("#person-error").textContent=err.message}
 });
 $("#cancel-person-edit").addEventListener("click",resetPersonForm);
+$("#person-avatar-file").addEventListener("change",e=>{
+  const file=e.target.files?.[0];if(!file)return;
+  const url=URL.createObjectURL(file);
+  $("#person-avatar-preview").innerHTML=`<img src="${url}" alt="">`;
+});
+$("#remove-person-avatar").addEventListener("click",async()=>{
+  if(!state.editingUser)return;
+  try{
+    await api("/api/users/"+state.editingUser.id+"/avatar",{method:"DELETE"});
+    state.users=await api("/api/users");
+    const refreshed=state.users.find(u=>u.id===state.editingUser.id);
+    if(refreshed)state.editingUser=refreshed;
+    setAvatarPreview($("#person-avatar-preview"),state.editingUser);
+    $("#remove-person-avatar").classList.add("hidden");
+    renderPeople();renderEventControls();
+    $("#person-status").textContent="Profile image removed.";
+  }catch(err){$("#person-error").textContent=err.message}
+});
 
 $("#calendar-form").addEventListener("submit",async e=>{
   e.preventDefault();const form=e.currentTarget,fd=new FormData(form);$("#calendar-error").textContent="";$("#calendar-status").textContent="";
@@ -847,6 +898,38 @@ $("#general-settings-form").addEventListener("submit",async e=>{
   const payload={household_name:form.household_name.value.trim(),timezone:form.timezone.value.trim(),week_start:form.week_start.value,default_view:Number(form.default_view.value)};
   try{state.settings=await api("/api/settings/general",{method:"PUT",body:JSON.stringify(payload)});$("#household-label").textContent=state.settings.household_name;$("#general-settings-status").textContent="Household settings saved."}
   catch(err){$("#general-settings-status").textContent=err.message}
+});
+
+
+$("#settings-avatar-file").addEventListener("change",e=>{
+  const file=e.target.files?.[0];if(!file)return;
+  $("#settings-avatar-preview").innerHTML=`<img src="${URL.createObjectURL(file)}" alt="">`;
+});
+$("#save-settings-avatar").addEventListener("click",async()=>{
+  const file=$("#settings-avatar-file").files?.[0];
+  if(!file){$("#settings-avatar-status").textContent="Choose a profile image first.";return}
+  $("#settings-avatar-status").textContent="Uploading…";
+  try{
+    const data=new FormData();data.append("avatar",file);
+    await apiForm("/api/users/"+state.me.id+"/avatar",data);
+    state.me=await api("/api/me");
+    $("#settings-avatar-file").value="";
+    setAvatarPreview($("#settings-avatar-preview"),state.me);
+    $("#sidebar-avatar").innerHTML=state.me.avatar_url?`<img src="${escapeAttr(state.me.avatar_url)}" alt="">`:escapeHTML(state.me.initials||"?");
+    $("#remove-settings-avatar").classList.toggle("hidden",!state.me.avatar_url);
+    $("#settings-avatar-status").textContent="Profile image updated.";
+  }catch(err){$("#settings-avatar-status").textContent=err.message}
+});
+$("#remove-settings-avatar").addEventListener("click",async()=>{
+  $("#settings-avatar-status").textContent="";
+  try{
+    await api("/api/users/"+state.me.id+"/avatar",{method:"DELETE"});
+    state.me=await api("/api/me");
+    setAvatarPreview($("#settings-avatar-preview"),state.me);
+    $("#sidebar-avatar").innerHTML=escapeHTML(state.me.initials||"?");
+    $("#remove-settings-avatar").classList.add("hidden");
+    $("#settings-avatar-status").textContent="Profile image removed.";
+  }catch(err){$("#settings-avatar-status").textContent=err.message}
 });
 
 $("#monita-form").addEventListener("submit",async e=>{
