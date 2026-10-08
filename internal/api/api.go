@@ -2,6 +2,9 @@ package api
 
 import (
 	"errors"
+	"encoding/json"
+	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -51,6 +54,7 @@ func New(cfg Config) http.Handler {
 	s.backup = backup.New(cfg.DataDir, cfg.Version)
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", s.health)
+	mux.Handle("POST /api/client-errors", s.auth(http.HandlerFunc(s.clientError)))
 	mux.HandleFunc("GET /api/setup/status", s.setupStatus)
 	mux.HandleFunc("POST /api/setup", s.setup)
 	mux.HandleFunc("POST /api/login", s.login)
@@ -446,4 +450,27 @@ func initials(name string) string {
 		out += strings.ToUpper(string([]rune(parts[len(parts)-1])[0]))
 	}
 	return out
+}
+
+// clientError sends browser-only crashes to server stderr for Dokploy logs.
+func (s *server) clientError(w http.ResponseWriter, r *http.Request) {
+  defer r.Body.Close()
+  var in struct {
+    Message string `json:"message"`
+    Version string `json:"version"`
+  }
+  if err := json.NewDecoder(io.LimitReader(r.Body, 2048)).Decode(&in); err != nil {
+    writeError(w, http.StatusBadRequest, "Invalid error report")
+    return
+  }
+  message := strings.NewReplacer("\n", " ", "\r", " ", "\t", " ").Replace(in.Message)
+  version := strings.NewReplacer("\n", " ", "\r", " ", "\t", " ").Replace(in.Version)
+  if len(message)>400 {message=message[:400]}
+  if len(version)>60 {version=version[:60]}
+  if strings.TrimSpace(message)=="" {
+    writeError(w, http.StatusBadRequest, "Missing error message")
+    return
+  }
+  log.Printf("CalDen browser error (client version %s): %s",version,message)
+  w.WriteHeader(http.StatusNoContent)
 }

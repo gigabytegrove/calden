@@ -10,7 +10,7 @@ CalDen is a self-hosted family calendar built for normal people, not calendar ad
 
 A calendar has its own color. A person has their own identity. The two never compete with each other.
 
-CalDen 1.0.3 is the first stable release. Development continues on the existing web application, with compatible in-place updates.
+CalDen 1.0.4 is the first stable release. Development continues on the existing web application, with compatible in-place updates.
 
 ## What CalDen does
 
@@ -389,14 +389,14 @@ The Compose file maps that host port to CalDen's internal port `8787`.
 
 ## Development status
 
-CalDen is released as version 1.0.3. Backups remain recommended before each update.
+CalDen is released as version 1.0.4. Backups remain recommended before each update.
 
 The current version is intended for active testing and development. Database migrations are automatic, but backups are strongly recommended before updating between development builds.
 
 Current version:
 
 ```text
-1.0.3
+1.0.4
 ```
 
 ## Project layout
