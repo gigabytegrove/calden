@@ -396,7 +396,7 @@ The current version is intended for active testing and development. Database mig
 Current version:
 
 ```text
-0.1.0-alpha11.1
+0.1.0-alpha11.4
 ```
 
 ## Project layout
