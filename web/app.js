@@ -1618,8 +1618,10 @@ function renderUpdater(info){
   const latest=info.latest;
   $("#update-current").textContent=info.current_version||"Unknown";
   $("#update-latest").textContent=latest?.version||"None on this channel";
-  $("#update-channel").value=info.preferences?.channel||"stable";
-  $("#update-auto-check").checked=info.preferences?.auto_check!==false;
+  // A background status poll must not overwrite unsaved administrator choices.
+  const updateChannel=$("#update-channel"),autoCheck=$("#update-auto-check");
+  if(!updateChannel.matches(":focus"))updateChannel.value=info.preferences?.channel||"stable";
+  if(!autoCheck.matches(":focus"))autoCheck.checked=info.preferences?.auto_check!==false;
   const status=info.status||{state:"idle",progress:0,activity:[]};
   const active=["backup","preparing","downloading","verifying","installing","restarting"].includes(status.state);
   $("#update-progress-wrap").classList.toggle("hidden",!active&&status.state!=="completed"&&status.state!=="failed");
