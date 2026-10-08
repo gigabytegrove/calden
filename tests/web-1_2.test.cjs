@@ -3,7 +3,7 @@ const test=require("node:test"),assert=require("node:assert/strict"),fs=require(
 const read=p=>fs.readFileSync(path.join(__dirname,"..",p),"utf8");
 const js=read("web/app.js"),html=read("web/index.html"),css=read("web/app.css");
 test("compact bill calendar state",()=>{
-  assert.ok(js.includes('icon:"⌛"'));
+  assert.ok(js.includes('icon:"⌛︎"'));
   assert.ok(js.includes('icon:"✓",label:"Cleared"'));
   assert.ok(!js.includes('icon:"✓✓"'));
   assert.ok(js.includes('billPaidAvatar(e)'));
