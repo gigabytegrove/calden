@@ -6,7 +6,7 @@ function reportCalDenClientError(reason){
   if(!token)return;
   fetch("/api/client-errors",{method:"POST",cache:"no-store",
     headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},
-    body:JSON.stringify({message:String(reason?.message||reason||"Unknown JavaScript error").slice(0,400),version:"1.2.11"})
+    body:JSON.stringify({message:String(reason?.message||reason||"Unknown JavaScript error").slice(0,400),version:"1.2.12"})
   }).catch(()=>{});
 }
 let caldenBooting=true;
