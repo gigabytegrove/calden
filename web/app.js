@@ -391,7 +391,7 @@ function navigate(page,load=true,writeURL=true){
   state.currentPage=page;
   if(writeURL)history.pushState({calden:true},"",caldenPageURL(page));
   $$(".app-page").forEach(el=>el.classList.toggle("hidden",el.id!==`page-${page}`));
-  $$$("[data-page]").forEach(el=>el.classList.toggle("active",el.dataset.page===page));
+  $$("[data-page]").forEach(el=>el.classList.toggle("active",el.dataset.page===page));
   const titles={calendar:"Calendar",bills:"Bill Pay",agenda:"Agenda",people:"People",calendars:"Calendars",categories:"Categories",notifications:"Notifications",integrations:"Integrations",updates:"Updates",backups:"Backups & Restore",activity:"Activity",settings:"Settings"};
   $("#page-title").textContent=titles[page]||"CalDen";
   $("#new-event").classList.toggle("hidden",!["calendar","agenda"].includes(page));
