@@ -21,6 +21,7 @@ type eventInput struct {
 	StartsAt    time.Time   `json:"starts_at"`
 	EndsAt      time.Time   `json:"ends_at"`
 	AllDay      bool        `json:"all_day"`
+	RequestConfirmation *bool `json:"request_confirmation,omitempty"`
 	AssigneeIDs          []uuid.UUID      `json:"assignee_ids"`
 	BillAmount           *float64         `json:"bill_amount,omitempty"`
 	BillAmountIsEstimate bool             `json:"bill_amount_is_estimate,omitempty"`
@@ -120,8 +121,8 @@ func (s *server) updateEvent(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback(r.Context())
 
-	_, err = tx.Exec(r.Context(), `UPDATE events SET calendar_id=$2,category_id=$3,title=$4,notes=$5,location=$6,starts_at=$7,ends_at=$8,all_day=$9,updated_at=now() WHERE id=$1`,
-		id, in.CalendarID, in.CategoryID, cleanText(in.Title, 200), cleanText(in.Notes, 5000), cleanText(in.Location, 500), in.StartsAt, in.EndsAt, in.AllDay)
+	_, err = tx.Exec(r.Context(), `UPDATE events SET calendar_id=$2,category_id=$3,title=$4,notes=$5,location=$6,starts_at=$7,ends_at=$8,all_day=$9,request_confirmation=COALESCE($10,request_confirmation),updated_at=now() WHERE id=$1`,
+		id, in.CalendarID, in.CategoryID, cleanText(in.Title, 200), cleanText(in.Notes, 5000), cleanText(in.Location, 500), in.StartsAt, in.EndsAt, in.AllDay, in.RequestConfirmation)
 	if err != nil {
 		writeError(w, 400, "Could not update event")
 		return
