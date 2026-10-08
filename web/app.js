@@ -1346,6 +1346,20 @@ function beginCategoryEdit(id){
   $("#category-error").textContent="";$("#category-status").textContent="";
 }
 
+async function loadRegisteredDevices(){
+  const status=$("#devices-status"),list=$("#devices-list");
+  if(!status||!list)return;
+  status.textContent="Loading registered devices…";
+  try{
+    const result=await api("/api/devices");
+    const items=result.items||[];
+    status.textContent=items.length?`${items.length} registered device${items.length===1?"":"s"}`:"No registered devices yet. Sign in from CalDen Android to register a phone.";
+    list.innerHTML=items.map(device=>`<article class="panel"><div class="form-actions">
+      <div class="grow"><strong>${escapeHTML(device.name)}</strong><p class="muted">${escapeHTML(device.platform)} · Last seen ${escapeHTML(device.last_seen_at?new Date(device.last_seen_at).toLocaleString():"Unknown")}</p></div>
+      <button type="button" class="button secondary compact" data-revoke-device="${escapeAttr(device.id)}">Revoke</button>
+    </div></article>`).join("");
+  }catch(err){status.textContent="Could not load registered devices: "+err.message}
+}
 function activateSettingsTab(tab,writeURL=false){
   if(["general","integrations","updates","backups"].includes(tab)&&state.me?.role!=="admin")tab="calendar";
   state.settingsTab=tab;
@@ -1355,6 +1369,7 @@ function activateSettingsTab(tab,writeURL=false){
   if(tab==="integrations"){loadMonita();setGoogleImportFile(state.googleImportFile)}
   if(tab==="updates")loadUpdater();
   if(tab==="backups")loadBackups();
+  if(tab==="devices")loadRegisteredDevices();
 }
 function renderSettings(){
   const form=$("#general-settings-form");
@@ -2108,7 +2123,22 @@ $("#person-form").addEventListener("submit",async e=>{
       await apiForm("/api/users/"+userID+"/avatar",data);
     }
     state.users=await api("/api/users");
-    resetPersonForm();renderPeople();renderCalendarPermissionChecks();renderEventControls();
+    $("#refresh-devices").addEventListener("click",loadRegisteredDevices);
+$("#devices-list").addEventListener("click",async event=>{
+  const button=event.target.closest("[data-revoke-device]");
+  if(!button)return;
+  if(!confirm("Revoke this device? It will need to register again before receiving future notifications."))return;
+  button.disabled=true;
+  try{
+    await api("/api/devices/"+encodeURIComponent(button.dataset.revokeDevice),{method:"DELETE"});
+    await loadRegisteredDevices();
+  }catch(err){
+    $("#devices-status").textContent=err.message;
+    button.disabled=false;
+  }
+});
+
+resetPersonForm();renderPeople();renderCalendarPermissionChecks();renderEventControls();
     $("#person-status").textContent=editing?"Person updated.":"Person added.";
   }catch(err){$("#person-error").textContent=err.message}
 });
