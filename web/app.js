@@ -30,7 +30,7 @@ const state={
   billEvents:[],billPaymentEvent:null,billPaymentEditingId:null,
   notifications:[],unreadNotifications:0,notificationKnown:new Set(),notificationPoll:null,
   googleImportFile:null,googleImportPreview:null,googleRepairFile:null,googleRepairPreview:null,
-  updateInfo:null,updatePoll:null,updatePrefsDirty:false
+  updateInfo:null,updatePoll:null,updatePrefsDirty:false,detailEvent:null
 };
 
 async function api(path,options={}){
@@ -499,7 +499,7 @@ function renderBills(){
               ?`<span class="bill-paid-status"><span class="bill-status-pill no-balance">No balance</span><strong>${money(0)}</strong><small>Nothing due this month</small></span>`
               :`<span class="bill-paid-status"><span class="bill-status-pill due">Due</span><strong>Not paid yet</strong><small>Assigned to ${escapeHTML(payer)}</small></span>`;
     return `<article class="bill-row is-${status}">
-      <button type="button" class="bill-row-edit" data-event-key="${escapeAttr(eventKey(event))}" aria-label="Edit ${escapeAttr(event.title)}">
+      <button type="button" class="bill-row-edit" data-event-key="${escapeAttr(eventKey(event))}" aria-label="View details for ${escapeAttr(event.title)}">
         <span class="bill-due"><strong>${formatDate(due,{month:"short",day:"numeric"})}</strong><small>${event.all_day?"Due date":formatTime(due)}</small></span>
         <span class="bill-row-main"><strong>${escapeHTML(event.title)}</strong><small>${escapeHTML(event.calendar_name||"Bills")} · assigned ${escapeHTML(payer)}</small></span>
         <span class="bill-row-amount ${event.bill_amount_is_estimate?"estimated":""}"><strong>${amount?escapeHTML(amount):"Amount not set"}</strong><small>${event.bill_amount_is_estimate?"Estimated":"Amount due"}</small></span>
@@ -510,7 +510,7 @@ function renderBills(){
 
   host.querySelectorAll(".bill-row-edit[data-event-key]").forEach(button=>button.addEventListener("click",()=>{
     const event=events.find(item=>eventKey(item)===button.dataset.eventKey);
-    if(event)requestEventEdit(event);
+    if(event)openEventDetails(event);
   }));
   host.querySelectorAll(".bill-payment-action[data-event-key]").forEach(button=>button.addEventListener("click",e=>{
     e.stopPropagation();
@@ -851,7 +851,7 @@ function bindCalendarEvents(){
   const host=$("#calendar-view");
   host.querySelectorAll("[data-event-key]").forEach(el=>el.addEventListener("click",event=>{
     event.stopPropagation();
-    const found=findEventByKey(el.dataset.eventKey);if(found)requestEventEdit(found);
+    const found=findEventByKey(el.dataset.eventKey);if(found)openEventDetails(found);
   }));
   host.querySelectorAll("[data-add-date]").forEach(button=>button.addEventListener("click",event=>{
     event.stopPropagation();
@@ -887,7 +887,7 @@ function renderAgenda(){
   $("#event-count").textContent=`${events.length} event${events.length===1?"":"s"}`;
   $("#events").innerHTML=events.length?events.map(eventCard).join(""):'<div class="empty-state"><strong>No matching events</strong><span>Add an event or change your filters.</span></div>';
   $("#events").querySelectorAll("[data-event-key]").forEach(el=>el.addEventListener("click",()=>{
-    const ev=findEventByKey(el.dataset.eventKey);if(ev)requestEventEdit(ev);
+    const ev=findEventByKey(el.dataset.eventKey);if(ev)openEventDetails(ev);
   }));
 }
 function eventCard(e){
@@ -985,8 +985,7 @@ function renderNotificationInbox(){
       renderNotificationInbox();
     }
     const event=notificationEvent(item);
-    if(event&&item.kind==="bill_review"&&canUpdateBill(event))openBillPayment(event);
-    else if(event)requestEventEdit(event);
+    if(event)openEventDetails(event);
   }));
 }
 
@@ -1082,7 +1081,7 @@ function renderNotifications(){
   }).join(""):'<div class="empty-state"><strong>No scheduled reminders</strong><span>Add a reminder to an event and it will appear here.</span></div>';
   host.querySelectorAll("[data-event-key]").forEach(button=>button.addEventListener("click",()=>{
     const event=findEventByKey(button.dataset.eventKey);
-    if(event)requestEventEdit(event);
+    if(event)openEventDetails(event);
   }));
 }
 
@@ -1274,6 +1273,57 @@ function chooseRecurringScope(action){
     dialog.oncancel=event=>{event.preventDefault();finish(null)};
     dialog.showModal();
   });
+}
+
+function eventDetailsRow(label,value){
+  if(value===null||value===undefined||value==="")return "";
+  return `<div class="event-detail-row"><dt>${escapeHTML(label)}</dt><dd>${escapeHTML(value)}</dd></div>`;
+}
+
+function eventDetailsDate(event){
+  const start=eventStartDate(event),end=eventEndDate(event),opts={weekday:"long",month:"long",day:"numeric",year:"numeric"};
+  if(event.all_day){
+    const last=addDays(end,-1);
+    return sameDay(start,last)?formatDate(start,opts):formatDate(start,opts)+" – "+formatDate(last,opts);
+  }
+  return formatDate(start,opts)+" at "+formatTime(start)+(sameDay(start,end)?" – "+formatTime(end):" – "+formatDate(end,opts)+" at "+formatTime(end));
+}
+
+function openEventDetails(event){
+  if(!event)return;
+  state.detailEvent=event;
+  const bill=isBillCalendar(event.calendar_id);
+  $("#event-details-eyebrow").textContent=bill?"Bill details":"Event details";
+  $("#event-details-title").textContent=event.title||"Untitled event";
+  const rows=[
+    eventDetailsRow("Calendar",event.calendar_name||"Calendar"),
+    eventDetailsRow("When",eventDetailsDate(event)),
+    eventDetailsRow("Category",event.category_name),
+    eventDetailsRow("Assigned to",(event.assignees||[]).map(user=>user.display_name).join(", ")||"Not assigned"),
+    eventDetailsRow("Location",event.location),
+    eventDetailsRow("Recurring",event.is_recurring?"Yes":null)
+  ];
+  if(bill){
+    rows.push(eventDetailsRow("Expected amount",event.bill_amount==null?"Not set":money(event.bill_amount)+(event.bill_amount_is_estimate?" (estimated)":"")));
+    rows.push(eventDetailsRow("Assigned payer",event.bill_payer?.display_name||"Not assigned"));
+    rows.push(eventDetailsRow("Status",billStatusLabel(billPaymentStatus(event))));
+    rows.push(eventDetailsRow("Allocated",money(billAllocatedAmount(event))));
+    rows.push(eventDetailsRow("Paid",money(billPaidAmount(event))));
+    rows.push(eventDetailsRow("Remaining",billRemaining(event)===null?"Not set":money(billRemaining(event))));
+    billPayments(event).forEach((payment,index)=>rows.push(eventDetailsRow("Payment "+(index+1),money(payment.amount_paid)+" · "+(payment.paid_by?.display_name||"Unknown payer")+" · paid "+(payment.paid_on||"date unknown")+(payment.cleared_on?" · cleared "+payment.cleared_on:" · not cleared"))));
+  }
+  $("#event-details-fields").innerHTML=rows.join("");
+  $("#event-details-notes").classList.toggle("hidden",!event.notes);
+  $("#event-details-notes-text").textContent=event.notes||"";
+  const editable=!!state.calendars.find(calendar=>calendar.id===event.calendar_id&&calendar.can_edit);
+  $("#event-details-edit").classList.toggle("hidden",!editable);
+  $("#event-details-bill").classList.toggle("hidden",!bill||!canUpdateBill(event));
+  if(!$("#event-details-dialog").open)$("#event-details-dialog").showModal();
+}
+
+function closeEventDetails(){
+  $("#event-details-dialog").close();
+  state.detailEvent=null;
 }
 
 async function requestEventEdit(event){
@@ -1717,6 +1767,11 @@ $("#login-form").addEventListener("submit",async e=>{
 $("#logout").addEventListener("click",()=>{setToken("");location.reload()});
 $$("[data-page]").forEach(b=>b.addEventListener("click",()=>navigate(b.dataset.page)));
 $("#mobile-menu").addEventListener("click",()=>$("#sidebar").classList.toggle("open"));
+$("#event-details-close").addEventListener("click",closeEventDetails);
+$("#event-details-done").addEventListener("click",closeEventDetails);
+$("#event-details-dialog").addEventListener("close",()=>{state.detailEvent=null});
+$("#event-details-edit").addEventListener("click",()=>{const selected=state.detailEvent;if(!selected)return;closeEventDetails();requestEventEdit(selected)});
+$("#event-details-bill").addEventListener("click",()=>{const selected=state.detailEvent;if(!selected)return;closeEventDetails();openBillPayment(selected)});
 $("#new-event").addEventListener("click",()=>openEvent());
 $("#nav-add").addEventListener("click",()=>openEvent());
 $("#add-bill")?.addEventListener("click",openBillEvent);
