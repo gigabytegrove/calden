@@ -17,6 +17,12 @@ function fixture(url){
   w.confirm=()=>false;
   w.scrollTo=()=>{};
   w.matchMedia=()=>({matches:false,addListener(){},removeListener(){}});
+  for(const form of w.document.forms){
+    for(const element of form.elements){
+      if(element.name && !(element.name in form))
+        Object.defineProperty(form,element.name,{configurable:true,value:form.elements.namedItem(element.name)});
+    }
+  }
   w.fetch=async (request)=>{
     const name=String(request).split("?")[0];
     const results={
