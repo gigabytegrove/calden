@@ -1934,7 +1934,7 @@ $("#bill-allocation-clear")?.addEventListener("click",clearBillAllocation);
 $("#bill-prev")?.addEventListener("click",async()=>{state.billMonth=new Date(state.billMonth.getFullYear(),state.billMonth.getMonth()-1,1);history.pushState({calden:true},"",caldenPageURL("bills"));await loadBillMonth()});
 $("#bill-next")?.addEventListener("click",async()=>{state.billMonth=new Date(state.billMonth.getFullYear(),state.billMonth.getMonth()+1,1);history.pushState({calden:true},"",caldenPageURL("bills"));await loadBillMonth()});
 $("#bill-current")?.addEventListener("click",async()=>{const now=new Date();state.billMonth=new Date(now.getFullYear(),now.getMonth(),1);history.pushState({calden:true},"",caldenPageURL("bills"));await loadBillMonth()});
-$("#event-form").calendar_id.addEventListener("change",updateBillEventUI);
+$("#event-form").elements.namedItem("calendar_id").addEventListener("change",updateBillEventUI);
 $("#calendar-strip").addEventListener("click",e=>{
   const b=e.target.closest("[data-calendar-id]");if(!b)return;
   const id=b.dataset.calendarId;if(state.hiddenCalendars.has(id))state.hiddenCalendars.delete(id);else state.hiddenCalendars.add(id);
