@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#f7f8fb">
   <title>CalDen</title>
-  <link rel="stylesheet" href="/styles.css?v=1.0.0">
+  <link rel="stylesheet" href="/styles.css?v=1.0.1">
 </head>
 <body class="bg-slate-50 text-slate-900">
 <div id="auth" class="auth-shell">
@@ -471,6 +471,15 @@
   </nav>
 </div>
 
+<dialog id="event-details-dialog" class="event-details-dialog" aria-labelledby="event-details-title">
+  <div class="event-details-content">
+    <header class="event-details-header"><div><p id="event-details-eyebrow" class="eyebrow">Event details</p><h2 id="event-details-title"></h2></div><button id="event-details-close" class="dialog-close" type="button" aria-label="Close">×</button></header>
+    <dl id="event-details-fields" class="event-details-fields"></dl>
+    <section id="event-details-notes" class="event-details-notes hidden"><h3>Notes</h3><p id="event-details-notes-text"></p></section>
+    <footer class="event-details-actions"><button id="event-details-done" type="button" class="button secondary">Close</button><span class="grow"></span><button id="event-details-bill" type="button" class="button secondary hidden">Manage payments</button><button id="event-details-edit" type="button" class="button hidden">Edit event</button></footer>
+  </div>
+</dialog>
+
 <dialog id="event-dialog">
   <form id="event-form" class="event-editor">
     <div class="dialog-head"><div><p class="eyebrow">Schedule</p><h2 id="event-dialog-title">Add event</h2></div><button type="button" class="icon-button" data-close-event>×</button></div>
@@ -565,22 +574,6 @@
     </div>
     <div id="bill-payment-assignment" class="bill-payment-assignment"></div>
     <div id="bill-payment-summary" class="bill-payment-summary"></div>
-    <section class="bill-allocation-section">
-      <div class="bill-section-head"><div><h3>Allocated funds</h3><p class="muted">Track money moved into the bill-pay account before the autopay actually comes out.</p></div></div>
-      <div id="bill-allocation-current" class="bill-allocation-current hidden"></div>
-      <div class="bill-allocation-fields">
-        <label>Amount allocated
-          <div class="money-input"><span>$</span><input id="bill-allocation-amount" type="number" min="0.01" max="9999999999.99" step="0.01" inputmode="decimal"></div>
-        </label>
-        <label>Allocated date<input id="bill-allocation-date" type="date"><span class="field-help">When the money was moved into the bill-pay account.</span></label>
-      </div>
-      <p id="bill-allocation-error" class="error"></p>
-      <div class="bill-allocation-actions">
-        <button id="bill-allocation-clear" type="button" class="button secondary hidden">Remove allocation</button>
-        <span class="grow"></span>
-        <button id="bill-allocation-save" type="button" class="button secondary">Mark allocated</button>
-      </div>
-    </section>
     <section class="bill-payment-history-section">
       <div class="bill-section-head"><div><h3>Payment history</h3><p class="muted">Each payment keeps its own payer, payment date, and optional cleared date.</p></div></div>
       <div id="bill-payment-history" class="bill-payment-history"></div>
@@ -603,12 +596,28 @@
       <label class="toggle-row"><input id="bill-payment-settles" type="checkbox"><span>This payment completes the bill for this month</span></label>
       <p id="bill-payment-error" class="error"></p>
       <div class="scope-dialog-actions">
-        <button id="bill-payment-no-balance" type="button" class="button secondary">No balance this month</button>
         <button id="bill-payment-reset" type="button" class="button secondary hidden">Cancel edit</button>
         <span class="grow"></span>
         <button id="bill-payment-save" type="submit" class="button">Add payment</button>
       </div>
     </section>
+    <section class="bill-allocation-section">
+      <div class="bill-section-head"><div><h3>Allocated funds</h3><p class="muted">Track money moved into the bill-pay account before the autopay actually comes out.</p></div></div>
+      <div id="bill-allocation-current" class="bill-allocation-current hidden"></div>
+      <div class="bill-allocation-fields">
+        <label>Amount allocated
+          <div class="money-input"><span>$</span><input id="bill-allocation-amount" type="number" min="0.01" max="9999999999.99" step="0.01" inputmode="decimal"></div>
+        </label>
+        <label>Allocated date<input id="bill-allocation-date" type="date"><span class="field-help">When the money was moved into the bill-pay account.</span></label>
+      </div>
+      <p id="bill-allocation-error" class="error"></p>
+      <div class="bill-allocation-actions">
+        <button id="bill-allocation-clear" type="button" class="button secondary hidden">Remove allocation</button>
+        <span class="grow"></span>
+        <button id="bill-allocation-save" type="button" class="button secondary">Mark allocated</button>
+      </div>
+    </section>
+    <section class="bill-payment-no-balance-action"><div><strong>No payment required?</strong><p class="muted">Only use this when the provider confirms a zero balance. It does not record a payment.</p></div><button id="bill-payment-no-balance" type="button" class="button secondary">No balance this month</button></section>
   </form>
 </dialog>
 
@@ -647,6 +656,6 @@
   </form>
 </dialog>
 
-<script src="/app.js?v=1.0.0" defer></script>
+<script src="/app.js?v=1.0.1" defer></script>
 </body>
 </html>
