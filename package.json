@@ -2,7 +2,8 @@
   "name": "calden-web",
   "private": true,
   "scripts": {
-    "build:css": "tailwindcss -i ./web/styles.input.css -o ./web/styles.css --minify"
+    "build:css": "tailwindcss -i ./web/styles.input.css -o ./web/styles.css --minify",
+    "test:web": "node --test tests/*.test.cjs"
   },
   "devDependencies": {
     "@tailwindcss/cli": "4.3.3",
