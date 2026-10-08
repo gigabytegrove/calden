@@ -427,3 +427,7 @@ Bill Pay calendar entries use a gold hourglass for allocated funds and one green
 Agenda defaults to upcoming 30 days, with 7, 14, 30 and 90 day windows plus type and calendar filtering. Notification inbox entries may be dismissed per household user; unread flags and dismissal are separate.
 
 Personal phone reminders can target one named member independent of the event's assignees. An empty reminder recipient targets the event assignees, or the whole household for unassigned events. The Android app must be updated and signed into that person's account to schedule local notifications; it synchronizes in the background approximately every 15 minutes subject to Android restrictions. This is device-scheduled notification delivery, not immediate Firebase server push. For events created shortly before reminder time, a phone that has not yet synced may miss that reminder. Exact alarm permission can improve timeliness where granted.
+
+## Settings and updater (1.2.1)
+
+Integrations, Updates and Backups are now Settings subpages at `/settings/integrations`, `/settings/updates`, and `/settings/backups`. Previous direct links continue to resolve. While an update is running, progress is visible; after completion, CalDen shows the result and moves the completed steps into a collapsed activity history. Allocated bills show a high-contrast warning-gold badge with a dark monochrome hourglass.

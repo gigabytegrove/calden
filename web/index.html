@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#f7f8fb">
-  <meta name="calden-version" content="1.2.0">
+  <meta name="calden-version" content="1.2.1">
   <title>CalDen</title>
-  <link rel="stylesheet" href="/styles.css?v=1.2.0">
+  <link rel="stylesheet" href="/styles.css?v=1.2.1">
 </head>
 <body class="bg-slate-50 text-slate-900">
 <div id="auth" class="auth-shell">
@@ -90,9 +90,6 @@
       <a class="nav-item admin-only" data-page="calendars" href="/calendars">Calendars</a>
       <a class="nav-item admin-only" data-page="categories" href="/categories">Categories</a>
       <a class="nav-item" data-page="notifications" href="/notifications">Notifications<span id="notification-nav-badge" class="nav-badge hidden">0</span></a>
-      <a class="nav-item admin-only" data-page="integrations" href="/integrations">Integrations</a>
-      <a class="nav-item admin-only" data-page="updates" href="/updates">Updates</a>
-      <a class="nav-item admin-only" data-page="backups" href="/backups">Backups</a>
       <a class="nav-item admin-only" data-page="activity" href="/activity">Activity</a>
       <a class="nav-item" data-page="settings" href="/settings">Settings</a>
     </nav>
@@ -268,7 +265,78 @@
       </div>
     </section>
 
-    <section id="page-integrations" class="app-page hidden admin-only">
+
+
+
+    <section id="page-activity" class="app-page hidden admin-only">
+      <div class="page-header">
+        <div><p class="eyebrow">Change history</p><h2>Activity</h2><p class="muted">A persistent record of schedule, account, integration, and system changes.</p></div>
+        <div class="agenda-tools">
+          <select id="activity-filter" aria-label="Filter activity"><option value="">All activity</option><option value="event">Events</option><option value="calendar">Calendars</option><option value="category">Categories</option><option value="user">People</option><option value="settings">Settings</option><option value="integration">Integrations</option><option value="update">Updates</option></select>
+          <button id="refresh-activity" class="button secondary compact" type="button">Refresh</button>
+        </div>
+      </div>
+      <div id="activity-list" class="activity-timeline"></div>
+    </section>
+
+    <section id="page-settings" class="app-page hidden">
+      <div class="page-header"><div><p class="eyebrow">CalDen preferences</p><h2>Settings</h2><p class="muted">Control the household, your calendar workspace, and your account from one place.</p></div></div>
+      <div class="settings-workspace">
+        <nav class="settings-nav" aria-label="Settings sections">
+          <button type="button" class="settings-nav-item active admin-settings" data-settings-tab="general"><strong>Household</strong><span>Name, time zone, week layout</span></button>
+          <button type="button" class="settings-nav-item" data-settings-tab="calendar"><strong>Calendar & display</strong><span>Defaults and this browser</span></button>
+          <button type="button" class="settings-nav-item admin-settings" data-settings-tab="integrations"><strong>Integrations</strong><span>Connected services</span></button>
+          <button type="button" class="settings-nav-item admin-settings" data-settings-tab="updates"><strong>Updates</strong><span>Versions and maintenance</span></button>
+          <button type="button" class="settings-nav-item admin-settings" data-settings-tab="backups"><strong>Backups & Restore</strong><span>Backup and recovery</span></button>
+          <button type="button" class="settings-nav-item" data-settings-tab="account"><strong>Your account</strong><span>Profile image and sign-in details</span></button>
+        </nav>
+        <div class="settings-content">
+          <section class="settings-pane hidden admin-settings" data-settings-pane="backups">
+      <div class="page-header">
+        <div><p class="eyebrow">Data protection</p><h2>Backups & Restore</h2><p class="muted">Create complete CalDen backups, keep server-side safety copies, and restore a validated backup without rebuilding the installation.</p></div>
+        <button id="create-backup" class="button" type="button">Create & download backup</button>
+      </div>
+      <div class="backup-layout">
+        <section class="panel stack">
+          <div><h3>Restore CalDen</h3><p class="muted">A restore is validated and staged first. CalDen creates another database safety backup before it applies the restore on restart.</p></div>
+          <label>CalDen backup file<input id="restore-file" type="file" accept=".tar.gz,.tgz,application/gzip"></label>
+          <div class="form-actions">
+            <button id="stage-restore" class="button secondary" type="button">Validate & stage restore</button>
+            <button id="cancel-restore" class="button secondary hidden" type="button">Cancel staged restore</button>
+            <span class="grow"></span>
+            <button id="restart-for-restore" class="button danger hidden" type="button">Restart & restore</button>
+          </div>
+          <p id="restore-status" class="status-line"></p>
+          <div id="restore-last-result" class="restore-result hidden"></div>
+        </section>
+        <section class="panel">
+          <div class="backup-heading"><div><h3>Saved safety backups</h3><p class="muted">Backups retained on the CalDen data volume, including automatic pre-update and pre-restore dumps.</p></div><button id="refresh-backups" class="button secondary compact" type="button">Refresh</button></div>
+          <div id="saved-backups" class="saved-backup-list"></div>
+        </section>
+      </div>
+          </section>
+          <section class="settings-pane hidden admin-settings" data-settings-pane="updates">
+      <div class="page-header"><div><p class="eyebrow">System maintenance</p><h2>Updates</h2><p class="muted">Review releases, safety backup status, installation progress, and rollback before changing the running system.</p></div></div>
+      <div class="update-layout">
+        <article class="panel update-card">
+          <div class="update-version-row"><div><span>Installed</span><strong id="update-current">Checking…</strong></div><div><span>Latest eligible</span><strong id="update-latest">Checking…</strong></div></div>
+          <div id="update-state" class="update-state">Checking for updates…</div>
+          <div id="update-progress-wrap" class="progress-wrap hidden"><div class="progress-track"><span id="update-progress"></span></div><strong id="update-progress-label">0%</strong></div>
+          <div id="update-release-notes" class="release-notes"></div>
+          <details id="update-history-details" class="update-history"><summary>View update activity</summary><div id="update-activity" class="activity-list"></div></details>
+          <div class="form-actions"><button id="check-updates" class="button secondary" type="button">Check again</button><button id="rollback-update" class="button secondary hidden" type="button">Roll back</button><button id="apply-update" class="button hidden" type="button">Install update</button></div>
+        </article>
+        <aside class="panel stack">
+          <div><h3>Update preferences</h3><p class="muted">Choose how early you want to see development releases.</p></div>
+          <label>Update channel<select id="update-channel"><option value="stable">Stable</option><option value="rc">Release candidate</option><option value="beta">Beta</option><option value="alpha">Alpha</option><option value="preview">Preview</option></select></label>
+          <label class="toggle-row"><input id="update-auto-check" type="checkbox" checked><span>Automatically check when Updates is opened</span></label>
+          <button id="save-update-prefs" type="button" class="button">Save update preferences</button>
+          <p id="update-pref-status" class="status-line"></p>
+          <div class="safety-note"><strong>Update safety</strong><span>CalDen creates a PostgreSQL safety dump before installing, verifies SHA-256 checksums, verifies the new binary, and retains rollback metadata.</span></div>
+        </aside>
+      </div>
+          </section>
+          <section class="settings-pane hidden admin-settings" data-settings-pane="integrations">
       <div class="page-header">
         <div><p class="eyebrow">Connected services</p><h2>Integrations</h2><p class="muted">Move existing schedules into CalDen and connect the services your household already uses.</p></div>
       </div>
@@ -347,75 +415,7 @@
           </form>
         </section>
       </div>
-    </section>
-
-    <section id="page-updates" class="app-page hidden admin-only">
-      <div class="page-header"><div><p class="eyebrow">System maintenance</p><h2>Updates</h2><p class="muted">Review releases, safety backup status, installation progress, and rollback before changing the running system.</p></div></div>
-      <div class="update-layout">
-        <article class="panel update-card">
-          <div class="update-version-row"><div><span>Installed</span><strong id="update-current">Checking…</strong></div><div><span>Latest eligible</span><strong id="update-latest">Checking…</strong></div></div>
-          <div id="update-state" class="update-state">Checking for updates…</div>
-          <div id="update-progress-wrap" class="progress-wrap hidden"><div class="progress-track"><span id="update-progress"></span></div><strong id="update-progress-label">0%</strong></div>
-          <div id="update-release-notes" class="release-notes"></div>
-          <div id="update-activity" class="activity-list"></div>
-          <div class="form-actions"><button id="check-updates" class="button secondary" type="button">Check again</button><button id="rollback-update" class="button secondary hidden" type="button">Roll back</button><button id="apply-update" class="button hidden" type="button">Install update</button></div>
-        </article>
-        <aside class="panel stack">
-          <div><h3>Update preferences</h3><p class="muted">Choose how early you want to see development releases.</p></div>
-          <label>Update channel<select id="update-channel"><option value="stable">Stable</option><option value="rc">Release candidate</option><option value="beta">Beta</option><option value="alpha">Alpha</option><option value="preview">Preview</option></select></label>
-          <label class="toggle-row"><input id="update-auto-check" type="checkbox" checked><span>Automatically check when Updates is opened</span></label>
-          <button id="save-update-prefs" type="button" class="button">Save update preferences</button>
-          <p id="update-pref-status" class="status-line"></p>
-          <div class="safety-note"><strong>Update safety</strong><span>CalDen creates a PostgreSQL safety dump before installing, verifies SHA-256 checksums, verifies the new binary, and retains rollback metadata.</span></div>
-        </aside>
-      </div>
-    </section>
-
-    <section id="page-backups" class="app-page hidden admin-only">
-      <div class="page-header">
-        <div><p class="eyebrow">Data protection</p><h2>Backups & Restore</h2><p class="muted">Create complete CalDen backups, keep server-side safety copies, and restore a validated backup without rebuilding the installation.</p></div>
-        <button id="create-backup" class="button" type="button">Create & download backup</button>
-      </div>
-      <div class="backup-layout">
-        <section class="panel stack">
-          <div><h3>Restore CalDen</h3><p class="muted">A restore is validated and staged first. CalDen creates another database safety backup before it applies the restore on restart.</p></div>
-          <label>CalDen backup file<input id="restore-file" type="file" accept=".tar.gz,.tgz,application/gzip"></label>
-          <div class="form-actions">
-            <button id="stage-restore" class="button secondary" type="button">Validate & stage restore</button>
-            <button id="cancel-restore" class="button secondary hidden" type="button">Cancel staged restore</button>
-            <span class="grow"></span>
-            <button id="restart-for-restore" class="button danger hidden" type="button">Restart & restore</button>
-          </div>
-          <p id="restore-status" class="status-line"></p>
-          <div id="restore-last-result" class="restore-result hidden"></div>
-        </section>
-        <section class="panel">
-          <div class="backup-heading"><div><h3>Saved safety backups</h3><p class="muted">Backups retained on the CalDen data volume, including automatic pre-update and pre-restore dumps.</p></div><button id="refresh-backups" class="button secondary compact" type="button">Refresh</button></div>
-          <div id="saved-backups" class="saved-backup-list"></div>
-        </section>
-      </div>
-    </section>
-
-    <section id="page-activity" class="app-page hidden admin-only">
-      <div class="page-header">
-        <div><p class="eyebrow">Change history</p><h2>Activity</h2><p class="muted">A persistent record of schedule, account, integration, and system changes.</p></div>
-        <div class="agenda-tools">
-          <select id="activity-filter" aria-label="Filter activity"><option value="">All activity</option><option value="event">Events</option><option value="calendar">Calendars</option><option value="category">Categories</option><option value="user">People</option><option value="settings">Settings</option><option value="integration">Integrations</option><option value="update">Updates</option></select>
-          <button id="refresh-activity" class="button secondary compact" type="button">Refresh</button>
-        </div>
-      </div>
-      <div id="activity-list" class="activity-timeline"></div>
-    </section>
-
-    <section id="page-settings" class="app-page hidden">
-      <div class="page-header"><div><p class="eyebrow">CalDen preferences</p><h2>Settings</h2><p class="muted">Control the household, your calendar workspace, and your account from one place.</p></div></div>
-      <div class="settings-workspace">
-        <nav class="settings-nav" aria-label="Settings sections">
-          <button type="button" class="settings-nav-item active admin-settings" data-settings-tab="general"><strong>Household</strong><span>Name, time zone, week layout</span></button>
-          <button type="button" class="settings-nav-item" data-settings-tab="calendar"><strong>Calendar & display</strong><span>Defaults and this browser</span></button>
-          <button type="button" class="settings-nav-item" data-settings-tab="account"><strong>Your account</strong><span>Profile image and sign-in details</span></button>
-        </nav>
-        <div class="settings-content">
+          </section>
           <section class="settings-pane admin-settings" data-settings-pane="general">
             <form id="general-settings-form" class="panel stack">
               <div><p class="eyebrow">Household</p><h3>Household settings</h3><p class="muted">These choices affect how CalDen lays out dates for everyone.</p></div>
@@ -657,6 +657,6 @@
   </form>
 </dialog>
 
-<script src="/app.js?v=1.2.0" defer></script>
+<script src="/app.js?v=1.2.1" defer></script>
 </body>
 </html>
