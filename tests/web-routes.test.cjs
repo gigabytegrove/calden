@@ -15,7 +15,7 @@ test("navigation entries are real anchors",()=>{
 test("all web resources disable caching and stale clients update",()=>{
   assert.ok(server.includes('Surrogate-Control'));
   assert.ok(server.includes('no-store, no-cache, must-revalidate'));
-  assert.ok(html.includes('name="calden-version" content="1.0.2"'));
+  assert.ok(html.includes('name="calden-version" content="'+read("VERSION").trim()+'"'));
   assert.ok(js.includes("startCalDenVersionWatch"));
   assert.ok(js.includes("checkCalDenClientVersion"));
 });
