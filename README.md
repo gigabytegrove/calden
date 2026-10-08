@@ -10,7 +10,7 @@ CalDen is a self-hosted family calendar built for normal people, not calendar ad
 
 A calendar has its own color. A person has their own identity. The two never compete with each other.
 
-CalDen 1.0.5 is the first stable release. Development continues on the existing web application, with compatible in-place updates.
+CalDen 1.2.0 is the first stable release. Development continues on the existing web application, with compatible in-place updates.
 
 ## What CalDen does
 
@@ -389,14 +389,14 @@ The Compose file maps that host port to CalDen's internal port `8787`.
 
 ## Development status
 
-CalDen is released as version 1.0.5. Backups remain recommended before each update.
+CalDen is released as version 1.2.0. Backups remain recommended before each update.
 
 The current version is intended for active testing and development. Database migrations are automatic, but backups are strongly recommended before updating between development builds.
 
 Current version:
 
 ```text
-1.0.5
+1.2.0
 ```
 
 ## Project layout
@@ -419,3 +419,11 @@ CalDen is under active development. The repository's license file governs redist
 ## Navigable URLs and update caching
 
 Main pages have real paths (`/calendar`, `/bills`, `/agenda`, `/people`, `/settings`), and individual events and bills can be linked as `/events/{id}?at={occurrence}` and `/bills/{id}?at={occurrence}`. The event details dialog has **Copy link**. Browser Back/Forward and deep links after login restore the view, subject to each account's permissions. CalDen now serves all static UI files with no-store headers and compares the running version against the browser shell so a completed update automatically refreshes the interface without Ctrl+F5.
+
+## Calendar, agenda and household reminders (1.2.0)
+
+Bill Pay calendar entries use a gold hourglass for allocated funds and one green check for paid or cleared bills. Bill rows show payer avatars when available, not long payment-state labels. Event assignee avatars are unchanged. On wider screens the day/week timeline adapts to viewport height; dense and smaller displays may still scroll.
+
+Agenda defaults to upcoming 30 days, with 7, 14, 30 and 90 day windows plus type and calendar filtering. Notification inbox entries may be dismissed per household user; unread flags and dismissal are separate.
+
+Personal phone reminders can target one named member independent of the event's assignees. An empty reminder recipient targets the event assignees, or the whole household for unassigned events. The Android app must be updated and signed into that person's account to schedule local notifications; it synchronizes in the background approximately every 15 minutes subject to Android restrictions. This is device-scheduled notification delivery, not immediate Firebase server push. For events created shortly before reminder time, a phone that has not yet synced may miss that reminder. Exact alarm permission can improve timeliness where granted.

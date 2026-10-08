@@ -161,11 +161,11 @@ function billCalendarStatusMarker(event){
   if(!isBillCalendar(event?.calendar_id))return "";
   const status=billPaymentStatus(event);
   const marker=status==="allocated"
-    ?{icon:"$",label:"Funds allocated"}
+    ?{icon:"⌛",label:"Funds allocated"}
     :status==="paid"
       ?{icon:"✓",label:"Paid"}
       :status==="cleared"
-        ?{icon:"✓✓",label:"Cleared"}
+        ?{icon:"✓",label:"Cleared"}
         :null;
   if(!marker)return "";
   return `<span class="bill-calendar-status ${status}" title="${escapeAttr(marker.label)}" aria-label="${escapeAttr(marker.label)}">${marker.icon}</span>`;
@@ -932,7 +932,7 @@ function renderTimeline(days){
       const left=item.column/item.columns*100,width=100/item.columns;
       const e=item.event;
       return `<button class="timed-event" data-event-key="${escapeAttr(eventKey(e))}" style="--cal:${safeColor(e.calendar_color||e.color)};--top:${top}%;--height:${height}%;--left:${left}%;--width:${width}%">
-        <strong>${billCalendarStatusMarker(e)}${escapeHTML(e.title)}</strong><span>${formatTime(new Date(e.starts_at))}${billAmountLabel(e)?" · "+escapeHTML(billAmountLabel(e)):""}${billPaymentLabel(e)?" · "+escapeHTML(billPaymentLabel(e)):""}${e.bill_payer?.display_name?" · "+escapeHTML(e.bill_payer.display_name):""}${e.category_name?" · "+escapeHTML(e.category_name):""}</span>${avatarMini(e)}
+        <strong>${billCalendarStatusMarker(e)}${escapeHTML(e.title)}</strong><span>${formatTime(new Date(e.starts_at))}${billAmountLabel(e)?" · "+escapeHTML(billAmountLabel(e)):""}${e.category_name?" · "+escapeHTML(e.category_name):""}</span>${isBillCalendar(e.calendar_id)?billPaidAvatar(e):avatarMini(e)}
       </button>`;
     }).join("");
     const now=new Date(),nowMinutes=now.getHours()*60+now.getMinutes();
@@ -962,11 +962,20 @@ function renderDayGrid(days){
   return `<div class="day-grid-shell"><div class="day-grid-weekdays">${weekdayHeader}</div><div class="day-grid" style="--grid-days:7">${cells}</div></div>`;
 }
 
+function billPaidAvatar(e){
+  const who=e.bill_paid_by;
+  if(!who||!["paid","cleared","partial"].includes(billPaymentStatus(e)))return "";
+  return '<span class="bill-payment-avatar" title="Paid by '+escapeAttr(who.display_name||"Unknown")+'">'+
+    (who.avatar_url?'<img src="'+escapeAttr(who.avatar_url)+'" alt="">':
+      escapeHTML(who.initials||who.display_name?.slice(0,1)||"?"))+'</span>';
+}
 function calendarEventBlock(e,compact=false){
+  const bill=isBillCalendar(e.calendar_id);
   const time=e.all_day?"All day":formatTime(new Date(e.starts_at));
-  const meta=[time,billAmountLabel(e),billPaymentLabel(e),e.bill_payer?.display_name,e.category_name].filter(Boolean).join(" · ");
+  const meta=(bill?[billAmountLabel(e),e.category_name]:[time,e.category_name]).filter(Boolean).join(" · ");
+  const paymentAvatar=bill?billPaidAvatar(e):"";
   return `<button class="calendar-event ${compact?"compact":""}" data-event-key="${escapeAttr(eventKey(e))}" style="--cal:${safeColor(e.calendar_color||e.color)}">
-    <span class="event-color"></span><span class="calendar-event-copy"><strong>${e.is_recurring?'<span class="repeat-mark" title="Repeating event">↻</span> ':""}${billCalendarStatusMarker(e)}${escapeHTML(e.title)}</strong><small>${escapeHTML(meta)}</small></span>${avatarMini(e)}
+    <span class="event-color"></span><span class="calendar-event-copy"><strong>${e.is_recurring?'<span class="repeat-mark" title="Repeating event">↻</span> ':""}${billCalendarStatusMarker(e)}${escapeHTML(e.title)}</strong><small>${escapeHTML(meta)}</small></span>${bill?paymentAvatar:avatarMini(e)}
   </button>`;
 }
 function avatarMini(e){
@@ -1001,13 +1010,26 @@ function scrollCalendarNearNow(){
   requestAnimationFrame(()=>{
     const host=$("#calendar-view");
     const minutes=now.getHours()*60+now.getMinutes();
-    host.scrollTop=Math.max(0,minutes/(24*60)*1152-180);
+    if(host.scrollHeight>host.clientHeight)host.scrollTop=Math.max(0,minutes/(24*60)*1152-180);
   });
 }
 
 function renderAgenda(){
   const query=($("#agenda-search")?.value||"").trim().toLowerCase();
+  const kind=$("#agenda-kind")?.value||"all";
+  const calendarSelect=$("#agenda-calendar");
+  const selectedCalendar=calendarSelect?.value||"";
+  if(calendarSelect){
+    calendarSelect.innerHTML='<option value="">All calendars</option>'+state.calendars.map(cal=>'<option value="'+escapeAttr(cal.id)+'">'+escapeHTML(cal.name)+'</option>').join("");
+    calendarSelect.value=selectedCalendar;
+  }
+  const days=Number($("#agenda-range")?.value||30);
+  const from=new Date(),until=addDays(startOfDay(from),days);
   const events=visibleEvents().filter(e=>{
+    if(eventStartDate(e)>=until||eventEndDate(e)<from)return false;
+    const bill=isBillCalendar(e.calendar_id);
+    if(selectedCalendar&&e.calendar_id!==selectedCalendar)return false;
+    if(kind==="bills"&&!bill||kind==="events"&&bill)return false;
     if(!query)return true;
     return [e.title,e.location,e.notes,e.calendar_name,...(e.assignees||[]).map(a=>a.display_name)].join(" ").toLowerCase().includes(query);
   }).sort((a,b)=>eventStartDate(a)-eventStartDate(b));
@@ -1020,9 +1042,9 @@ function renderAgenda(){
 function eventCard(e){
   const start=eventStartDate(e),end=eventEndDate(e);
   return `<button class="agenda-event" data-event-key="${escapeAttr(eventKey(e))}" style="--cal:${safeColor(e.calendar_color||e.color)}">
-    <span class="agenda-color"></span><span class="agenda-date"><strong>${formatDate(start,{month:"short",day:"numeric"})}</strong><small>${e.all_day?"All day":formatTime(start)}</small></span>
-    <span class="agenda-main"><strong>${e.is_recurring?'<span class="repeat-mark" title="Repeating event">↻</span> ':""}${escapeHTML(e.title)}${billAmountLabel(e)?` · ${escapeHTML(billAmountLabel(e))}`:""}${billPaymentLabel(e)?` · ${escapeHTML(billPaymentLabel(e))}`:""}</strong><small>${escapeHTML(e.calendar_name)}${e.bill_payer?.display_name?" · assigned "+escapeHTML(e.bill_payer.display_name):""}${e.location?" · "+escapeHTML(e.location):""}${e.all_day?"":` · ends ${escapeHTML(formatTime(end))}`}</small></span>
-    ${avatarMini(e)}
+    <span class="agenda-color"></span><span class="agenda-date"><strong>${formatDate(start,{month:"short",day:"numeric"})}</strong><small>${isBillCalendar(e.calendar_id)?"Due":e.all_day?"All day":formatTime(start)}</small></span>
+    <span class="agenda-main"><strong>${isBillCalendar(e.calendar_id)?billCalendarStatusMarker(e):""}${e.is_recurring?'<span class="repeat-mark" title="Repeating event">↻</span> ':""}${escapeHTML(e.title)}${billAmountLabel(e)?` · ${escapeHTML(billAmountLabel(e))}`:""}</strong><small>${escapeHTML(e.calendar_name)}${e.location?" · "+escapeHTML(e.location):""}${e.all_day?"":` · ends ${escapeHTML(formatTime(end))}`}</small></span>
+    ${isBillCalendar(e.calendar_id)?billPaidAvatar(e):avatarMini(e)}
   </button>`;
 }
 
@@ -1089,7 +1111,7 @@ function renderNotificationInbox(){
     const iconClass=billReview?"bill":family?"family":"assigned";
     const icon=billReview?"$":family?"F":"Y";
     const kicker=billReview?"Bill follow-up":family?"For everyone":"Assigned to you";
-    return `<button type="button" class="notification-inbox-row ${item.read_at?"":"unread"}" data-notification-id="${escapeAttr(item.id)}">
+    return `<div class="notification-inbox-entry"><button type="button" class="notification-inbox-row ${item.read_at?"":"unread"}" data-notification-id="${escapeAttr(item.id)}">
       <span class="notification-inbox-icon ${iconClass}">${icon}</span>
       <span class="notification-inbox-main">
         <span class="notification-inbox-kicker">${kicker} · ${escapeHTML(item.calendar_name||"Calendar")}</span>
@@ -1097,9 +1119,18 @@ function renderNotificationInbox(){
         <small>${escapeHTML(item.message)} ${escapeHTML(when)}</small>
       </span>
       <span class="notification-inbox-side"><i style="--cal:${color}"></i><time>${escapeHTML(formatDate(new Date(item.created_at),{month:"short",day:"numeric"}))}</time></span>
-    </button>`;
+    </button><button type="button" class="notification-dismiss" data-dismiss-notification="${escapeAttr(item.id)}" aria-label="Dismiss alert" title="Dismiss alert">×</button></div>`;
   }).join(""):'<div class="empty-state notification-empty"><strong>No alerts yet</strong><span>New assignments and whole-family events will appear here.</span></div>';
 
+  host.querySelectorAll("[data-dismiss-notification]").forEach(button=>button.addEventListener("click",async()=>{
+    button.disabled=true;
+    try{
+      await api("/api/notifications/"+encodeURIComponent(button.dataset.dismissNotification),{method:"DELETE"});
+      state.notifications=state.notifications.filter(n=>n.id!==button.dataset.dismissNotification);
+      state.unreadNotifications=state.notifications.filter(n=>!n.read_at).length;
+      renderNotificationInbox();
+    }catch(err){button.disabled=false;alert(err.message)}
+  }));
   host.querySelectorAll("[data-notification-id]").forEach(button=>button.addEventListener("click",async()=>{
     const item=state.notifications.find(n=>n.id===button.dataset.notificationId);
     if(!item)return;
@@ -1198,11 +1229,12 @@ function renderNotifications(){
   $("#notification-count").textContent=rows.length+" reminder"+(rows.length===1?"":"s");
   host.innerHTML=rows.length?rows.slice(0,200).map(({event,reminder,fireAt,dueNow})=>{
     const system=reminder.kind==="system";
-    const people=(event.assignees||[]).map(person=>person.display_name).join(", ");
+    const recipient=state.users.find(person=>person.id===reminder.recipient_user_id);
+    const people=recipient?recipient.display_name:(event.assignees||[]).map(person=>person.display_name).join(", ")||"Everyone";
     return `<button type="button" class="scheduled-reminder" data-event-key="${escapeAttr(eventKey(event))}">
       <span class="scheduled-reminder-icon ${system?"system":"personal"}">${system?"M":"P"}</span>
       <span class="scheduled-reminder-when"><strong>${dueNow?"Due now":escapeHTML(formatDate(fireAt,{weekday:"short",month:"short",day:"numeric"}))}</strong><small>${dueNow?"Event "+escapeHTML(formatTime(new Date(event.starts_at))):escapeHTML(formatTime(fireAt))}</small></span>
-      <span class="scheduled-reminder-main"><strong>${escapeHTML(event.title)}</strong><small>${escapeHTML(reminderLabel(reminder.minutes_before))} · ${system?"Household via Monita":"Personal phone reminder"}${people?" · "+escapeHTML(people):""}</small></span>
+      <span class="scheduled-reminder-main"><strong>${escapeHTML(event.title)}</strong><small>${escapeHTML(reminderLabel(reminder.minutes_before))} · ${system?"Household via Monita":"Phone reminder for "+escapeHTML(people)}</small></span>
       <span class="scheduled-reminder-calendar"><i style="--cal:${safeColor(event.calendar_color||event.color)}"></i>${escapeHTML(event.calendar_name||"Calendar")}</span>
     </button>`;
   }).join(""):'<div class="empty-state"><strong>No scheduled reminders</strong><span>Add a reminder to an event and it will appear here.</span></div>';
@@ -1488,7 +1520,7 @@ function addReminderRow(kind,reminder={}){
   row.className=personal?"reminder-row":"reminder-row system-row";
   row.dataset.kind=kind;
   row.innerHTML=`<select class="reminder-minutes" aria-label="${personal?"Personal":"Household"} reminder time">${reminderMinutesOptions(minutes)}</select>
-    ${personal?"":`<input class="reminder-destination" maxlength="200" placeholder="Monita channel (optional)" value="${escapeAttr(reminder.destination||"")}">`}
+    ${personal?`<select class="reminder-recipient" aria-label="Reminder recipient"><option value="">All event assignees</option>${state.users.filter(user=>user.active!==false).map(user=>`<option value="${escapeAttr(user.id)}" ${reminder.recipient_user_id===user.id?"selected":""}>${escapeHTML(user.display_name)}</option>`).join("")}</select>`:`<input class="reminder-destination" maxlength="200" placeholder="Monita channel (optional)" value="${escapeAttr(reminder.destination||"")}">`}
     <button type="button" class="icon-button reminder-remove" aria-label="Remove reminder">×</button>`;
   row.querySelector(".reminder-remove").addEventListener("click",()=>row.remove());
   host.appendChild(row);
@@ -1504,7 +1536,7 @@ function renderReminderEditor(reminders=[]){
 function collectReminders(){
   const reminders=[];
   $("#personal-reminders-list").querySelectorAll(".reminder-row").forEach(row=>{
-    reminders.push({kind:"personal",provider:"android",minutes_before:Number(row.querySelector(".reminder-minutes").value),destination:""});
+    reminders.push({kind:"personal",provider:"android",minutes_before:Number(row.querySelector(".reminder-minutes").value),destination:"",recipient_user_id:row.querySelector(".reminder-recipient")?.value||null});
   });
   $("#system-reminders-list").querySelectorAll(".reminder-row").forEach(row=>{
     reminders.push({kind:"system",provider:"monita",minutes_before:Number(row.querySelector(".reminder-minutes").value),destination:row.querySelector(".reminder-destination")?.value.trim()||""});
@@ -1955,6 +1987,9 @@ $("#clear-calendar-filters").addEventListener("click",()=>{
   state.filters={category:"",person:"",query:""};renderCalendar();renderAgenda();
 });
 $("#agenda-search").addEventListener("input",renderAgenda);
+$("#agenda-kind").addEventListener("change",renderAgenda);
+$("#agenda-calendar").addEventListener("change",renderAgenda);
+$("#agenda-range").addEventListener("change",renderAgenda);
 $("#notification-kind-filter").addEventListener("change",renderNotifications);
 $("#refresh-notifications").addEventListener("click",async()=>{await Promise.all([loadEvents(),loadNotifications(false)]);renderNotifications()});
 $("#mark-notifications-read").addEventListener("click",async()=>{
@@ -1972,6 +2007,7 @@ $("#enable-browser-notifications").addEventListener("click",async()=>{
 });
 $$("#event-dialog [data-close-event]").forEach(b=>b.addEventListener("click",()=>$("#event-dialog").close()));
 $("#add-personal-reminder").addEventListener("click",()=>addReminderRow("personal"));
+$("#create-scheduled-reminder").addEventListener("click",()=>{openEvent();addReminderRow("personal")});
 $("#add-system-reminder").addEventListener("click",()=>addReminderRow("system"));
 function markRecurrenceEdited(){
   if(!state.preserveRawRecurrence)return;

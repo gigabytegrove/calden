@@ -4,9 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#f7f8fb">
-  <meta name="calden-version" content="1.0.5">
+  <meta name="calden-version" content="1.2.0">
   <title>CalDen</title>
-  <link rel="stylesheet" href="/styles.css?v=1.0.5">
+  <link rel="stylesheet" href="/styles.css?v=1.2.0">
 </head>
 <body class="bg-slate-50 text-slate-900">
 <div id="auth" class="auth-shell">
@@ -160,7 +160,7 @@
 
     <section id="page-agenda" class="app-page hidden">
       <div class="page-header"><div><p class="eyebrow">Everything in order</p><h2>Agenda</h2></div>
-        <div class="agenda-tools"><input id="agenda-search" type="search" placeholder="Search events"><span id="event-count"></span></div></div>
+        <div class="agenda-tools"><input id="agenda-search" type="search" placeholder="Search events and bills" aria-label="Search agenda"><select id="agenda-calendar" aria-label="Agenda calendar"><option value="">All calendars</option></select><select id="agenda-kind" aria-label="Agenda type"><option value="all">All types</option><option value="events">Events only</option><option value="bills">Bills only</option></select><select id="agenda-range" aria-label="Agenda timeframe"><option value="7">Next 7 days</option><option value="14">Next 14 days</option><option value="30" selected>Next 30 days</option><option value="90">Next 90 days</option></select><span id="event-count"></span></div></div>
       <div id="events" class="events"></div>
     </section>
 
@@ -263,7 +263,7 @@
 
       <div id="notification-summary" class="notification-summary"></div>
       <div class="panel notification-schedule">
-        <div class="notification-schedule-head"><div><h3>Scheduled reminders</h3><p class="muted">Upcoming reminder deliveries from the events currently on your calendars.</p></div><span id="notification-count"></span></div>
+        <div class="notification-schedule-head"><div><h3>Scheduled reminders</h3><p class="muted">Upcoming reminder deliveries from the events currently on your calendars.</p></div><div class="notification-inbox-actions"><span id="notification-count"></span><button id="create-scheduled-reminder" class="button secondary compact" type="button">Schedule reminder</button></div></div>
         <div id="scheduled-reminders" class="scheduled-reminders"></div>
       </div>
     </section>
@@ -657,6 +657,6 @@
   </form>
 </dialog>
 
-<script src="/app.js?v=1.0.5" defer></script>
+<script src="/app.js?v=1.2.0" defer></script>
 </body>
 </html>
