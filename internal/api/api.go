@@ -80,6 +80,7 @@ func New(cfg Config) http.Handler {
 	mux.Handle("PUT /api/calendars/{id}/permissions", s.auth(s.admin(http.HandlerFunc(s.setCalendarPermissions))))
 	mux.Handle("GET /api/events", s.auth(http.HandlerFunc(s.listEvents)))
 	mux.Handle("POST /api/events", s.auth(http.HandlerFunc(s.createEvent)))
+	mux.Handle("GET /api/events/{id}/confirmations", s.auth(http.HandlerFunc(s.getEventConfirmations)))
 	mux.Handle("PUT /api/events/{id}/confirmation", s.auth(http.HandlerFunc(s.respondToConfirmation)))
 	mux.Handle("PUT /api/events/{id}", s.auth(http.HandlerFunc(s.updateEvent)))
 	mux.Handle("DELETE /api/events/{id}", s.auth(http.HandlerFunc(s.deleteEvent)))
