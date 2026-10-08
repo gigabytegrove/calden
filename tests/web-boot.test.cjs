@@ -45,7 +45,7 @@ function fixture(url){
 async function assertBoot(url,page){
   const instance=fixture(url);
   try{
-    for(let i=0;i<60&&instance.w.document.getElementById("app").classList.contains("hidden");i++)
+    for(let i=0;i<100&&instance.w.document.getElementById("boot-status").classList.contains("hidden")===false;i++)
       await new Promise(resolve=>setTimeout(resolve,20));
     const {document}=instance.w;
     assert.equal(instance.errors.length,0,instance.errors.join("\n"));
