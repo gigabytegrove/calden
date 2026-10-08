@@ -1492,6 +1492,9 @@ function openEventDetails(event,writeURL=true){
     billPayments(event).forEach((payment,index)=>rows.push(eventDetailsRow("Payment "+(index+1),money(payment.amount_paid)+" · "+(payment.paid_by?.display_name||"Unknown payer")+" · paid "+(payment.paid_on||"date unknown")+(payment.cleared_on?" · cleared "+payment.cleared_on:" · not cleared"))));
   }
   $("#event-details-fields").innerHTML=rows.join("");
+  loadEventConfirmationPanel(event).catch(err=>{
+    $("#event-confirmation-status").textContent=err.message;
+  });
   $("#event-details-notes").classList.toggle("hidden",!event.notes);
   $("#event-details-notes-text").textContent=event.notes||"";
   const editable=!!state.calendars.find(calendar=>calendar.id===event.calendar_id&&calendar.can_edit);
@@ -1582,7 +1585,7 @@ function openEvent(existing=null,dateHint=null,scope="series"){
     if(state.me.role==="admin"){navigate("calendars");return}
     alert("You do not have a calendar you can add events to yet.");return;
   }
-  const form=$("#event-form");form.reset();state.editingEvent=existing;state.editingScope=scope;state.preserveRawRecurrence=false;
+  const form=$("#event-form");form.reset();form.request_confirmation.checked=!!existing?.request_confirmation;state.editingEvent=existing;state.editingScope=scope;state.preserveRawRecurrence=false;
   $("#event-dialog-title").textContent=existing?(scope==="occurrence"?"Edit occurrence":"Edit series"):"Add event";
   $("#delete-event").classList.toggle("hidden",!existing);
   $("#repeat-editor").classList.toggle("hidden",!!existing&&scope==="occurrence");
@@ -2078,7 +2081,7 @@ $("#event-form").addEventListener("submit",async e=>{
   const reminders=collectReminders();
   const billActive=isBillCalendar(fd.get("calendar_id"));
   const billRaw=String(fd.get("bill_amount")||"").trim();
-  const payload={title:fd.get("title"),calendar_id:fd.get("calendar_id"),category_id:fd.get("category_id")||null,starts_at:new Date(fd.get("starts_at")).toISOString(),ends_at:new Date(fd.get("ends_at")).toISOString(),all_day:form.all_day.checked,location:fd.get("location"),notes:fd.get("notes"),assignee_ids:fd.getAll("assignee"),reminders,recurrence:recurrencePayload(form),bill_amount:billActive&&billRaw!==""?Number(billRaw):null,bill_amount_is_estimate:billActive&&form.bill_amount_is_estimate.checked,bill_payer_user_id:billActive&&form.bill_payer_user_id.value?form.bill_payer_user_id.value:null};
+  const payload={title:fd.get("title"),calendar_id:fd.get("calendar_id"),category_id:fd.get("category_id")||null,starts_at:new Date(fd.get("starts_at")).toISOString(),ends_at:new Date(fd.get("ends_at")).toISOString(),all_day:form.all_day.checked,location:fd.get("location"),notes:fd.get("notes"),assignee_ids:fd.getAll("assignee"),request_confirmation:form.request_confirmation.checked,reminders,recurrence:recurrencePayload(form),bill_amount:billActive&&billRaw!==""?Number(billRaw):null,bill_amount_is_estimate:billActive&&form.bill_amount_is_estimate.checked,bill_payer_user_id:billActive&&form.bill_payer_user_id.value?form.bill_payer_user_id.value:null};
   let target="/api/events",method="POST",body=payload;
   if(state.editingEvent){
     if(state.editingEvent.is_recurring&&state.editingScope==="occurrence"){
