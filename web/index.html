@@ -288,9 +288,18 @@
           <button type="button" class="settings-nav-item admin-settings" data-settings-tab="integrations"><strong>Integrations</strong><span>Connected services</span></button>
           <button type="button" class="settings-nav-item admin-settings" data-settings-tab="updates"><strong>Updates</strong><span>Versions and maintenance</span></button>
           <button type="button" class="settings-nav-item admin-settings" data-settings-tab="backups"><strong>Backups & Restore</strong><span>Backup and recovery</span></button>
+          <button type="button" class="settings-nav-item" data-settings-tab="devices"><strong>My devices</strong><span>Registered phones and browsers</span></button>
           <button type="button" class="settings-nav-item" data-settings-tab="account"><strong>Your account</strong><span>Profile image and sign-in details</span></button>
         </nav>
         <div class="settings-content">
+          <section class="settings-pane hidden" data-settings-pane="devices">
+            <div class="page-header"><div><p class="eyebrow">Your connected devices</p><h2>My devices</h2><p class="muted">Review devices registered to your account and revoke ones you no longer use. Signing in on an Android phone registers that installation automatically.</p></div></div>
+            <section class="panel stack">
+              <div class="form-actions"><button id="refresh-devices" class="button secondary compact" type="button">Refresh devices</button></div>
+              <p id="devices-status" class="status-line"></p>
+              <div id="devices-list" class="stack"></div>
+            </section>
+          </section>
           <section class="settings-pane hidden admin-settings" data-settings-pane="backups">
       <div class="page-header">
         <div><p class="eyebrow">Data protection</p><h2>Backups & Restore</h2><p class="muted">Create complete CalDen backups, keep server-side safety copies, and restore a validated backup without rebuilding the installation.</p></div>
