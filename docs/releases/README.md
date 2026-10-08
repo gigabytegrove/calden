@@ -1,6 +1,10 @@
 # CalDen release notes
 
-Release notes are retained as historical records. The current development release is **0.1.0-alpha11.2**.
+Current stable release: **1.0.0**.
+
+- [1.0.0](v1.0.0.md) — first stable release; current complete web application and in-place update improvements
+
+## Historical alpha releases
 
 - [0.1.0-alpha11.2](v0.1.0-alpha11.2.md) — fixes stale web assets after updates so the all-day DTEND fix actually reaches the browser
 - [0.1.0-alpha11.1](v0.1.0-alpha11.1.md) — fixes exclusive all-day end dates rendering on the following day
