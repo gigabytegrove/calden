@@ -51,7 +51,7 @@ func (s *server) registerDevice(w http.ResponseWriter, r *http.Request) {
     err=s.db.QueryRow(r.Context(),`INSERT INTO calden_devices(user_id,installation_id,name,platform)
         VALUES($1,$2,$3,$4)
         ON CONFLICT (user_id,installation_id) DO UPDATE SET
-           name=EXCLUDED.name, platform=EXCLUDED.platform, last_seen_at=now()
+           name=EXCLUDED.name, platform=EXCLUDED.platform, last_seen_at=now(),\n           revoked_at=NULL, enabled=true
         RETURNING id`,currentActor(r).ID,installationID,in.Name,in.Platform).Scan(&id)
     if err!=nil {writeError(w,500,"Could not register device");return}
     writeJSON(w,200,map[string]any{"id":id,"registered":true})
