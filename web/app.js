@@ -216,6 +216,7 @@ async function boot(){
     await reloadSharedData();
     renderApp();
     await applyCalDenRoute(false);
+    if(location.pathname==="/")history.replaceState({calden:true},"",caldenPageURL("calendar"));
     startCalDenVersionWatch();
   }catch(err){
     console.error(err);
@@ -1284,10 +1285,11 @@ function beginCategoryEdit(id){
   $("#category-error").textContent="";$("#category-status").textContent="";
 }
 
-function activateSettingsTab(tab){
+function activateSettingsTab(tab,writeURL=false){
   if(tab==="general"&&state.me?.role!=="admin")tab="calendar";
   state.settingsTab=tab;
-  $$(".settings-nav-item").forEach(button=>button.classList.toggle("active",button.dataset.settingsTab===tab));
+  if(writeURL&&state.currentPage==="settings")history.pushState({calden:true},"",caldenPageURL("settings"));
+  $(".settings-nav-item").forEach(button=>button.classList.toggle("active",button.dataset.settingsTab===tab));
   $$("[data-settings-pane]").forEach(pane=>pane.classList.toggle("hidden",pane.dataset.settingsPane!==tab));
 }
 function renderSettings(){
@@ -1867,7 +1869,7 @@ $("#login-form").addEventListener("submit",async e=>{
 });
 $("#logout").addEventListener("click",()=>{setToken("");location.reload()});
 $("[data-page]").forEach(b=>{
-  if(b.tagName==="A")b.href=caldenPageURL(b.dataset.page);
+  // Keep static href values available for open-in-new-tab and copying links.
   b.addEventListener("click",event=>{
     if(event.defaultPrevented||event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
     event.preventDefault();navigate(b.dataset.page);
@@ -1899,9 +1901,9 @@ $("#bill-payment-reset")?.addEventListener("click",()=>resetBillPaymentEntry());
 $("#bill-payment-no-balance")?.addEventListener("click",toggleBillNoBalance);
 $("#bill-allocation-save")?.addEventListener("click",saveBillAllocation);
 $("#bill-allocation-clear")?.addEventListener("click",clearBillAllocation);
-$("#bill-prev")?.addEventListener("click",async()=>{state.billMonth=new Date(state.billMonth.getFullYear(),state.billMonth.getMonth()-1,1);await loadBillMonth()});
-$("#bill-next")?.addEventListener("click",async()=>{state.billMonth=new Date(state.billMonth.getFullYear(),state.billMonth.getMonth()+1,1);await loadBillMonth()});
-$("#bill-current")?.addEventListener("click",async()=>{const now=new Date();state.billMonth=new Date(now.getFullYear(),now.getMonth(),1);await loadBillMonth()});
+$("#bill-prev")?.addEventListener("click",async()=>{state.billMonth=new Date(state.billMonth.getFullYear(),state.billMonth.getMonth()-1,1);history.pushState({calden:true},"",caldenPageURL("bills"));await loadBillMonth()});
+$("#bill-next")?.addEventListener("click",async()=>{state.billMonth=new Date(state.billMonth.getFullYear(),state.billMonth.getMonth()+1,1);history.pushState({calden:true},"",caldenPageURL("bills"));await loadBillMonth()});
+$("#bill-current")?.addEventListener("click",async()=>{const now=new Date();state.billMonth=new Date(now.getFullYear(),now.getMonth(),1);history.pushState({calden:true},"",caldenPageURL("bills"));await loadBillMonth()});
 $("#event-form").calendar_id.addEventListener("change",updateBillEventUI);
 $("#calendar-strip").addEventListener("click",e=>{
   const b=e.target.closest("[data-calendar-id]");if(!b)return;
@@ -1910,11 +1912,12 @@ $("#calendar-strip").addEventListener("click",e=>{
 });
 $$(".view-switcher button").forEach(b=>b.addEventListener("click",async()=>{
   state.viewDays=Number(b.dataset.days);localStorage.setItem("calden_view_days",String(state.viewDays));
+  history.pushState({calden:true},"",caldenPageURL("calendar"));
   await loadEvents();renderCalendar();renderAgenda();
 }));
-$("#calendar-prev").addEventListener("click",async()=>{state.anchorDate=addDays(state.anchorDate,-state.viewDays);await loadEvents();renderCalendar();renderAgenda()});
-$("#calendar-next").addEventListener("click",async()=>{state.anchorDate=addDays(state.anchorDate,state.viewDays);await loadEvents();renderCalendar();renderAgenda()});
-$("#calendar-today").addEventListener("click",async()=>{state.anchorDate=startOfDay(new Date());await loadEvents();renderCalendar();renderAgenda()});
+$("#calendar-prev").addEventListener("click",async()=>{state.anchorDate=addDays(state.anchorDate,-state.viewDays);history.pushState({calden:true},"",caldenPageURL("calendar"));await loadEvents();renderCalendar();renderAgenda()});
+$("#calendar-next").addEventListener("click",async()=>{state.anchorDate=addDays(state.anchorDate,state.viewDays);history.pushState({calden:true},"",caldenPageURL("calendar"));await loadEvents();renderCalendar();renderAgenda()});
+$("#calendar-today").addEventListener("click",async()=>{state.anchorDate=startOfDay(new Date());history.pushState({calden:true},"",caldenPageURL("calendar"));await loadEvents();renderCalendar();renderAgenda()});
 $("#calendar-category-filter").addEventListener("change",e=>{state.filters.category=e.target.value;renderCalendar();renderAgenda()});
 $("#calendar-person-filter").addEventListener("change",e=>{state.filters.person=e.target.value;renderCalendar();renderAgenda()});
 $("#calendar-search").addEventListener("input",e=>{state.filters.query=e.target.value.trim();renderCalendar();renderAgenda()});
@@ -2206,7 +2209,7 @@ $("#delete-category").addEventListener("click",async()=>{
   }catch(err){$("#category-error").textContent=err.message}
 });
 
-$$(".settings-nav-item").forEach(button=>button.addEventListener("click",()=>activateSettingsTab(button.dataset.settingsTab)));
+$$(".settings-nav-item").forEach(button=>button.addEventListener("click",()=>activateSettingsTab(button.dataset.settingsTab,true)));
 $("#display-settings-form").addEventListener("submit",e=>{
   e.preventDefault();
   state.defaultCalendar=$("#settings-default-calendar").value;

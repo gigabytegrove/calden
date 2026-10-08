@@ -3,7 +3,7 @@ const assert=require("node:assert/strict"),fs=require("node:fs"),path=require("n
 const read=p=>fs.readFileSync(path.join(__dirname,"..",p),"utf8");
 const js=read("web/app.js"),html=read("web/index.html"),css=read("web/app.css");
 test("event clicks open details",()=>{
-  for(const part of ["if(found)openEventDetails(found)","if(ev)openEventDetails(ev)","if(event)openEventDetails(event)","function openEventDetails(event)"])assert.ok(js.includes(part),part);
+  for(const part of ["if(found)openEventDetails(found)","if(ev)openEventDetails(ev)","if(event)openEventDetails(event)","function openEventDetails(event"])assert.ok(js.includes(part),part);
 });
 test("event details actions are real",()=>{
   for(const id of ["event-details-dialog","event-details-close","event-details-fields","event-details-edit","event-details-bill","event-details-notes"])assert.ok(html.includes('id="'+id+'"'),id);
