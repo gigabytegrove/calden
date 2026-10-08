@@ -161,7 +161,7 @@ function billCalendarStatusMarker(event){
   if(!isBillCalendar(event?.calendar_id))return "";
   const status=billPaymentStatus(event);
   const marker=status==="allocated"
-    ?{icon:"⌛",label:"Funds allocated"}
+    ?{icon:"⌛︎",label:"Funds allocated"}
     :status==="paid"
       ?{icon:"✓",label:"Paid"}
       :status==="cleared"
@@ -334,14 +334,15 @@ function readCalDenRoute(){
   const parts=location.pathname.split("/").filter(Boolean);
   const params=new URLSearchParams(location.search);
   const detail=parts.length===2&&(parts[0]==="events"||parts[0]==="bills");
-  const page=detail?(parts[0]==="bills"?"bills":"calendar"):caldenPages.has(parts[0])?parts[0]:"calendar";
+  const settingsAliases=new Set(["integrations","updates","backups"]);
+  const page=detail?(parts[0]==="bills"?"bills":"calendar"):settingsAliases.has(parts[0])?"settings":caldenPages.has(parts[0])?parts[0]:"calendar";
   const at=params.get("at");
   const occurrence=at?new Date(at):null;
   const day=params.get("date");
   const date=day&&/^\d{4}-\d{2}-\d{2}$/.test(day)?calendarDate(day):occurrence&&!Number.isNaN(occurrence.getTime())?occurrence:null;
   const monthValue=params.get("month");
   const month=monthValue&&/^\d{4}-\d{2}$/.test(monthValue)?calendarDate(monthValue+"-01"):null;
-  const tab=page==="settings"&&["general","calendar","account"].includes(parts[1])?parts[1]:null;
+  const tab=page==="settings"&&["general","calendar","account","integrations","updates","backups"].includes(parts[1])?parts[1]:settingsAliases.has(parts[0])?parts[0]:null;
   const days=Number(params.get("days"));
   return {page,detail,id:detail?parts[1]:null,kind:parts[0],at,date,month,tab,days};
 }
@@ -355,7 +356,7 @@ async function applyCalDenRoute(load=true){
   if([1,7,14,30].includes(route.days))state.viewDays=route.days;
   if(route.date){state.anchorDate=startOfDay(route.date);if(load)await loadEvents()}
   if(route.month)state.billMonth=route.month;
-  if(route.tab){state.settingsTab=route.tab;activateSettingsTab(route.tab)}
+  if(route.tab)activateSettingsTab(route.tab);
   navigate(route.page,load,false);
   if(route.page==="bills"&&!route.detail&&!load)await loadBillMonth();
   if($("#event-details-dialog").open){state.suppressDetailCloseRoute=true;$("#event-details-dialog").close()}
@@ -399,9 +400,7 @@ function navigate(page,load=true,writeURL=true){
   if(!load)return;
   if(page==="notifications")loadNotifications(false).catch(()=>renderNotifications());
   if(page==="bills")loadBillMonth();
-  if(page==="integrations"){loadMonita();setGoogleImportFile(state.googleImportFile);}
-  if(page==="updates")loadUpdater();
-  if(page==="backups")loadBackups();
+  if(page==="settings")activateSettingsTab(state.settingsTab);
   if(page==="activity")loadActivity();
 }
 
@@ -1348,11 +1347,14 @@ function beginCategoryEdit(id){
 }
 
 function activateSettingsTab(tab,writeURL=false){
-  if(tab==="general"&&state.me?.role!=="admin")tab="calendar";
+  if(["general","integrations","updates","backups"].includes(tab)&&state.me?.role!=="admin")tab="calendar";
   state.settingsTab=tab;
   if(writeURL&&state.currentPage==="settings")history.pushState({calden:true},"",caldenPageURL("settings"));
   $$(".settings-nav-item").forEach(button=>button.classList.toggle("active",button.dataset.settingsTab===tab));
-  $$("[data-settings-pane]").forEach(pane=>pane.classList.toggle("hidden",pane.dataset.settingsPane!==tab));
+  $("[data-settings-pane]").forEach(pane=>pane.classList.toggle("hidden",pane.dataset.settingsPane!==tab));
+  if(tab==="integrations"){loadMonita();setGoogleImportFile(state.googleImportFile)}
+  if(tab==="updates")loadUpdater();
+  if(tab==="backups")loadBackups();
 }
 function renderSettings(){
   const form=$("#general-settings-form");
@@ -1855,17 +1857,24 @@ function renderUpdater(info){
   }
   const status=info.status||{state:"idle",progress:0,activity:[]};
   const active=["backup","preparing","downloading","verifying","installing","restarting"].includes(status.state);
-  $("#update-progress-wrap").classList.toggle("hidden",!active&&status.state!=="completed"&&status.state!=="failed");
+  // Progress belongs to an active installation only; completed steps are optional history.
+  $("#update-progress-wrap").classList.toggle("hidden",!active);
   $("#update-progress").style.width=`${clamp(Number(status.progress)||0,0,100)}%`;
   $("#update-progress-label").textContent=`${Number(status.progress)||0}%`;
   $("#update-state").className=`update-state state-${status.state||"idle"}`;
-  if(active||status.state==="completed"||status.state==="failed")$("#update-state").textContent=status.message||status.step||status.state;
+  if(active)$("#update-state").textContent=status.message||status.step||"Installing update…";
+  else if(status.state==="completed")$("#update-state").textContent="Update completed successfully. CalDen "+(info.current_version||"")+" is installed.";
+  else if(status.state==="failed")$("#update-state").textContent="Update failed: "+(status.message||"Review the activity details below.");
   else if(info.available)$("#update-state").textContent=`CalDen ${latest.version} is available.`;
   else $("#update-state").textContent="CalDen is up to date for this channel.";
   $("#apply-update").classList.toggle("hidden",!info.available||active);
   $("#apply-update").dataset.version=latest?.version||"";
   $("#rollback-update").classList.toggle("hidden",!status.rollback_ready||active);
   $("#update-release-notes").innerHTML=latest?`<h3>${escapeHTML(latest.name||"Release "+latest.version)}</h3><p class="release-meta">${latest.published_at?escapeHTML(formatDate(new Date(latest.published_at),{month:"long",day:"numeric",year:"numeric"})):""}</p><div>${escapeHTML(latest.notes||"No release notes were provided.").replace(/\n/g,"<br>")}</div>`:'<p class="muted">No eligible release was found for this channel.</p>';
+  const historyDetails=$("#update-history-details");
+  historyDetails.classList.toggle("hidden",!(status.activity||[]).length);
+  if(active||status.state==="failed")historyDetails.open=true;
+  else historyDetails.open=false;
   $("#update-activity").innerHTML=(status.activity||[]).slice().reverse().map(a=>`<div><span>${a.timestamp&&!Number.isNaN(new Date(a.timestamp).getTime())?escapeHTML(formatTime(new Date(a.timestamp))):"—"}</span><strong>${escapeHTML(a.message)}</strong></div>`).join("");
 }
 function startUpdatePolling(){

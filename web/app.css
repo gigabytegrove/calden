@@ -725,3 +725,17 @@ dialog::backdrop{background:rgba(15,23,42,.58);backdrop-filter:blur(2px)}
 .reminder-row:not(.system-row){grid-template-columns:minmax(118px,1fr) minmax(140px,1fr) auto}
 .reminder-row .reminder-recipient{width:100%;min-width:0}
 @media(max-width:700px){.reminder-row:not(.system-row){grid-template-columns:1fr auto}.reminder-row .reminder-recipient{grid-column:1;grid-row:2}}
+
+/* 1.2.1: clear allocated bill markers on a warning-gold badge. */
+.bill-calendar-status.allocated{
+  background:#ffca2c;color:#322600;border:1px solid #bd8800;
+  font-size:.82rem;font-weight:900;min-width:19px;height:19px;
+  padding:0 2px;box-shadow:0 0 0 1px rgba(100,65,0,.09)
+}
+.bill-calendar-status.paid,.bill-calendar-status.cleared{min-width:19px;height:19px;font-size:.76rem}
+.settings-nav-item.admin-settings{width:100%}
+.update-history{border-top:1px solid #e3e9f0;padding:12px 0}
+.update-history summary{cursor:pointer;color:#405477;font-size:.84rem;font-weight:750}
+.update-history .activity-list{margin-top:12px;max-height:240px;overflow:auto}
+.update-state.state-completed{background:#e9f8ee;color:#17633c;border:1px solid #bbebca;border-radius:9px;padding:13px 15px}
+.update-state.state-failed{background:#fff1f0;color:#9b2925;border:1px solid #f5c7c3;border-radius:9px;padding:13px 15px}
