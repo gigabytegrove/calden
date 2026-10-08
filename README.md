@@ -10,7 +10,7 @@ CalDen is a self-hosted family calendar built for normal people, not calendar ad
 
 A calendar has its own color. A person has their own identity. The two never compete with each other.
 
-CalDen 1.0.1 is the first stable release. Development continues on the existing web application, with compatible in-place updates.
+CalDen 1.0.2 is the first stable release. Development continues on the existing web application, with compatible in-place updates.
 
 ## What CalDen does
 
@@ -389,14 +389,14 @@ The Compose file maps that host port to CalDen's internal port `8787`.
 
 ## Development status
 
-CalDen is released as version 1.0.1. Backups remain recommended before each update.
+CalDen is released as version 1.0.2. Backups remain recommended before each update.
 
 The current version is intended for active testing and development. Database migrations are automatic, but backups are strongly recommended before updating between development builds.
 
 Current version:
 
 ```text
-1.0.1
+1.0.2
 ```
 
 ## Project layout
@@ -415,3 +415,7 @@ calden/
 ## License
 
 CalDen is under active development. The repository's license file governs redistribution and use.
+
+## Navigable URLs and update caching
+
+Main pages have real paths (`/calendar`, `/bills`, `/agenda`, `/people`, `/settings`), and individual events and bills can be linked as `/events/{id}?at={occurrence}` and `/bills/{id}?at={occurrence}`. The event details dialog has **Copy link**. Browser Back/Forward and deep links after login restore the view, subject to each account's permissions. CalDen now serves all static UI files with no-store headers and compares the running version against the browser shell so a completed update automatically refreshes the interface without Ctrl+F5.
