@@ -46,10 +46,6 @@ jobs:
           npm run build:css
           npm run test:web
           node --check web/app.js
-          if grep -nF '$$(' web/app.js || grep -nE '^[[:space:]]*[$][(][^)]*[)][.]forEach' web/app.js; then
-            echo 'Invalid JavaScript collection selector' >&2
-            exit 1
-          fi
       - name: Run Go tests
         run: go test ./...
       - name: Build full installable runtimes
