@@ -221,6 +221,12 @@ function showAuth(which){
 
 async function boot(){
   caldenBooting=true;
+  // Restore the application shell immediately for an existing session.
+  // Never show the full-page sign-in splash just to refresh calendar data.
+  if(state.token){
+    $("#auth").classList.add("hidden");
+    $("#app").classList.remove("hidden");
+  }
   const initial=readCalDenRoute();
   if(initial.date)state.anchorDate=startOfDay(initial.date);
   if(initial.month)state.billMonth=initial.month;
@@ -244,6 +250,8 @@ async function boot(){
     if(err.status===401||err.status===403){
       setToken("");showAuth("login");
     }else{
+      $("#app").classList.add("hidden");
+      $("#auth").classList.remove("hidden");
       showBootFailure(err);
     }
     caldenBooting=false;
