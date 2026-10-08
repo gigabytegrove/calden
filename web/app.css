@@ -755,3 +755,14 @@ dialog::backdrop{background:rgba(15,23,42,.58);backdrop-filter:blur(2px)}
 /* Official CalDen artwork, shared from the Android application. */
 .calden-brand-lockup .calden-official-mark{display:block;width:56px;height:56px;object-fit:contain;flex-shrink:0}
 .sidebar-logo-surface .calden-official-mark{display:block;width:76px;height:40px;object-fit:contain}
+
+/* Official CalDen 1.2.12: transparent art floats directly on the interface.
+   No card, padding, frame, duplicated wordmark, or opaque background. */
+.auth-brand-panel{background:transparent;border:0;box-shadow:none;padding:4px 0;margin:0 0 22px;overflow:visible}
+.auth-brand-panel .calden-brand-lockup{width:100%;display:block}
+.auth-brand-panel .calden-official-mark{display:block;width:min(100%,340px);height:auto;max-height:none;object-fit:contain;object-position:left center;background:none;border:0;border-radius:0;padding:0;box-shadow:none}
+.auth-brand-panel .auth-brand-fallback{display:none}
+.sidebar-brand{display:block;grid-template-columns:none;padding:5px 2px 15px}
+.sidebar-logo-surface{width:100%;height:auto;min-height:70px;display:flex;align-items:center;justify-content:center;background:transparent;border:0;border-radius:0;box-shadow:none;overflow:visible;padding:0}
+.sidebar-logo-surface .calden-official-mark{width:100%;height:auto;max-height:110px;object-fit:contain;filter:none;background:transparent;border:0;padding:0}
+.sidebar-brand-copy{display:none}
