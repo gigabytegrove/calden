@@ -533,10 +533,10 @@ func (s *server) createEvent(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback(r.Context())
 
 	var id uuid.UUID
-	err = tx.QueryRow(r.Context(), `INSERT INTO events(calendar_id,category_id,title,notes,location,starts_at,ends_at,all_day,created_by)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+	err = tx.QueryRow(r.Context(), `INSERT INTO events(calendar_id,category_id,title,notes,location,starts_at,ends_at,all_day,created_by,request_confirmation)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,COALESCE($10,false)) RETURNING id`,
 		in.CalendarID, in.CategoryID, cleanText(in.Title, 200), cleanText(in.Notes, 5000), cleanText(in.Location, 500),
-		in.StartsAt, in.EndsAt, in.AllDay, a.ID).Scan(&id)
+		in.StartsAt, in.EndsAt, in.AllDay, a.ID, in.RequestConfirmation).Scan(&id)
 	if err != nil {
 		writeError(w, 400, "Could not create event")
 		return
