@@ -30,13 +30,13 @@ const state={
   billEvents:[],billPaymentEvent:null,billPaymentEditingId:null,
   notifications:[],unreadNotifications:0,notificationKnown:new Set(),notificationPoll:null,
   googleImportFile:null,googleImportPreview:null,googleRepairFile:null,googleRepairPreview:null,
-  updateInfo:null,updatePoll:null,updatePrefsDirty:false,detailEvent:null
+  updateInfo:null,updatePoll:null,updatePrefsDirty:false,detailEvent:null,suppressDetailCloseRoute:false
 };
 
 async function api(path,options={}){
   const headers={"Content-Type":"application/json",...(options.headers||{})};
   if(state.token)headers.Authorization=`Bearer ${state.token}`;
-  const res=await fetch(path,{...options,headers});
+  const res=await fetch(path,{cache:"no-store",...options,headers});
   const body=res.status===204?null:await res.json().catch(()=>null);
   if(!res.ok){
     const err=new Error(body?.error||`Request failed (${res.status})`);
@@ -49,7 +49,7 @@ async function api(path,options={}){
 async function apiForm(path,formData,method="POST"){
   const headers={};
   if(state.token)headers.Authorization=`Bearer ${state.token}`;
-  const res=await fetch(path,{method,headers,body:formData});
+  const res=await fetch(path,{method,headers,body:formData,cache:"no-store"});
   const body=res.status===204?null:await res.json().catch(()=>null);
   if(!res.ok)throw new Error(body?.error||`Request failed (${res.status})`);
   return body;
@@ -201,6 +201,11 @@ function showAuth(which){
 }
 
 async function boot(){
+  const initial=readCalDenRoute();
+  if(initial.date)state.anchorDate=startOfDay(initial.date);
+  if(initial.month)state.billMonth=initial.month;
+  if(initial.tab)state.settingsTab=initial.tab;
+  if([1,7,14,30].includes(initial.days))state.viewDays=initial.days;
   const setup=await api("/api/setup/status");
   if(setup.needs_setup){showAuth("setup");return}
   if(!state.token){showAuth("login");return}
@@ -210,7 +215,8 @@ async function boot(){
     if(!localStorage.getItem("calden_view_days")&&[1,7,14,30].includes(Number(state.settings.default_view)))state.viewDays=Number(state.settings.default_view);
     await reloadSharedData();
     renderApp();
-    navigate(state.currentPage,false);
+    await applyCalDenRoute(false);
+    startCalDenVersionWatch();
   }catch(err){
     console.error(err);
     setToken("");showAuth("login");
@@ -259,10 +265,100 @@ function renderApp(){
   ensureNotificationPolling();
 }
 
-function navigate(page,load=true){
+
+
+const caldenClientVersion=document.querySelector('meta[name="calden-version"]')?.content||"";
+let caldenVersionWatch=null;
+let caldenRefreshing=false;
+async function checkCalDenClientVersion(){
+  if(!state.me||!caldenClientVersion||caldenRefreshing)return;
+  try{
+    const response=await fetch("/api/health?fresh="+Date.now(),{cache:"no-store",headers:{"Cache-Control":"no-cache"}});
+    if(!response.ok)return;
+    const info=await response.json();
+    if(!info.version||info.version===caldenClientVersion)return;
+    caldenRefreshing=true;
+    const next=new URL(location.href);
+    next.searchParams.set("_calden_version",info.version);
+    location.replace(next.pathname+next.search+next.hash);
+  }catch(error){console.warn("CalDen version check unavailable",error)}
+}
+function startCalDenVersionWatch(){
+  if(caldenVersionWatch!==null)return;
+  caldenVersionWatch=setInterval(checkCalDenClientVersion,30000);
+  document.addEventListener("visibilitychange",()=>{if(!document.hidden)checkCalDenClientVersion()});
+}
+
+const caldenPages=new Set(["calendar","bills","agenda","people","calendars","categories","notifications","integrations","updates","backups","activity","settings"]);
+function caldenPageURL(page){
+  if(page==="calendar")return "/calendar?date="+dateInputValue(state.anchorDate)+"&days="+state.viewDays;
+  if(page==="bills")return "/bills?month="+dateInputValue(state.billMonth).slice(0,7);
+  if(page==="settings")return "/settings/"+encodeURIComponent(state.settingsTab);
+  return "/"+page;
+}
+function caldenEventURL(event){
+  const prefix=isBillCalendar(event.calendar_id)?"/bills/":"/events/";
+  return prefix+encodeURIComponent(event.id)+"?at="+encodeURIComponent(billOccurrenceStart(event));
+}
+function readCalDenRoute(){
+  const parts=location.pathname.split("/").filter(Boolean);
+  const params=new URLSearchParams(location.search);
+  const detail=parts.length===2&&(parts[0]==="events"||parts[0]==="bills");
+  const page=detail?(parts[0]==="bills"?"bills":"calendar"):caldenPages.has(parts[0])?parts[0]:"calendar";
+  const at=params.get("at");
+  const occurrence=at?new Date(at):null;
+  const day=params.get("date");
+  const date=day&&/^\d{4}-\d{2}-\d{2}$/.test(day)?calendarDate(day):occurrence&&!Number.isNaN(occurrence.getTime())?occurrence:null;
+  const monthValue=params.get("month");
+  const month=monthValue&&/^\d{4}-\d{2}$/.test(monthValue)?calendarDate(monthValue+"-01"):null;
+  const tab=page==="settings"&&["general","calendar","account"].includes(parts[1])?parts[1]:null;
+  const days=Number(params.get("days"));
+  return {page,detail,id:detail?parts[1]:null,kind:parts[0],at,date,month,tab,days};
+}
+function sameCaldenOccurrence(event,at){
+  if(!at)return true;
+  const found=new Date(billOccurrenceStart(event)).getTime(),target=new Date(at).getTime();
+  return Number.isFinite(found)&&Number.isFinite(target)&&found===target;
+}
+async function applyCalDenRoute(load=true){
+  const route=readCalDenRoute();
+  if([1,7,14,30].includes(route.days))state.viewDays=route.days;
+  if(route.date){state.anchorDate=startOfDay(route.date);if(load)await loadEvents()}
+  if(route.month)state.billMonth=route.month;
+  if(route.tab){state.settingsTab=route.tab;activateSettingsTab(route.tab)}
+  navigate(route.page,load,false);
+  if($("#event-details-dialog").open){state.suppressDetailCloseRoute=true;$("#event-details-dialog").close()}
+  state.detailEvent=null;
+  document.querySelector(".calden-route-not-found")?.remove();
+  if(!route.detail)return;
+  let match=state.events.find(event=>event.id===route.id&&sameCaldenOccurrence(event,route.at));
+  if(!match&&route.kind==="bills"){
+    await loadBillMonth();
+    match=state.billEvents.find(event=>event.id===route.id&&sameCaldenOccurrence(event,route.at));
+  }
+  if(!match&&route.date){
+    const from=addDays(startOfDay(route.date),-2),to=addDays(startOfDay(route.date),3);
+    const events=await api("/api/events?from="+encodeURIComponent(from.toISOString())+"&to="+encodeURIComponent(to.toISOString()));
+    match=events.find(event=>event.id===route.id&&sameCaldenOccurrence(event,route.at));
+  }
+  if(match&&(route.kind!=="bills"||isBillCalendar(match.calendar_id))){
+    openEventDetails(match,false);
+  }else{
+    const region=$("#page-"+route.page);
+    const notice=document.createElement("p");
+    notice.className="status-line calden-route-not-found";
+    notice.textContent="This event or bill could not be found, or you do not have permission to view it.";
+    region?.prepend(notice);
+  }
+}
+window.addEventListener("popstate",()=>{if(state.me)applyCalDenRoute(true).catch(console.error)});
+
+function navigate(page,load=true,writeURL=true){
+  if(!caldenPages.has(page))page="calendar";
   const adminPages=new Set(["people","calendars","categories","integrations","updates","backups","activity"]);
   if(adminPages.has(page)&&state.me?.role!=="admin")page="calendar";
   state.currentPage=page;
+  if(writeURL)history.pushState({calden:true},"",caldenPageURL(page));
   $$(".app-page").forEach(el=>el.classList.toggle("hidden",el.id!==`page-${page}`));
   $$("[data-page]").forEach(el=>el.classList.toggle("active",el.dataset.page===page));
   const titles={calendar:"Calendar",bills:"Bill Pay",agenda:"Agenda",people:"People",calendars:"Calendars",categories:"Categories",notifications:"Notifications",integrations:"Integrations",updates:"Updates",backups:"Backups & Restore",activity:"Activity",settings:"Settings"};
@@ -351,7 +447,7 @@ function renderCalendarFilters(){
 function renderBillNavigation(){
   const visible=state.calendars.some(cal=>cal.calendar_type==="bill_pay");
   document.querySelectorAll(".bill-nav").forEach(el=>el.classList.toggle("hidden",!visible));
-  if(!visible&&state.currentPage==="bills")navigate("calendar",false);
+  if(!visible&&state.currentPage==="bills"&&!location.pathname.startsWith("/bills/"))navigate("calendar",false);
 }
 
 async function loadBillMonth(){
@@ -1289,12 +1385,14 @@ function eventDetailsDate(event){
   return formatDate(start,opts)+" at "+formatTime(start)+(sameDay(start,end)?" – "+formatTime(end):" – "+formatDate(end,opts)+" at "+formatTime(end));
 }
 
-function openEventDetails(event){
+function openEventDetails(event,writeURL=true){
   if(!event)return;
   state.detailEvent=event;
+  if(writeURL)history.pushState({calden:true},"",caldenEventURL(event));
   const bill=isBillCalendar(event.calendar_id);
   $("#event-details-eyebrow").textContent=bill?"Bill details":"Event details";
   $("#event-details-title").textContent=event.title||"Untitled event";
+  $("#event-details-link").textContent="Copy link";
   const rows=[
     eventDetailsRow("Calendar",event.calendar_name||"Calendar"),
     eventDetailsRow("When",eventDetailsDate(event)),
@@ -1322,8 +1420,11 @@ function openEventDetails(event){
 }
 
 function closeEventDetails(){
+  state.suppressDetailCloseRoute=true;
   $("#event-details-dialog").close();
   state.detailEvent=null;
+  if(location.pathname.startsWith("/events/")||location.pathname.startsWith("/bills/"))
+    history.pushState({calden:true},"",caldenPageURL(state.currentPage));
 }
 
 async function requestEventEdit(event){
@@ -1713,7 +1814,7 @@ function startUpdatePolling(){
       const status=await api("/api/system/update/status");
       if(state.updateInfo){state.updateInfo.status=status;renderUpdater(state.updateInfo)}
       if(!["backup","preparing","downloading","verifying","installing","restarting"].includes(status.state)){
-        state.updatePoll=setTimeout(loadUpdater,600);
+        state.updatePoll=setTimeout(()=>{checkCalDenClientVersion();loadUpdater()},600);
         return;
       }
     }catch(err){
@@ -1765,11 +1866,28 @@ $("#login-form").addEventListener("submit",async e=>{
   catch(err){$("#auth-error").textContent=err.message}
 });
 $("#logout").addEventListener("click",()=>{setToken("");location.reload()});
-$$("[data-page]").forEach(b=>b.addEventListener("click",()=>navigate(b.dataset.page)));
+$("[data-page]").forEach(b=>{
+  if(b.tagName==="A")b.href=caldenPageURL(b.dataset.page);
+  b.addEventListener("click",event=>{
+    if(event.defaultPrevented||event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
+    event.preventDefault();navigate(b.dataset.page);
+  });
+});
 $("#mobile-menu").addEventListener("click",()=>$("#sidebar").classList.toggle("open"));
+$("#event-details-link").addEventListener("click",async()=>{
+  const event=state.detailEvent;if(!event)return;
+  const url=new URL(caldenEventURL(event),location.origin).href;
+  try{await navigator.clipboard.writeText(url);$("#event-details-link").textContent="Copied link"}
+  catch{window.prompt("Copy event link",url)}
+});
 $("#event-details-close").addEventListener("click",closeEventDetails);
 $("#event-details-done").addEventListener("click",closeEventDetails);
-$("#event-details-dialog").addEventListener("close",()=>{state.detailEvent=null});
+$("#event-details-dialog").addEventListener("close",()=>{
+  if(state.suppressDetailCloseRoute){state.suppressDetailCloseRoute=false;return}
+  state.detailEvent=null;
+  if(location.pathname.startsWith("/events/")||location.pathname.startsWith("/bills/"))
+    history.replaceState({calden:true},"",caldenPageURL(state.currentPage));
+});
 $("#event-details-edit").addEventListener("click",()=>{const selected=state.detailEvent;if(!selected)return;closeEventDetails();requestEventEdit(selected)});
 $("#event-details-bill").addEventListener("click",()=>{const selected=state.detailEvent;if(!selected)return;closeEventDetails();openBillPayment(selected)});
 $("#new-event").addEventListener("click",()=>openEvent());

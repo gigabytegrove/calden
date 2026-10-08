@@ -4,8 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#f7f8fb">
+  <meta name="calden-version" content="1.0.2">
   <title>CalDen</title>
-  <link rel="stylesheet" href="/styles.css?v=1.0.1">
+  <link rel="stylesheet" href="/styles.css?v=1.0.2">
 </head>
 <body class="bg-slate-50 text-slate-900">
 <div id="auth" class="auth-shell">
@@ -82,18 +83,18 @@
       <div class="sidebar-brand-copy"><strong>CalDen</strong><span>Family workspace</span></div>
     </div>
     <nav class="primary-nav" aria-label="Main navigation">
-      <button class="nav-item active" data-page="calendar">Calendar</button>
-      <button class="nav-item bill-nav hidden" data-page="bills">Bills</button>
-      <button class="nav-item" data-page="agenda">Agenda</button>
-      <button class="nav-item admin-only" data-page="people">People</button>
-      <button class="nav-item admin-only" data-page="calendars">Calendars</button>
-      <button class="nav-item admin-only" data-page="categories">Categories</button>
-      <button class="nav-item" data-page="notifications">Notifications<span id="notification-nav-badge" class="nav-badge hidden">0</span></button>
-      <button class="nav-item admin-only" data-page="integrations">Integrations</button>
-      <button class="nav-item admin-only" data-page="updates">Updates</button>
-      <button class="nav-item admin-only" data-page="backups">Backups</button>
-      <button class="nav-item admin-only" data-page="activity">Activity</button>
-      <button class="nav-item" data-page="settings">Settings</button>
+      <a class="nav-item active" data-page="calendar" href="/calendar">Calendar</a>
+      <a class="nav-item bill-nav hidden" data-page="bills" href="/bills">Bills</a>
+      <a class="nav-item" data-page="agenda" href="/agenda">Agenda</a>
+      <a class="nav-item admin-only" data-page="people" href="/people">People</a>
+      <a class="nav-item admin-only" data-page="calendars" href="/calendars">Calendars</a>
+      <a class="nav-item admin-only" data-page="categories" href="/categories">Categories</a>
+      <a class="nav-item" data-page="notifications" href="/notifications">Notifications<span id="notification-nav-badge" class="nav-badge hidden">0</span></a>
+      <a class="nav-item admin-only" data-page="integrations" href="/integrations">Integrations</a>
+      <a class="nav-item admin-only" data-page="updates" href="/updates">Updates</a>
+      <a class="nav-item admin-only" data-page="backups" href="/backups">Backups</a>
+      <a class="nav-item admin-only" data-page="activity" href="/activity">Activity</a>
+      <a class="nav-item" data-page="settings" href="/settings">Settings</a>
     </nav>
     <div class="sidebar-account">
       <div class="account-badge" id="sidebar-avatar">?</div>
@@ -467,7 +468,7 @@
   </main>
 
   <nav class="mobile-nav">
-    <button class="active" data-page="calendar">Calendar</button><button class="bill-nav hidden" data-page="bills">Bills</button><button data-page="agenda">Agenda</button><button id="nav-add" type="button">Add</button><button data-page="settings">Settings</button>
+    <a class="active" data-page="calendar" href="/calendar">Calendar</a><a class="bill-nav hidden" data-page="bills" href="/bills">Bills</a><a data-page="agenda" href="/agenda">Agenda</a><button id="nav-add" type="button">Add</button><a data-page="settings" href="/settings">Settings</a>
   </nav>
 </div>
 
@@ -476,7 +477,7 @@
     <header class="event-details-header"><div><p id="event-details-eyebrow" class="eyebrow">Event details</p><h2 id="event-details-title"></h2></div><button id="event-details-close" class="dialog-close" type="button" aria-label="Close">×</button></header>
     <dl id="event-details-fields" class="event-details-fields"></dl>
     <section id="event-details-notes" class="event-details-notes hidden"><h3>Notes</h3><p id="event-details-notes-text"></p></section>
-    <footer class="event-details-actions"><button id="event-details-done" type="button" class="button secondary">Close</button><span class="grow"></span><button id="event-details-bill" type="button" class="button secondary hidden">Manage payments</button><button id="event-details-edit" type="button" class="button hidden">Edit event</button></footer>
+    <footer class="event-details-actions"><button id="event-details-done" type="button" class="button secondary">Close</button><button id="event-details-link" type="button" class="button secondary">Copy link</button><span class="grow"></span><button id="event-details-bill" type="button" class="button secondary hidden">Manage payments</button><button id="event-details-edit" type="button" class="button hidden">Edit event</button></footer>
   </div>
 </dialog>
 
@@ -656,6 +657,6 @@
   </form>
 </dialog>
 
-<script src="/app.js?v=1.0.1" defer></script>
+<script src="/app.js?v=1.0.2" defer></script>
 </body>
 </html>

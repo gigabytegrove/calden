@@ -1,0 +1,21 @@
+"use strict";
+const test=require("node:test"),assert=require("node:assert/strict"),fs=require("node:fs"),path=require("node:path");
+const read=p=>fs.readFileSync(path.join(__dirname,"..",p),"utf8");
+const js=read("web/app.js"),html=read("web/index.html"),server=read("internal/api/api.go");
+test("page and detail routes are handled",()=>{
+  for(const item of ["function caldenPageURL","function caldenEventURL","function readCalDenRoute","async function applyCalDenRoute","popstate","history.pushState"])
+    assert.ok(js.includes(item),item);
+  assert.ok(js.includes("sameCaldenOccurrence"));
+  assert.ok(html.includes('id="event-details-link"'));
+});
+test("navigation entries are real anchors",()=>{
+  for(const page of ["calendar","bills","agenda","people","calendars","categories","notifications","integrations","updates","backups","activity","settings"])
+    assert.ok(html.includes('href="/'+page+'"'),page);
+});
+test("all web resources disable caching and stale clients update",()=>{
+  assert.ok(server.includes('Surrogate-Control'));
+  assert.ok(server.includes('no-store, no-cache, must-revalidate'));
+  assert.ok(html.includes('name="calden-version" content="1.0.2"'));
+  assert.ok(js.includes("startCalDenVersionWatch"));
+  assert.ok(js.includes("checkCalDenClientVersion"));
+});

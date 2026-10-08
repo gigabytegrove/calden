@@ -136,18 +136,12 @@ func (s *server) static() http.Handler {
 			return
 		}
 
-		// CalDen is frequently updated in place. HTML, JavaScript, and CSS must
-		// be revalidated after an update so an older app.js cannot keep running
-		// against a newer server and make a fixed calendar bug appear unchanged.
-		switch strings.ToLower(filepath.Ext(r.URL.Path)) {
-		case ".html", ".js", ".css":
-			w.Header().Set("Cache-Control", "no-store, max-age=0")
-			w.Header().Set("Pragma", "no-cache")
-		}
-		if r.URL.Path == "/" {
-			w.Header().Set("Cache-Control", "no-store, max-age=0")
-			w.Header().Set("Pragma", "no-cache")
-		}
+		// The web UI is updated in-place. All application entry points and
+		// static files must bypass browser and intermediary caches.
+		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
+		w.Header().Set("Surrogate-Control", "no-store")
 
 		path := filepath.Join(s.webDir, filepath.Clean(r.URL.Path))
 		if r.URL.Path != "/" {
