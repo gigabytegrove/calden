@@ -63,3 +63,12 @@ First unverified source slice is now committed:
 - Event-list JSON includes `request_confirmation` for ordinary and recurring occurrence records.
 - My Devices settings now lists and revokes registrations.
 - NOTE: still requires deployment/migrations, tests, recurring occurrence eligibility checks, delivery pipeline and Android confirmation UI.
+
+## Android confirmation development candidate (2026-10-08)
+- Android source version 1.2.6 (versionCode 18), not yet built or device verified; 1.2.5 remains the accepted baseline.
+- Event model parses `request_confirmation`; event requests can submit the setting.
+- Event editor exposes Request Confirmation when one or more assignees are chosen.
+- Event details fetch `GET /api/events/{id}/confirmations`, display individual statuses and offer Confirm or Request Change with a reason via `PUT /api/events/{id}/confirmation`.
+- Server confirmation responses now validate actual event/recurrence starts and reject deleted recurring instances.
+- Not yet included: background push delivery, Android notification action buttons, automatic initial confirmation-request notifications, cancellation/reassignment invalidation, conflict detection, full QA/testing, Monita and ntfy setup.
+- Repository commits must not be represented as a compiled APK or deployed backend; production release requires a Gradle build and server migration tests.
