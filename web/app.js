@@ -26,7 +26,7 @@ const state={
   billEvents:[],billPaymentEvent:null,billPaymentEditingId:null,
   notifications:[],unreadNotifications:0,notificationKnown:new Set(),notificationPoll:null,
   googleImportFile:null,googleImportPreview:null,googleRepairFile:null,googleRepairPreview:null,
-  updateInfo:null,updatePoll:null
+  updateInfo:null,updatePoll:null,updatePrefsDirty:false
 };
 
 async function api(path,options={}){
@@ -1620,8 +1620,10 @@ function renderUpdater(info){
   $("#update-latest").textContent=latest?.version||"None on this channel";
   // A background status poll must not overwrite unsaved administrator choices.
   const updateChannel=$("#update-channel"),autoCheck=$("#update-auto-check");
-  if(!updateChannel.matches(":focus"))updateChannel.value=info.preferences?.channel||"stable";
-  if(!autoCheck.matches(":focus"))autoCheck.checked=info.preferences?.auto_check!==false;
+  if(!state.updatePrefsDirty){
+    updateChannel.value=info.preferences?.channel||"stable";
+    autoCheck.checked=info.preferences?.auto_check!==false;
+  }
   const status=info.status||{state:"idle",progress:0,activity:[]};
   const active=["backup","preparing","downloading","verifying","installing","restarting"].includes(status.state);
   $("#update-progress-wrap").classList.toggle("hidden",!active&&status.state!=="completed"&&status.state!=="failed");
@@ -2267,10 +2269,12 @@ $("#restart-for-restore").addEventListener("click",async()=>{
 $("#activity-filter").addEventListener("change",loadActivity);
 $("#refresh-activity").addEventListener("click",loadActivity);
 $("#check-updates").addEventListener("click",loadUpdater);
+["update-channel","update-auto-check"].forEach(id=>$("#"+id).addEventListener("change",()=>{state.updatePrefsDirty=true}));
 $("#save-update-prefs").addEventListener("click",async()=>{
   $("#update-pref-status").textContent="";
   try{
     await api("/api/system/update/preferences",{method:"PUT",body:JSON.stringify({channel:$("#update-channel").value,auto_check:$("#update-auto-check").checked})});
+    state.updatePrefsDirty=false;
     $("#update-pref-status").textContent="Update preferences saved.";await loadUpdater();
   }catch(err){$("#update-pref-status").textContent=err.message}
 });
