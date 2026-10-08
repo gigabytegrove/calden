@@ -67,3 +67,54 @@ func (s *server) respondToConfirmation(w http.ResponseWriter, r *http.Request) {
     if err=tx.Commit(r.Context());err!=nil {writeError(w,500,"Could not finish response");return}
     writeJSON(w,200,map[string]any{"saved":true,"status":in.Status})
 }
+
+func (s *server) getEventConfirmations(w http.ResponseWriter, r *http.Request) {
+    eventID, err := uuid.Parse(r.PathValue("id"))
+    if err != nil { writeError(w, 400, "Invalid event ID"); return }
+    actor := currentActor(r)
+    var requested bool
+    var creator uuid.UUID
+    err = s.db.QueryRow(r.Context(), `SELECT e.request_confirmation,e.created_by FROM events e
+        JOIN calendars c ON c.id=e.calendar_id
+        LEFT JOIN calendar_permissions p ON p.calendar_id=c.id AND p.user_id=$2
+        WHERE e.id=$1 AND ($3='admin' OR COALESCE(p.can_view,false))`,
+        eventID,actor.ID,actor.Role).Scan(&requested,&creator)
+    if err != nil { writeError(w,404,"Event not found"); return }
+
+    assignees, err := s.db.Query(r.Context(), `SELECT a.user_id,u.display_name FROM event_assignees a
+        JOIN users u ON u.id=a.user_id WHERE a.event_id=$1 AND u.active=true ORDER BY u.display_name`, eventID)
+    if err != nil {writeError(w,500,"Could not load assignees");return}
+    defer assignees.Close()
+    people := []map[string]any{}
+    for assignees.Next() {
+        var id uuid.UUID
+        var name string
+        if err=assignees.Scan(&id,&name);err!=nil {writeError(w,500,"Could not read assignees");return}
+        people=append(people,map[string]any{"user_id":id,"display_name":name})
+    }
+    if assignees.Err()!=nil {writeError(w,500,"Could not load assignees");return}
+    var occurrence time.Time
+    raw:=r.URL.Query().Get("occurrence_start")
+    if raw!="" {
+        occurrence,err=time.Parse(time.RFC3339,raw)
+        if err!=nil {writeError(w,400,"Invalid occurrence start");return}
+    } else {
+        err=s.db.QueryRow(r.Context(),`SELECT starts_at FROM events WHERE id=$1`,eventID).Scan(&occurrence)
+        if err!=nil {writeError(w,404,"Event not found");return}
+    }
+    rows,err:=s.db.Query(r.Context(),`SELECT user_id,status,reason,responded_at FROM event_confirmations
+        WHERE event_id=$1 AND occurrence_start=$2`,eventID,occurrence)
+    if err!=nil {writeError(w,500,"Could not load confirmations");return}
+    defer rows.Close()
+    responses:=map[string]any{}
+    for rows.Next() {
+        var id uuid.UUID
+        var status,reason string
+        var responded *time.Time
+        if err=rows.Scan(&id,&status,&reason,&responded);err!=nil {writeError(w,500,"Could not read confirmations");return}
+        responses[id.String()]=map[string]any{"status":status,"reason":reason,"responded_at":responded}
+    }
+    if rows.Err()!=nil {writeError(w,500,"Could not finish confirmations");return}
+    writeJSON(w,200,map[string]any{"requested":requested,"creator_user_id":creator,"occurrence_start":occurrence,
+        "assignees":people,"responses":responses,"current_user_id":actor.ID})
+}
