@@ -1,5 +1,7 @@
-window.addEventListener("error",()=>showBootFailure());
-window.addEventListener("unhandledrejection",()=>showBootFailure());
+let caldenBooting=true;
+window.addEventListener("error",event=>{console.error("CalDen runtime error:",event.error||event.message);if(caldenBooting)showBootFailure(event.error||event.message)});
+window.addEventListener("unhandledrejection",event=>{console.error("CalDen unhandled promise rejection:",event.reason);if(caldenBooting)showBootFailure(event.reason)});
+
 
 const $=s=>document.querySelector(s);
 const $$=s=>document.querySelectorAll(s);
@@ -178,12 +180,18 @@ function clamp(n,min,max){return Math.min(max,Math.max(min,n))}
 function eventKey(e){return `${e.id}|${e.occurrence_start||e.starts_at}`}
 function findEventByKey(key){return state.events.find(e=>eventKey(e)===key)}
 
-function showBootFailure(){
+function showBootFailure(reason){
   const el=$("#boot-status");if(!el)return;
   el.classList.remove("hidden");el.classList.add("boot-error");
-  el.textContent="CalDen could not finish loading. Refresh the page. If this continues, check the CalDen container logs.";
+  const explanation=reason?.message||String(reason||"Unknown startup error");
+  el.textContent="CalDen could not finish loading: "+explanation+". Try Reload. If this continues, check the CalDen container logs.";
+  const retry=document.createElement("button");
+  retry.type="button";retry.className="button secondary";
+  retry.textContent="Reload CalDen";
+  retry.addEventListener("click",()=>location.reload());
+  el.append(" ",retry);
 }
-function hideBootStatus(){const el=$("#boot-status");if(el)el.classList.add("hidden")}
+function hideBootStatus(){const el=$("#boot-status");if(el)el.classList.add("hidden");caldenBooting=false}
 
 function showAuth(which){
   hideBootStatus();
@@ -201,6 +209,7 @@ function showAuth(which){
 }
 
 async function boot(){
+  caldenBooting=true;
   const initial=readCalDenRoute();
   if(initial.date)state.anchorDate=startOfDay(initial.date);
   if(initial.month)state.billMonth=initial.month;
@@ -216,11 +225,17 @@ async function boot(){
     await reloadSharedData();
     renderApp();
     await applyCalDenRoute(false);
+    caldenBooting=false;
     if(location.pathname==="/")history.replaceState({calden:true},"",caldenPageURL("calendar"));
     startCalDenVersionWatch();
   }catch(err){
-    console.error(err);
-    setToken("");showAuth("login");
+    console.error("CalDen startup failed",err);
+    if(err.status===401||err.status===403){
+      setToken("");showAuth("login");
+    }else{
+      showBootFailure(err);
+    }
+    caldenBooting=false;
   }
 }
 
@@ -278,6 +293,9 @@ async function checkCalDenClientVersion(){
     if(!response.ok)return;
     const info=await response.json();
     if(!info.version||info.version===caldenClientVersion)return;
+    const target=String(info.version);
+    if(sessionStorage.getItem("calden_version_reload_attempt")===target)return;
+    sessionStorage.setItem("calden_version_reload_attempt",target);
     caldenRefreshing=true;
     const next=new URL(location.href);
     next.searchParams.set("_calden_version",info.version);
@@ -328,6 +346,7 @@ async function applyCalDenRoute(load=true){
   if(route.month)state.billMonth=route.month;
   if(route.tab){state.settingsTab=route.tab;activateSettingsTab(route.tab)}
   navigate(route.page,load,false);
+  if(route.page==="bills"&&!route.detail&&!load)await loadBillMonth();
   if($("#event-details-dialog").open){state.suppressDetailCloseRoute=true;$("#event-details-dialog").close()}
   state.detailEvent=null;
   document.querySelector(".calden-route-not-found")?.remove();
@@ -2491,4 +2510,4 @@ $("#rollback-update").addEventListener("click",async()=>{
 resetPersonForm();
 resetCalendarForm();
 resetCategoryForm();
-boot().catch(err=>{console.error(err);showBootFailure()});
+boot().catch(err=>{console.error("CalDen failed before authentication",err);showBootFailure(err);caldenBooting=false});
