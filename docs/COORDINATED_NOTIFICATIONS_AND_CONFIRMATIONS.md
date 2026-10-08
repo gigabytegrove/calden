@@ -45,3 +45,13 @@ Date: 2026-10-08
 4. Add Android device enrollment, notification channels, response screens and deep links.
 5. Integrate optional providers only after native notifications are coherent.
 6. Build/test both applications; never rename a ZIP as APK or claim an unbuilt binary is verified.
+
+## Implementation checkpoint (2026-10-08)
+First unverified source slice is now committed:
+- Migration `016_devices_and_confirmations.sql`: `calden_devices`, `events.request_confirmation`, `event_confirmations`, new notification kinds.
+- Authenticated device endpoints: `GET /api/devices`, `POST /api/devices`, `DELETE /api/devices/{id}`. Registration uses installation UUID + device name + platform.
+- Event create accepts optional `request_confirmation`, updates preserve previous setting when omitted by older clients.
+- `PUT /api/events/{id}/confirmation` accepts occurrence_start, status=confirmed/change_requested and optional reason (required for change requests); creator notification is recorded.
+- Android model, Retrofit API, stable installation UUID, and non-blocking post-login registration added in `gigabytegrove/calden-android`.
+- These endpoints require migration and server deployment. No background push sender, delivery tokens, web UI, confirmation status in event-list JSON, or Monita/ntfy delegated setup exists yet. Do not call the full workflow complete.
+- Test build and migrations before release; this environment could not clone from GitHub for Go tests.
