@@ -486,6 +486,12 @@
     <header class="event-details-header"><div><p id="event-details-eyebrow" class="eyebrow">Event details</p><h2 id="event-details-title"></h2></div><button id="event-details-close" class="dialog-close" type="button" aria-label="Close">×</button></header>
     <dl id="event-details-fields" class="event-details-fields"></dl>
     <section id="event-details-notes" class="event-details-notes hidden"><h3>Notes</h3><p id="event-details-notes-text"></p></section>
+    <section id="event-confirmation-panel" class="panel stack hidden" aria-label="Appointment confirmation">
+      <h3>Confirmation</h3><p id="event-confirmation-status" class="muted"></p>
+      <div id="event-confirmation-people" class="stack"></div>
+      <label id="event-change-reason-wrap" class="hidden">Why do you need a change?<textarea id="event-change-reason" rows="2" maxlength="1000" placeholder="I am working that day; can we reschedule?"></textarea></label>
+      <div class="form-actions"><button id="event-confirm" type="button" class="button">Confirm</button><button id="event-request-change" type="button" class="button secondary">Request Change</button><button id="event-send-change" type="button" class="button hidden">Send change request</button></div>
+    </section>
     <footer class="event-details-actions"><button id="event-details-done" type="button" class="button secondary">Close</button><button id="event-details-link" type="button" class="button secondary">Copy link</button><span class="grow"></span><button id="event-details-bill" type="button" class="button secondary hidden">Manage payments</button><button id="event-details-edit" type="button" class="button hidden">Edit event</button></footer>
   </div>
 </dialog>
@@ -555,6 +561,8 @@
           </div>
         </section>
 
+        <label class="toggle-row"><input name="request_confirmation" type="checkbox"><span>Request confirmation from assigned household members</span></label>
+        <p class="field-help">Appointments stay visible while assignees confirm or request a schedule change. Assign at least one person to use this option.</p>
         <fieldset><legend>Who is this for?</legend><p class="field-help event-audience-help">Choose one or more people. Leave everyone unchecked for a whole-family event.</p><div id="people-picker" class="people-picker"></div></fieldset>
         <label>Location<input name="location" maxlength="500" placeholder="Optional"></label>
         <label>Notes<textarea name="notes" rows="4" maxlength="5000" placeholder="Optional"></textarea></label>
