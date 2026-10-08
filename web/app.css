@@ -684,3 +684,9 @@ dialog::backdrop{background:rgba(15,23,42,.58);backdrop-filter:blur(2px)}
  .event-detail-row{grid-template-columns:minmax(0,1fr);gap:4px}
  .event-details-actions .button{flex:1}
 }
+
+/* 1.0.5: permalink anchors preserve native navigation styling. */
+.primary-nav a.nav-item,.mobile-nav a[data-page]{text-decoration:none!important;cursor:pointer}
+.primary-nav a.nav-item{display:flex;align-items:center;gap:10px}
+.mobile-nav a[data-page]{display:flex;align-items:center;justify-content:center;border:0;background:#fff;color:#737e8e;font-size:.72rem;font-weight:750}
+.mobile-nav a[data-page].active{color:#1c293d;background:#f3f5f8}

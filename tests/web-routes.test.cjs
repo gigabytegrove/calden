@@ -19,3 +19,5 @@ test("all web resources disable caching and stale clients update",()=>{
   assert.ok(js.includes("startCalDenVersionWatch"));
   assert.ok(js.includes("checkCalDenClientVersion"));
 });
+
+test("permalink navigation has no underline",()=>{assert.ok(read("web/app.css").includes(".primary-nav a.nav-item,.mobile-nav a[data-page]{text-decoration:none!important"));});
