@@ -1,0 +1,82 @@
+name: Publish CalDen Runtime Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - VERSION
+      - .github/workflows/release-runtime.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: calden-runtime-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout complete release source
+        uses: actions/checkout@v4
+      - name: Read version
+        id: version
+        shell: bash
+        run: |
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Expected stable semantic version"; exit 1; }
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build and test web assets
+        run: |
+          npm install --no-audit --no-fund
+          npm run build:css
+          npm run test:web
+          node --check web/app.js
+      - name: Run Go tests
+        run: go test ./...
+      - name: Build full installable runtimes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          VERSION="${{ steps.version.outputs.value }}"
+          for ARCH in amd64 arm64; do
+            mkdir -p "stage/$ARCH"
+            CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" go build -trimpath -ldflags="-s -w -X main.version=$VERSION" -o "stage/$ARCH/calden" ./cmd/calden
+            chmod 755 "stage/$ARCH/calden"
+            cp -a web "stage/$ARCH/web"
+            (cd "stage/$ARCH" && tar -czf "../../dist/calden-linux-$ARCH.tar.gz" calden web)
+          done
+          (cd dist && sha256sum calden-linux-amd64.tar.gz calden-linux-arm64.tar.gz > SHA256SUMS)
+          for ARCH in amd64 arm64; do
+            tar -tzf "dist/calden-linux-$ARCH.tar.gz" | grep -qx 'calden'
+            tar -tzf "dist/calden-linux-$ARCH.tar.gz" | grep -qx 'web/index.html'
+          done
+          (cd dist && sha256sum -c SHA256SUMS)
+      - name: Publish stable GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.value }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="v$VERSION"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; refusing to overwrite published assets."
+            exit 1
+          fi
+          gh release create "$TAG" dist/calden-linux-amd64.tar.gz dist/calden-linux-arm64.tar.gz dist/SHA256SUMS \
+            --target "$GITHUB_SHA" \
+            --title "CalDen $VERSION" \
+            --notes-file "docs/releases/v$VERSION.md" \
+            --latest
