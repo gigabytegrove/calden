@@ -1898,7 +1898,7 @@ $("#login-form").addEventListener("submit",async e=>{
   catch(err){$("#auth-error").textContent=err.message}
 });
 $("#logout").addEventListener("click",()=>{setToken("");location.reload()});
-$("[data-page]").forEach(b=>{
+$$("[data-page]").forEach(b=>{
   // Keep static href values available for open-in-new-tab and copying links.
   b.addEventListener("click",event=>{
     if(event.defaultPrevented||event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
