@@ -751,3 +751,7 @@ dialog::backdrop{background:rgba(15,23,42,.58);backdrop-filter:blur(2px)}
 .sidebar-logo-surface .calden-brand-mark{width:39px;height:39px;font-size:27px}
 .auth-brand-panel .calden-brand-mark{width:48px;height:48px;font-size:31px}
 .auth-brand-panel .auth-brand-fallback strong{display:none}
+
+/* Official CalDen artwork, shared from the Android application. */
+.calden-brand-lockup .calden-official-mark{display:block;width:56px;height:56px;object-fit:contain;flex-shrink:0}
+.sidebar-logo-surface .calden-official-mark{display:block;width:76px;height:40px;object-fit:contain}
