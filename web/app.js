@@ -1351,7 +1351,7 @@ function activateSettingsTab(tab,writeURL=false){
   state.settingsTab=tab;
   if(writeURL&&state.currentPage==="settings")history.pushState({calden:true},"",caldenPageURL("settings"));
   $$(".settings-nav-item").forEach(button=>button.classList.toggle("active",button.dataset.settingsTab===tab));
-  $("[data-settings-pane]").forEach(pane=>pane.classList.toggle("hidden",pane.dataset.settingsPane!==tab));
+  $$("[data-settings-pane]").forEach(pane=>pane.classList.toggle("hidden",pane.dataset.settingsPane!==tab));
   if(tab==="integrations"){loadMonita();setGoogleImportFile(state.googleImportFile)}
   if(tab==="updates")loadUpdater();
   if(tab==="backups")loadBackups();
