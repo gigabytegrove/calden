@@ -5,6 +5,10 @@ on:
     branches: [main]
     paths:
       - VERSION
+      - web/**
+      - internal/**
+      - tests/**
+      - docs/releases/**
       - .github/workflows/release-runtime.yml
   workflow_dispatch:
 
