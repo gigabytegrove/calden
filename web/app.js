@@ -1,6 +1,17 @@
+let caldenClientReports=0;
+function reportCalDenClientError(reason){
+  if(caldenClientReports>=5)return;
+  caldenClientReports++;
+  const token=localStorage.getItem("calden_token");
+  if(!token)return;
+  fetch("/api/client-errors",{method:"POST",cache:"no-store",
+    headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},
+    body:JSON.stringify({message:String(reason?.message||reason||"Unknown JavaScript error").slice(0,400),version:"1.0.4"})
+  }).catch(()=>{});
+}
 let caldenBooting=true;
-window.addEventListener("error",event=>{console.error("CalDen runtime error:",event.error||event.message);if(caldenBooting)showBootFailure(event.error||event.message)});
-window.addEventListener("unhandledrejection",event=>{console.error("CalDen unhandled promise rejection:",event.reason);if(caldenBooting)showBootFailure(event.reason)});
+window.addEventListener("error",event=>{console.error("CalDen runtime error:",event.error||event.message);reportCalDenClientError(event.error||event.message);if(caldenBooting)showBootFailure(event.error||event.message)});
+window.addEventListener("unhandledrejection",event=>{console.error("CalDen unhandled promise rejection:",event.reason);reportCalDenClientError(event.reason);if(caldenBooting)showBootFailure(event.reason)});
 
 
 const $=s=>document.querySelector(s);
@@ -229,7 +240,7 @@ async function boot(){
     if(location.pathname==="/")history.replaceState({calden:true},"",caldenPageURL("calendar"));
     startCalDenVersionWatch();
   }catch(err){
-    console.error("CalDen startup failed",err);
+    console.error("CalDen startup failed",err);reportCalDenClientError(err);
     if(err.status===401||err.status===403){
       setToken("");showAuth("login");
     }else{

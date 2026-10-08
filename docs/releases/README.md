@@ -1,7 +1,8 @@
 # CalDen release notes
 
-Current stable release: **1.0.3**.
+Current stable release: **1.0.4**.
 
+- [1.0.4](v1.0.4.md) — startup crash fix and browser error logging
 - [1.0.3](v1.0.3.md) — startup recovery, browser boot tests and version refresh safety
 - [1.0.2](v1.0.2.md) — addressable navigation, shareable event and bill links, automatic cache refresh
 - [1.0.1](v1.0.1.md) — event detail views and polished bill management

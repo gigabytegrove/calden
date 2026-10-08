@@ -52,3 +52,8 @@ async function assertBoot(url,page){
 test("authenticated browser boot on canonical calendar URL",()=>assertBoot("https://calden.example/calendar?date=2026-10-07&days=7","calendar"));
 test("authenticated browser boot on shared bills URL",()=>assertBoot("https://calden.example/bills?month=2026-10","bills"));
 test("authenticated browser boot on settings subsection",()=>assertBoot("https://calden.example/settings/calendar","settings"));
+
+test("no single element querySelector forEach calls",()=>{
+  const broken=script.split("\n").filter(line=>/^\s*\$\("[^"]+"\)\.forEach/.test(line));
+  assert.deepEqual(broken,[]);
+});
