@@ -4,7 +4,11 @@ window.addEventListener("unhandledrejection",()=>showBootFailure());
 const $=s=>document.querySelector(s);
 const $$=s=>document.querySelectorAll(s);
 const savedDays=Number(localStorage.getItem("calden_view_days")||0);
-const savedHidden=JSON.parse(localStorage.getItem("calden_hidden_calendars")||"[]");
+function readStoredJSON(key,fallback){
+  try{return JSON.parse(localStorage.getItem(key)||JSON.stringify(fallback))}
+  catch{return fallback}
+}
+const savedHidden=readStoredJSON("calden_hidden_calendars",[]);
 const savedDefaultCalendar=localStorage.getItem("calden_default_calendar")||"";
 const savedDefaultDuration=Number(localStorage.getItem("calden_default_duration")||60);
 const savedScrollNow=localStorage.getItem("calden_scroll_now")!=="false";
@@ -598,8 +602,15 @@ function openBillPayment(event){
 }
 
 function editBillPayment(paymentID){
-  const event=state.billPaymentEvent,payment=billPayments(event).find(item=>item.id===paymentID);
+  const event=state.billPaymentEvent;
+  if(!event)return;
+  const payment=billPayments(event).find(item=>item.id===paymentID);
   if(!payment)return;
+  // A former payer might be inactive now; retain their ID while editing
+  // the historical entry rather than silently attributing it to someone else.
+  if(payment.paid_by?.id&&!Array.from($("#bill-payment-person").options).some(option=>option.value===payment.paid_by.id)){
+    $("#bill-payment-person").add(new Option(payment.paid_by.display_name||"Former household member",payment.paid_by.id));
+  }
   state.billPaymentEditingId=paymentID;
   $("#bill-payment-entry-title").textContent="Edit payment";
   $("#bill-payment-save").textContent="Update payment";
@@ -656,7 +667,9 @@ async function clearBillAllocation(){
 async function saveBillPaymentEntry(){
   const event=state.billPaymentEvent;if(!event)return;
   const amount=Number($("#bill-payment-amount").value);
-  if(!Number.isFinite(amount)||amount<=0){$("#bill-payment-error").textContent="Enter the amount paid.";return}
+  if(!Number.isFinite(amount)||amount<=0||amount>9999999999.99||Math.round(amount*100)/100!==amount){
+    $("#bill-payment-error").textContent="Enter a valid payment amount with no more than two decimal places.";return;
+  }
   const payload={
     occurrence_start:billOccurrenceStart(event),
     paid_by_user_id:$("#bill-payment-person").value,
@@ -1608,7 +1621,7 @@ function renderGoogleImportResults(body){
 }
 
 async function loadUpdater(){
-  if(state.me.role!=="admin")return;
+  if(state.me?.role!=="admin")return;
   $("#update-state").textContent="Checking for updates…";
   try{
     const info=await api("/api/system/update");state.updateInfo=info;renderUpdater(info);
@@ -1638,19 +1651,27 @@ function renderUpdater(info){
   $("#apply-update").dataset.version=latest?.version||"";
   $("#rollback-update").classList.toggle("hidden",!status.rollback_ready||active);
   $("#update-release-notes").innerHTML=latest?`<h3>${escapeHTML(latest.name||"Release "+latest.version)}</h3><p class="release-meta">${latest.published_at?escapeHTML(formatDate(new Date(latest.published_at),{month:"long",day:"numeric",year:"numeric"})):""}</p><div>${escapeHTML(latest.notes||"No release notes were provided.").replace(/\n/g,"<br>")}</div>`:'<p class="muted">No eligible release was found for this channel.</p>';
-  $("#update-activity").innerHTML=(status.activity||[]).slice().reverse().map(a=>`<div><span>${escapeHTML(formatTime(new Date(a.timestamp)))}</span><strong>${escapeHTML(a.message)}</strong></div>`).join("");
+  $("#update-activity").innerHTML=(status.activity||[]).slice().reverse().map(a=>`<div><span>${a.timestamp&&!Number.isNaN(new Date(a.timestamp).getTime())?escapeHTML(formatTime(new Date(a.timestamp))):"—"}</span><strong>${escapeHTML(a.message)}</strong></div>`).join("");
 }
 function startUpdatePolling(){
-  clearInterval(state.updatePoll);
-  state.updatePoll=setInterval(async()=>{
+  if(state.updatePoll!==null)clearTimeout(state.updatePoll);
+  const poll=async()=>{
+    // Keep at most one request in flight and avoid racing overlapping polls.
+    state.updatePoll=null;
+    if(state.me?.role!=="admin")return;
     try{
       const status=await api("/api/system/update/status");
       if(state.updateInfo){state.updateInfo.status=status;renderUpdater(state.updateInfo)}
       if(!["backup","preparing","downloading","verifying","installing","restarting"].includes(status.state)){
-        clearInterval(state.updatePoll);state.updatePoll=null;setTimeout(loadUpdater,600);
+        state.updatePoll=setTimeout(loadUpdater,600);
+        return;
       }
-    }catch{}
-  },1000);
+    }catch(err){
+      $("#update-state").textContent="Update status temporarily unavailable: "+err.message;
+    }
+    state.updatePoll=setTimeout(poll,1500);
+  };
+  state.updatePoll=setTimeout(poll,1000);
 }
 
 function setSetupStep(step){
