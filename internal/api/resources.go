@@ -264,7 +264,7 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows, err := s.db.Query(r.Context(), `SELECT e.id,e.calendar_id,e.category_id,e.title,e.notes,e.location,e.starts_at,e.ends_at,e.all_day,e.status,
+	rows, err := s.db.Query(r.Context(), `SELECT e.id,e.calendar_id,e.category_id,e.title,e.notes,e.location,e.starts_at,e.ends_at,e.all_day,e.status,e.request_confirmation,
 		c.name,c.color,cat.name,cat.color,er.frequency,er.interval_value,er.weekdays,er.until_at,er.occurrence_count,COALESCE(er.raw_rule,'')
 		FROM events e
 		JOIN calendars c ON c.id=e.calendar_id
@@ -293,6 +293,7 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 		var categoryName, categoryColor *string
 		var startAt, endAt time.Time
 		var allDay bool
+		var requestConfirmation bool
 		var frequency *string
 		var interval *int
 		var weekdaysRaw []byte
@@ -300,7 +301,7 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 		var count *int
 		var rawRule string
 
-		if rows.Scan(&id, &calID, &categoryID, &title, &notes, &location, &startAt, &endAt, &allDay, &status,
+		if rows.Scan(&id, &calID, &categoryID, &title, &notes, &location, &startAt, &endAt, &allDay, &status, &requestConfirmation,
 			&calName, &calendarColor, &categoryName, &categoryColor,
 			&frequency, &interval, &weekdaysRaw, &until, &count, &rawRule) != nil {
 			continue
@@ -349,7 +350,7 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 				"title": title, "notes": notes, "location": location,
 				"starts_at": occurrence.Start, "ends_at": occurrence.End,
 				"series_starts_at": startAt, "series_ends_at": endAt,
-				"all_day": allDay, "status": status, "calendar_name": calName, "color": displayColor,
+				"all_day": allDay, "status": status, "request_confirmation": requestConfirmation, "calendar_name": calName, "color": displayColor,
 				"assignees": assignees, "reminders": reminders, "recurrence": rule,
 				"is_recurring": rule != nil, "is_occurrence_override": false,
 				"occurrence_index": occurrence.Index, "occurrence_start": occurrence.Start,
@@ -365,11 +366,11 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	overrideRows, err := s.db.Query(r.Context(), `SELECT
-		parent.id,parent.calendar_id,parent.category_id,parent.title,parent.notes,parent.location,parent.starts_at,parent.ends_at,parent.all_day,parent.status,
+		parent.id,parent.calendar_id,parent.category_id,parent.title,parent.notes,parent.location,parent.starts_at,parent.ends_at,parent.all_day,parent.status,parent.request_confirmation,
 		pc.name,pc.color,pcat.name,pcat.color,
 		er.frequency,er.interval_value,er.weekdays,er.until_at,er.occurrence_count,COALESCE(er.raw_rule,''),
 		replacement.id,replacement.calendar_id,replacement.category_id,replacement.title,replacement.notes,replacement.location,
-		replacement.starts_at,replacement.ends_at,replacement.all_day,replacement.status,
+		replacement.starts_at,replacement.ends_at,replacement.all_day,replacement.status,replacement.request_confirmation,
 		rc.name,rc.color,rcat.name,rcat.color,replacement.recurrence_original_start
 		FROM events replacement
 		JOIN events parent ON parent.id=replacement.recurrence_parent_id
@@ -398,7 +399,7 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 		var replacementTitle, replacementNotes, replacementLocation, replacementStatus, replacementCalName, replacementCalendarColor string
 		var replacementCategoryName, replacementCategoryColor *string
 		var parentStart, parentEnd, replacementStart, replacementEnd, originalStart time.Time
-		var parentAllDay, replacementAllDay bool
+		var parentAllDay, replacementAllDay, parentRequestConfirmation, replacementRequestConfirmation bool
 		var frequency string
 		var interval int
 		var weekdaysRaw []byte
@@ -407,11 +408,11 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 		var rawRule string
 
 		if overrideRows.Scan(
-			&parentID, &parentCalID, &parentCategoryID, &parentTitle, &parentNotes, &parentLocation, &parentStart, &parentEnd, &parentAllDay, &parentStatus,
+			&parentID, &parentCalID, &parentCategoryID, &parentTitle, &parentNotes, &parentLocation, &parentStart, &parentEnd, &parentAllDay, &parentStatus, &parentRequestConfirmation,
 			&parentCalName, &parentCalendarColor, &parentCategoryName, &parentCategoryColor,
 			&frequency, &interval, &weekdaysRaw, &until, &count, &rawRule,
 			&replacementID, &replacementCalID, &replacementCategoryID, &replacementTitle, &replacementNotes, &replacementLocation,
-			&replacementStart, &replacementEnd, &replacementAllDay, &replacementStatus,
+			&replacementStart, &replacementEnd, &replacementAllDay, &replacementStatus, &replacementRequestConfirmation,
 			&replacementCalName, &replacementCalendarColor, &replacementCategoryName, &replacementCategoryColor, &originalStart,
 		) != nil {
 			continue
@@ -435,7 +436,7 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 			"title": replacementTitle, "notes": replacementNotes, "location": replacementLocation,
 			"starts_at": replacementStart, "ends_at": replacementEnd,
 			"series_starts_at": parentStart, "series_ends_at": parentEnd,
-			"all_day": replacementAllDay, "status": replacementStatus,
+			"all_day": replacementAllDay, "status": replacementStatus, "request_confirmation": replacementRequestConfirmation,
 			"calendar_name": replacementCalName, "color": replacementDisplayColor,
 			"assignees": s.eventAssignees(r, replacementID), "reminders": s.eventReminders(r, replacementID),
 			"recurrence": rule, "is_recurring": true, "is_occurrence_override": true,
@@ -443,7 +444,7 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 			"series_calendar_id": parentCalID, "series_category_id": parentCategoryID,
 			"series_category_name": parentCategoryName, "series_category_color": parentCategoryColor,
 			"series_title": parentTitle, "series_notes": parentNotes,
-			"series_location": parentLocation, "series_all_day": parentAllDay, "series_status": parentStatus,
+			"series_location": parentLocation, "series_all_day": parentAllDay, "series_status": parentStatus, "series_request_confirmation": parentRequestConfirmation,
 			"series_calendar_name": parentCalName, "series_color": parentDisplayColor,
 			"series_assignees": s.eventAssignees(r, parentID), "series_reminders": s.eventReminders(r, parentID),
 		}
