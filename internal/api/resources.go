@@ -489,7 +489,7 @@ func (s *server) eventAssignees(r *http.Request, eventID uuid.UUID) []map[string
 
 func (s *server) eventReminders(r *http.Request, eventID uuid.UUID) []map[string]any {
 	out := []map[string]any{}
-	rows, err := s.db.Query(r.Context(), `SELECT kind,provider,minutes_before,destination
+	rows, err := s.db.Query(r.Context(), `SELECT kind,provider,minutes_before,destination,recipient_user_id
 		FROM reminders WHERE event_id=$1 AND enabled=true ORDER BY minutes_before DESC`, eventID)
 	if err != nil {
 		return out
@@ -499,9 +499,10 @@ func (s *server) eventReminders(r *http.Request, eventID uuid.UUID) []map[string
 		var kind, provider string
 		var minutes int
 		var destination *string
-		if rows.Scan(&kind, &provider, &minutes, &destination) == nil {
+		var recipient *uuid.UUID
+		if rows.Scan(&kind, &provider, &minutes, &destination, &recipient) == nil {
 			out = append(out, map[string]any{
-				"kind": kind, "provider": provider, "minutes_before": minutes, "destination": destination,
+				"kind": kind, "provider": provider, "minutes_before": minutes, "destination": destination, "recipient_user_id": recipient,
 			})
 		}
 	}
@@ -563,8 +564,8 @@ func (s *server) createEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, rm := range in.Reminders {
-		if _, err = tx.Exec(r.Context(), `INSERT INTO reminders(event_id,kind,provider,minutes_before,destination)
-			VALUES($1,$2,$3,$4,NULLIF($5,''))`, id, rm.Kind, rm.Provider, rm.MinutesBefore, cleanText(rm.Destination, 200)); err != nil {
+		if _, err = tx.Exec(r.Context(), `INSERT INTO reminders(event_id,kind,provider,minutes_before,destination,recipient_user_id)
+			VALUES($1,$2,$3,$4,NULLIF($5,''),$6)`, id, rm.Kind, rm.Provider, rm.MinutesBefore, cleanText(rm.Destination, 200), rm.RecipientUserID); err != nil {
 			writeError(w, 400, "Could not save reminder")
 			return
 		}

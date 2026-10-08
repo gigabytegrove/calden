@@ -114,9 +114,9 @@ func (s *server) updateOccurrence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, rm := range in.Event.Reminders {
-		if _, err = tx.Exec(r.Context(), `INSERT INTO reminders(event_id,kind,provider,minutes_before,destination)
-			VALUES($1,$2,$3,$4,NULLIF($5,''))`,
-			replacementID, rm.Kind, rm.Provider, rm.MinutesBefore, cleanText(rm.Destination, 200)); err != nil {
+		if _, err = tx.Exec(r.Context(), `INSERT INTO reminders(event_id,kind,provider,minutes_before,destination,recipient_user_id)
+			VALUES($1,$2,$3,$4,NULLIF($5,''),$6)`,
+			replacementID, rm.Kind, rm.Provider, rm.MinutesBefore, cleanText(rm.Destination, 200), rm.RecipientUserID); err != nil {
 			writeError(w, 400, "Could not save occurrence reminder")
 			return
 		}
