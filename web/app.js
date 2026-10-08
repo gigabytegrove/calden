@@ -1466,6 +1466,53 @@ function eventDetailsDate(event){
   return formatDate(start,opts)+" at "+formatTime(start)+(sameDay(start,end)?" – "+formatTime(end):" – "+formatDate(end,opts)+" at "+formatTime(end));
 }
 
+async function loadEventConfirmationPanel(event){
+  const panel=$("#event-confirmation-panel");
+  panel.classList.add("hidden");
+  $("#event-change-reason-wrap").classList.add("hidden");
+  $("#event-send-change").classList.add("hidden");
+  $("#event-change-reason").value="";
+  const start=event.occurrence_start||event.starts_at;
+  const result=await api(`/api/events/${encodeURIComponent(event.id)}/confirmations?occurrence_start=${encodeURIComponent(start)}`);
+  if(state.detailEvent!==event)return;
+  event.request_confirmation=!!result.requested;
+  if(!result.requested)return;
+  panel.classList.remove("hidden");
+  const me=String(result.current_user_id);
+  const assigned=(result.assignees||[]).some(person=>String(person.user_id)===me);
+  const responses=result.responses||{};
+  $("#event-confirmation-people").innerHTML=(result.assignees||[]).map(person=>{
+    const entry=responses[String(person.user_id)]||{status:"pending"};
+    const label=entry.status==="confirmed"?"Confirmed":entry.status==="change_requested"?"Change requested":"Awaiting response";
+    return `<div class="form-actions"><strong>${escapeHTML(person.display_name)}</strong><span class="muted">${escapeHTML(label)}</span></div>`;
+  }).join("");
+  const current=responses[me];
+  $("#event-confirmation-status").textContent=assigned
+    ?(current?.status==="confirmed"?"You confirmed this event.":current?.status==="change_requested"?"You requested a change.":"Your confirmation is requested.")
+    :"Only assigned members can respond to this event.";
+  $("#event-confirm").classList.toggle("hidden",!assigned);
+  $("#event-request-change").classList.toggle("hidden",!assigned);
+}
+
+async function submitEventConfirmation(status){
+  const event=state.detailEvent;
+  if(!event)return;
+  const start=event.occurrence_start||event.starts_at;
+  const reason=status==="change_requested"?$("#event-change-reason").value.trim():"";
+  if(status==="change_requested"&&!reason){
+    $("#event-confirmation-status").textContent="Please describe why you need a change.";
+    return;
+  }
+  try{
+    await api(`/api/events/${encodeURIComponent(event.id)}/confirmation`,{
+      method:"PUT",
+      body:JSON.stringify({occurrence_start:start,status,reason})
+    });
+    await loadEventConfirmationPanel(event);
+    await loadNotifications(false);
+  }catch(err){$("#event-confirmation-status").textContent=err.message}
+}
+
 function openEventDetails(event,writeURL=true){
   if(!event)return;
   state.detailEvent=event;
@@ -2140,6 +2187,13 @@ $("#devices-list").addEventListener("click",async event=>{
     button.disabled=false;
   }
 });
+
+$("#event-confirm").addEventListener("click",()=>submitEventConfirmation("confirmed"));
+$("#event-request-change").addEventListener("click",()=>{
+  $("#event-change-reason-wrap").classList.remove("hidden");
+  $("#event-send-change").classList.remove("hidden");
+});
+$("#event-send-change").addEventListener("click",()=>submitEventConfirmation("change_requested"));
 
 resetPersonForm();renderPeople();renderCalendarPermissionChecks();renderEventControls();
     $("#person-status").textContent=editing?"Person updated.":"Person added.";
