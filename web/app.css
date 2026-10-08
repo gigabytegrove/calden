@@ -690,3 +690,38 @@ dialog::backdrop{background:rgba(15,23,42,.58);backdrop-filter:blur(2px)}
 .primary-nav a.nav-item{display:flex;align-items:center;gap:10px}
 .mobile-nav a[data-page]{display:flex;align-items:center;justify-content:center;border:0;background:#fff;color:#737e8e;font-size:.72rem;font-weight:750}
 .mobile-nav a[data-page].active{color:#1c293d;background:#f3f5f8}
+
+/* CalDen 1.2.0: compact bill status, clear agenda and notification layout */
+.bill-calendar-status.allocated{background:#ffc107;color:#382b00;border:1px solid #dda600;font-size:.72rem}
+.bill-calendar-status.paid,.bill-calendar-status.cleared{background:#d1fae5;color:#065f46;font-size:.72rem}
+.bill-payment-avatar{display:grid;place-items:center;width:23px;height:23px;overflow:hidden;border:2px solid #bbf7d0;border-radius:50%;background:#dcfce7;color:#166534;font-size:.65rem;font-weight:800}
+.bill-payment-avatar img{width:100%;height:100%;object-fit:cover}
+.agenda-tools{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.agenda-tools select{border:1px solid #d4dce7;border-radius:8px;background:#fff;padding:9px 10px;min-width:132px}
+.notification-inbox-entry{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:stretch;border-bottom:1px solid #edf1f5}
+.notification-inbox-entry .notification-inbox-row{min-width:0;border:0}
+.notification-dismiss{border:0;background:transparent;color:#94a3b8;font-size:1.3rem;padding:0 14px;cursor:pointer}
+.notification-dismiss:hover{color:#b91c1c;background:#fef2f2}
+@media(min-width:1000px){.calendar-view.view-14,.calendar-view.view-30{max-height:calc(100vh - 255px);overflow:auto}}
+
+/* Fit the hourly timeline in the viewport on desktop; dense days can still scroll. */
+@media(min-width:1000px){
+  .calendar-view.view-1,.calendar-view.view-7{max-height:none;overflow:visible}
+  .calendar-view.view-1 .timeline-wrap,.calendar-view.view-7 .timeline-wrap{
+    --hour-height:calc(clamp(600px,calc(100dvh - 282px),1152px) / 24);
+    grid-template-columns:64px minmax(0,1fr);
+    grid-template-rows:60px clamp(600px,calc(100dvh - 282px),1152px);
+    min-width:0
+  }
+  .calendar-view.view-1 .hour-label,.calendar-view.view-7 .hour-label{top:calc(var(--hour) * var(--hour-height) - 7px)}
+  .calendar-view.view-1 .timeline-lane,.calendar-view.view-7 .timeline-lane{
+    background:repeating-linear-gradient(to bottom,#fff 0,#fff calc(var(--hour-height) - 1px),#e9edf2 calc(var(--hour-height) - 1px),#e9edf2 var(--hour-height))
+  }
+  .calendar-view.view-1 .timeline-headers,.calendar-view.view-1 .timeline-lanes,
+  .calendar-view.view-7 .timeline-headers,.calendar-view.view-7 .timeline-lanes{
+    grid-template-columns:repeat(var(--days),minmax(0,1fr))
+  }
+}
+.reminder-row:not(.system-row){grid-template-columns:minmax(118px,1fr) minmax(140px,1fr) auto}
+.reminder-row .reminder-recipient{width:100%;min-width:0}
+@media(max-width:700px){.reminder-row:not(.system-row){grid-template-columns:1fr auto}.reminder-row .reminder-recipient{grid-column:1;grid-row:2}}

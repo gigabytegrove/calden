@@ -184,6 +184,7 @@ func (s *server) ensureBillReviewNotifications(ctx context.Context, userID uuid.
 				DO UPDATE SET
 					title=EXCLUDED.title,
 					message=EXCLUDED.message,
+					dismissed_at=CASE WHEN notifications.message IS DISTINCT FROM EXCLUDED.message THEN NULL ELSE notifications.dismissed_at END,
 					read_at=CASE
 						WHEN notifications.message IS DISTINCT FROM EXCLUDED.message THEN NULL
 						ELSE notifications.read_at
@@ -206,7 +207,7 @@ func (s *server) listNotifications(w http.ResponseWriter, r *http.Request) {
 		FROM notifications n
 		LEFT JOIN events e ON e.id=n.event_id
 		LEFT JOIN calendars c ON c.id=e.calendar_id
-		WHERE n.user_id=$1
+		WHERE n.user_id=$1 AND n.dismissed_at IS NULL
 		ORDER BY n.created_at DESC
 		LIMIT $2`, a.ID, limit)
 	if err != nil {
@@ -245,7 +246,7 @@ func (s *server) listNotifications(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var unread int
-	if err := s.db.QueryRow(r.Context(), `SELECT count(*) FROM notifications WHERE user_id=$1 AND read_at IS NULL`, a.ID).Scan(&unread); err != nil {
+	if err := s.db.QueryRow(r.Context(), `SELECT count(*) FROM notifications WHERE user_id=$1 AND read_at IS NULL AND dismissed_at IS NULL`, a.ID).Scan(&unread); err != nil {
 		writeError(w, 500, "Could not count unread notifications")
 		return
 	}
@@ -280,4 +281,14 @@ func (s *server) markAllNotificationsRead(w http.ResponseWriter, r *http.Request
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *server) dismissNotification(w http.ResponseWriter, r *http.Request) {
+  id, err := uuid.Parse(r.PathValue("id"))
+  if err != nil {writeError(w, http.StatusBadRequest, "Invalid notification"); return}
+  tag, err := s.db.Exec(r.Context(), `UPDATE notifications SET dismissed_at=now()
+    WHERE id=$1 AND user_id=$2 AND dismissed_at IS NULL`, id, currentActor(r).ID)
+  if err != nil {writeError(w, 500, "Could not dismiss notification"); return}
+  if tag.RowsAffected()==0 {writeError(w, 404, "Notification not found"); return}
+  w.WriteHeader(http.StatusNoContent)
 }
