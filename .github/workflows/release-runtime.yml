@@ -59,8 +59,9 @@ jobs:
           done
           (cd dist && sha256sum calden-linux-amd64.tar.gz calden-linux-arm64.tar.gz > SHA256SUMS)
           for ARCH in amd64 arm64; do
-            tar -tzf "dist/calden-linux-$ARCH.tar.gz" | grep -qx 'calden'
-            tar -tzf "dist/calden-linux-$ARCH.tar.gz" | grep -qx 'web/index.html'
+            tar -tzf "dist/calden-linux-$ARCH.tar.gz" > "dist/archive-$ARCH.contents"
+            grep -Fxq 'calden' "dist/archive-$ARCH.contents"
+            grep -Fxq 'web/index.html' "dist/archive-$ARCH.contents"
           done
           (cd dist && sha256sum -c SHA256SUMS)
       - name: Publish stable GitHub release
