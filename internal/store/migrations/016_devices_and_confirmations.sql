@@ -27,3 +27,8 @@ CREATE TABLE event_confirmations (
     PRIMARY KEY (event_id, user_id, occurrence_start)
 );
 CREATE INDEX event_confirmations_user_status ON event_confirmations(user_id,status);
+
+-- Allow the two confirmation response notification types.
+ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_kind_check;
+ALTER TABLE notifications ADD CONSTRAINT notifications_kind_check
+  CHECK (kind IN ('event_assigned','event_family','bill_review','event_confirmation','event_change_requested'));
