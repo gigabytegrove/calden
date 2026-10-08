@@ -431,3 +431,7 @@ Personal phone reminders can target one named member independent of the event's 
 ## Settings and updater (1.2.1)
 
 Integrations, Updates and Backups are now Settings subpages at `/settings/integrations`, `/settings/updates`, and `/settings/backups`. Previous direct links continue to resolve. While an update is running, progress is visible; after completion, CalDen shows the result and moves the completed steps into a collapsed activity history. Allocated bills show a high-contrast warning-gold badge with a dark monochrome hourglass.
+
+## 1.2.2 Settings stability
+
+Fix an incorrect Settings pane selector that could prevent CalDen from loading in the initial 1.2.1 publishing attempt. Install 1.2.2, not the earlier 1.2.1 tag.

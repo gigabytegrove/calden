@@ -1,7 +1,8 @@
 # CalDen release notes
 
-Current stable release: **1.2.1**.
+Current stable release: **1.2.2**.
 
+- [1.2.2](v1.2.2.md) — corrected Settings startup and updater cleanup
 - [1.2.1](v1.2.1.md) — Settings navigation, clearer allocation status and updater cleanup
 - [1.2.0](v1.2.0.md) — focused agenda, compact bills, dismissible alerts, targeted reminders
 - [1.0.5](v1.0.5.md) — corrected startup, navigable links and styling
