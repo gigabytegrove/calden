@@ -154,7 +154,13 @@ function billCalendarStatusMarker(event){
   return `<span class="bill-calendar-status ${status}" title="${escapeAttr(marker.label)}" aria-label="${escapeAttr(marker.label)}">${marker.icon}</span>`;
 }
 function dateInputValue(value=new Date()){
-  const d=new Date(value),p=n=>String(n).padStart(2,"0");
+  // Date-only values are civil dates, not UTC instants. Parsing YYYY-MM-DD
+  // with new Date() shifts the selected day backward west of UTC.
+  const d=typeof value==="string"&&/^\\d{4}-\\d{2}-\\d{2}$/.test(value)
+    ? calendarDate(value)
+    : new Date(value);
+  if(Number.isNaN(d.getTime()))return "";
+  const p=n=>String(n).padStart(2,"0");
   return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
 }
 function calendarDate(value){
