@@ -55,3 +55,11 @@ First unverified source slice is now committed:
 - Android model, Retrofit API, stable installation UUID, and non-blocking post-login registration added in `gigabytegrove/calden-android`.
 - These endpoints require migration and server deployment. No background push sender, delivery tokens, web UI, confirmation status in event-list JSON, or Monita/ntfy delegated setup exists yet. Do not call the full workflow complete.
 - Test build and migrations before release; this environment could not clone from GitHub for Go tests.
+
+## Web confirmation UI checkpoint (2026-10-08, subsequent increment)
+- Event editor now offers Request Confirmation and submits `request_confirmation`.
+- `GET /api/events/{id}/confirmations?occurrence_start=...` returns assignees, current-user ID and per-user responses.
+- Event detail modal renders pending/confirmed/change-requested states and lets assignees Confirm or Request Change with a reason.
+- Event-list JSON includes `request_confirmation` for ordinary and recurring occurrence records.
+- My Devices settings now lists and revokes registrations.
+- NOTE: still requires deployment/migrations, tests, recurring occurrence eligibility checks, delivery pipeline and Android confirmation UI.
