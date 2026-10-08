@@ -666,6 +666,7 @@ async function saveBillPaymentEntry(){
     settles_bill:$("#bill-payment-settles").checked
   };
   if(!payload.paid_on){$("#bill-payment-error").textContent="Choose the payment date.";return}
+  if(payload.cleared_on&&payload.cleared_on<payload.paid_on){$("#bill-payment-error").textContent="Cleared date cannot be before the payment date.";return}
   const button=$("#bill-payment-save");button.disabled=true;$("#bill-payment-error").textContent="";
   try{
     const editing=state.billPaymentEditingId;
