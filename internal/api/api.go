@@ -93,6 +93,7 @@ func New(cfg Config) http.Handler {
 	mux.Handle("GET /api/devices", s.auth(http.HandlerFunc(s.listDevices)))
 	mux.Handle("POST /api/devices", s.auth(http.HandlerFunc(s.registerDevice)))
 	mux.Handle("DELETE /api/devices/{id}", s.auth(http.HandlerFunc(s.revokeDevice)))
+	mux.Handle("GET /api/notifications/stream", s.auth(http.HandlerFunc(s.streamNotifications)))
 	mux.Handle("GET /api/notifications", s.auth(http.HandlerFunc(s.listNotifications)))
 	mux.Handle("PUT /api/notifications/read-all", s.auth(http.HandlerFunc(s.markAllNotificationsRead)))
 	mux.Handle("PUT /api/notifications/{id}/read", s.auth(http.HandlerFunc(s.markNotificationRead)))
