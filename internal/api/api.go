@@ -14,6 +14,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 
@@ -390,6 +391,16 @@ func (s *server) token(id uuid.UUID, role string) (string, error) {
 func (s *server) auth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		auth := strings.TrimSpace(r.Header.Get("Authorization"))
+		// Browsers cannot send Authorization headers during WebSocket upgrade.
+		// Accept a scoped auth subprotocol ONLY on the notification stream.
+		if auth == "" && r.URL.Path == "/api/notifications/stream" {
+			for _, protocol := range websocket.Subprotocols(r) {
+				if strings.HasPrefix(protocol, "calden.auth.") {
+					auth = "Bearer " + strings.TrimPrefix(protocol, "calden.auth.")
+					break
+				}
+			}
+		}
 		if !strings.HasPrefix(auth, "Bearer ") {
 			writeError(w, 401, "Please sign in")
 			return
