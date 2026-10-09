@@ -67,7 +67,13 @@ async function apiForm(path,formData,method="POST"){
   if(!res.ok)throw new Error(body?.error||`Request failed (${res.status})`);
   return body;
 }
-function setToken(token){state.token=token||"";if(token)localStorage.setItem("calden_token",token);else localStorage.removeItem("calden_token")}
+function setToken(token){
+  caldenNotificationSocket?.close();
+  caldenNotificationSocket=null;
+  clearTimeout(caldenNotificationRetry);
+  state.token=token||"";
+  if(token)localStorage.setItem("calden_token",token);else localStorage.removeItem("calden_token");
+}
 function formJSON(form){return Object.fromEntries(new FormData(form).entries())}
 function escapeHTML(v=""){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function escapeAttr(v=""){return escapeHTML(v)}
@@ -1174,7 +1180,45 @@ async function loadNotifications(announce=true){
   renderNotifications();
 }
 
+let caldenNotificationSocket=null;
+let caldenNotificationRetry=null;
+function connectCaldenNotifications(){
+  if(!state.token||caldenNotificationSocket||document.hidden)return;
+  const token=state.token;
+  const address=new URL("/api/notifications/stream",location.href);
+  address.protocol=address.protocol==="https:"?"wss:":"ws:";
+  try{
+    const socket=new WebSocket(address.href,["calden","calden.auth."+token]);
+    caldenNotificationSocket=socket;
+    socket.onmessage=()=>{
+      if(state.token===token)loadNotifications(true).catch(()=>{});
+    };
+    socket.onclose=()=>{
+      if(caldenNotificationSocket===socket)caldenNotificationSocket=null;
+      if(state.token===token&&!document.hidden){
+        clearTimeout(caldenNotificationRetry);
+        caldenNotificationRetry=setTimeout(connectCaldenNotifications,5000);
+      }
+    };
+    socket.onerror=()=>socket.close();
+  }catch{
+    caldenNotificationSocket=null;
+    clearTimeout(caldenNotificationRetry);
+    caldenNotificationRetry=setTimeout(connectCaldenNotifications,10000);
+  }
+}
+document.addEventListener("visibilitychange",()=>{
+  if(document.hidden){
+    clearTimeout(caldenNotificationRetry);
+    caldenNotificationSocket?.close();
+    caldenNotificationSocket=null;
+  }else if(state.token){
+    loadNotifications(true).catch(()=>{});
+    connectCaldenNotifications();
+  }
+});
 function ensureNotificationPolling(){
+  connectCaldenNotifications();
   if(state.notificationPoll)return;
   state.notificationPoll=setInterval(()=>{
     if(!state.token||document.hidden)return;
