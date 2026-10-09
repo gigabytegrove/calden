@@ -577,6 +577,16 @@ func (s *server) createEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if in.RequestConfirmation != nil && *in.RequestConfirmation {
+		for _, person := range in.AssigneeIDs {
+			_, err = tx.Exec(r.Context(), `INSERT INTO notifications(user_id,event_id,kind,title,message,occurrence_start)
+				SELECT u.id,$2,'event_confirmation_request',$3,'Please confirm this appointment or request a change.',$4
+				FROM users u LEFT JOIN calendar_permissions p ON p.user_id=u.id AND p.calendar_id=$5
+				WHERE u.id=$1 AND u.active AND (u.role='admin' OR COALESCE(p.can_view,false))`,
+				person, id, cleanText(in.Title, 200), in.StartsAt, in.CalendarID)
+			if err != nil { writeError(w, 500, "Could not create confirmation request"); return }
+		}
+	}
 	if err = tx.Commit(r.Context()); err != nil {
 		writeError(w, 500, "Could not save event")
 		return
