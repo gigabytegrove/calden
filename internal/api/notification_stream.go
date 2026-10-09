@@ -32,6 +32,7 @@ func (s *server) streamNotifications(w http.ResponseWriter, r *http.Request) {
     person := currentActor(r).ID
     connection, err := (&websocket.Upgrader{
         ReadBufferSize: 1024, WriteBufferSize: 2048,
+        Subprotocols: []string{"calden"},
         CheckOrigin: func(*http.Request) bool { return true }, // checked above
     }).Upgrade(w, r, nil)
     if err != nil { return }
