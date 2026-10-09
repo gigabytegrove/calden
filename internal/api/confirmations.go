@@ -48,7 +48,8 @@ func (s *server) respondToConfirmation(w http.ResponseWriter, r *http.Request) {
         FROM events e
         JOIN calendars c ON c.id=e.calendar_id
         LEFT JOIN calendar_permissions p ON p.calendar_id=c.id AND p.user_id=$2
-        WHERE e.id=$1 AND e.request_confirmation=true
+        WHERE e.id=$1 AND e.request_confirmation=true AND e.created_by<>$2
+          AND EXISTS (SELECT 1 FROM users target WHERE target.id=$2 AND target.confirmation_enabled)
           AND ($3='admin' OR COALESCE(p.can_view,false))`,eventID,who.ID,who.Role).Scan(&title,&creator,&eventStart,&eventEnd,&permitted)
     if err!=nil || !permitted {
         writeError(w,404,"Confirmation request not found for this user");return
