@@ -104,10 +104,11 @@ func (s *server) updateEvent(w http.ResponseWriter, r *http.Request) {
 	var oldStart, oldEnd time.Time
 	var wasRecurring bool
 	var oldTitle string
+	var oldCreator uuid.UUID
 	var oldRequestConfirmation bool
-	if err = s.db.QueryRow(r.Context(), `SELECT e.calendar_id,e.starts_at,e.ends_at,e.title,e.request_confirmation,
+	if err = s.db.QueryRow(r.Context(), `SELECT e.calendar_id,e.starts_at,e.ends_at,e.title,e.created_by,e.request_confirmation,
 		EXISTS(SELECT 1 FROM event_recurrence er WHERE er.event_id=e.id)
-		FROM events e WHERE e.id=$1`, id).Scan(&oldCalendar, &oldStart, &oldEnd, &oldTitle, &oldRequestConfirmation, &wasRecurring); err != nil {
+		FROM events e WHERE e.id=$1`, id).Scan(&oldCalendar, &oldStart, &oldEnd, &oldTitle, &oldCreator, &oldRequestConfirmation, &wasRecurring); err != nil {
 		writeError(w, 404, "Event not found")
 		return
 	}
@@ -186,11 +187,12 @@ func (s *server) updateEvent(w http.ResponseWriter, r *http.Request) {
 	for person := range selected {
 		if !changedSchedule && (!requestConfirmation || (previous[person] && oldRequestConfirmation)) { continue }
 		kind, message := "event_assigned", "You were assigned to this event."
-		if requestConfirmation { kind, message = "event_confirmation_request", "Please confirm the updated appointment or request a change." }
+		if requestConfirmation && person != oldCreator { kind, message = "event_confirmation_request", "Please confirm the updated appointment or request a change." }
 		_, err = tx.Exec(r.Context(), `INSERT INTO notifications(user_id,event_id,kind,title,message,occurrence_start)
 			SELECT u.id,$2,$3,$4,$5,$6
 			FROM users u LEFT JOIN calendar_permissions p ON p.user_id=u.id AND p.calendar_id=$7
-			WHERE u.id=$1 AND u.active AND (u.role='admin' OR COALESCE(p.can_view,false))`,
+			WHERE u.id=$1 AND u.active AND ($3!='event_confirmation_request' OR u.confirmation_enabled)
+              AND (u.role='admin' OR COALESCE(p.can_view,false))`,
 			person,id,kind,cleanText(in.Title,200),message,in.StartsAt,in.CalendarID)
 		if err != nil { writeError(w,500,"Could not notify about updated event"); return }
 	}
