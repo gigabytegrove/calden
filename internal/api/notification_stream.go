@@ -31,7 +31,8 @@ func (s *server) streamNotifications(w http.ResponseWriter, r *http.Request) {
         }
     }
 
-    person := currentActor(r).ID
+    session := currentActor(r)
+    person := session.ID
     connection, err := (&websocket.Upgrader{
         ReadBufferSize: 1024, WriteBufferSize: 2048,
         Subprotocols: []string{"calden"},
@@ -62,6 +63,7 @@ func (s *server) streamNotifications(w http.ResponseWriter, r *http.Request) {
     defer ping.Stop()
 
     for {
+        if !session.ExpiresAt.IsZero() && !time.Now().Before(session.ExpiresAt) { return }
         ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
         var active bool
         authErr := s.db.QueryRow(ctx, "SELECT active FROM users WHERE id=$1", person).Scan(&active)
