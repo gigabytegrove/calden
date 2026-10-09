@@ -43,6 +43,7 @@ type server struct {
 type actor struct {
 	ID   uuid.UUID
 	Role string
+	ExpiresAt time.Time
 }
 
 type contextKey string
@@ -432,7 +433,12 @@ func (s *server) auth(next http.Handler) http.Handler {
 			writeError(w, 401, "Please sign in")
 			return
 		}
-		ctx := withActor(r.Context(), actor{ID: id, Role: role})
+		expiry, expErr := claims.GetExpirationTime()
+        if expErr != nil || expiry == nil {
+            writeError(w, 401, "Session expiration is missing")
+            return
+        }
+        ctx := withActor(r.Context(), actor{ID: id, Role: role, ExpiresAt: expiry.Time})
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
