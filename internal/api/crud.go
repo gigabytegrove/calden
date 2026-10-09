@@ -101,11 +101,13 @@ func (s *server) updateEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var oldCalendar uuid.UUID
-	var oldStart time.Time
+	var oldStart, oldEnd time.Time
 	var wasRecurring bool
-	if err = s.db.QueryRow(r.Context(), `SELECT e.calendar_id,e.starts_at,
+	var oldTitle string
+	var oldRequestConfirmation bool
+	if err = s.db.QueryRow(r.Context(), `SELECT e.calendar_id,e.starts_at,e.ends_at,e.title,e.request_confirmation,
 		EXISTS(SELECT 1 FROM event_recurrence er WHERE er.event_id=e.id)
-		FROM events e WHERE e.id=$1`, id).Scan(&oldCalendar, &oldStart, &wasRecurring); err != nil {
+		FROM events e WHERE e.id=$1`, id).Scan(&oldCalendar, &oldStart, &oldEnd, &oldTitle, &oldRequestConfirmation, &wasRecurring); err != nil {
 		writeError(w, 404, "Event not found")
 		return
 	}
@@ -171,6 +173,26 @@ func (s *server) updateEvent(w http.ResponseWriter, r *http.Request) {
 			WHERE u.id=$1 AND u.active=true AND (u.role='admin' OR COALESCE(p.can_view,false))`,
 			person, id, cleanText(in.Title, 200), in.CalendarID)
 		if err != nil { writeError(w, 500, "Could not notify former assignee"); return }
+	}
+	// Schedule modifications invalidate responses for affected assignees.
+	changedSchedule := !oldStart.Equal(in.StartsAt) || !oldEnd.Equal(in.EndsAt) || oldTitle != cleanText(in.Title, 200)
+	requestConfirmation := oldRequestConfirmation
+	if in.RequestConfirmation != nil { requestConfirmation = *in.RequestConfirmation }
+	if changedSchedule {
+		if _, err = tx.Exec(r.Context(), "DELETE FROM event_confirmations WHERE event_id=$1", id); err != nil {
+			writeError(w, 500, "Could not reset outdated confirmations"); return
+		}
+	}
+	for person := range selected {
+		if !changedSchedule && (previous[person] || !requestConfirmation) { continue }
+		kind, message := "event_schedule_changed", "An assigned event was updated."
+		if requestConfirmation { kind, message = "event_confirmation_request", "Please confirm the updated appointment or request a change." }
+		_, err = tx.Exec(r.Context(), `INSERT INTO notifications(user_id,event_id,kind,title,message,occurrence_start)
+			SELECT u.id,$2,$3,$4,$5,$6
+			FROM users u LEFT JOIN calendar_permissions p ON p.user_id=u.id AND p.calendar_id=$7
+			WHERE u.id=$1 AND u.active AND (u.role='admin' OR COALESCE(p.can_view,false))`,
+			person,id,kind,cleanText(in.Title,200),message,in.StartsAt,in.CalendarID)
+		if err != nil { writeError(w,500,"Could not notify about updated event"); return }
 	}
 	if err = s.saveBillDetails(r.Context(), tx, id, in.CalendarID, in); err != nil {
 		writeError(w, 400, "Could not save bill details")
