@@ -270,10 +270,27 @@ func (s *server) deleteEvent(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 403, "You cannot delete this event")
 		return
 	}
-	if _, err = s.db.Exec(r.Context(), "DELETE FROM events WHERE id=$1", id); err != nil {
+	// Keep cancellation alerts after the event is removed. Its former assignees
+	// are identified before deletion, and the notice carries no dangling event ID.
+	cancelTx, err := s.db.Begin(r.Context())
+	if err != nil { writeError(w, 500, "Could not cancel event"); return }
+	defer cancelTx.Rollback(r.Context())
+	var cancelledTitle string
+	if err = cancelTx.QueryRow(r.Context(), "SELECT title FROM events WHERE id=$1 FOR UPDATE", id).Scan(&cancelledTitle); err != nil {
+		writeError(w, 404, "Event not found"); return
+	}
+	_, err = cancelTx.Exec(r.Context(), `INSERT INTO notifications(user_id,event_id,kind,title,message)
+		SELECT u.id,NULL,'event_cancelled',$2,'An appointment you were assigned to was cancelled.'
+		FROM event_assignees ea JOIN users u ON u.id=ea.user_id
+		LEFT JOIN calendar_permissions p ON p.calendar_id=$3 AND p.user_id=u.id
+		WHERE ea.event_id=$1 AND u.active AND (u.role='admin' OR COALESCE(p.can_view,false))`,
+		id, cancelledTitle, calendarID)
+	if err != nil { writeError(w, 500, "Could not notify cancellation"); return }
+	if _, err = cancelTx.Exec(r.Context(), "DELETE FROM events WHERE id=$1", id); err != nil {
 		writeError(w, 500, "Could not delete event")
 		return
 	}
+	if err = cancelTx.Commit(r.Context()); err != nil { writeError(w, 500, "Could not finish cancellation"); return }
 	s.audit(r, "delete", "event", &id, "Deleted event", nil)
 	w.WriteHeader(http.StatusNoContent)
 }
