@@ -184,7 +184,7 @@ func (s *server) updateEvent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	for person := range selected {
-		if !changedSchedule && previous[person] && !(requestConfirmation && !oldRequestConfirmation) { continue }
+		if !changedSchedule && (!requestConfirmation || (previous[person] && oldRequestConfirmation)) { continue }
 		kind, message := "event_assigned", "You were assigned to this event."
 		if requestConfirmation { kind, message = "event_confirmation_request", "Please confirm the updated appointment or request a change." }
 		_, err = tx.Exec(r.Context(), `INSERT INTO notifications(user_id,event_id,kind,title,message,occurrence_start)
