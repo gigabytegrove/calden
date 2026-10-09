@@ -3,6 +3,7 @@ package api
 import (
     "context"
     "net/http"
+    "net/url"
     "strings"
     "time"
 
@@ -21,9 +22,10 @@ func (s *server) streamNotifications(w http.ResponseWriter, r *http.Request) {
     // Android WebSocket clients need not send Origin; browsers must be same-origin.
     origin := r.Header.Get("Origin")
     if origin != "" {
-        allowed := "https://" + r.Host
-        if r.TLS == nil { allowed = "http://" + r.Host }
-        if !strings.EqualFold(strings.TrimSuffix(origin, "/"), allowed) {
+        parsed, err := url.Parse(origin)
+        if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") ||
+            !strings.EqualFold(parsed.Host, r.Host) || parsed.User != nil ||
+            parsed.Path != "" || parsed.RawQuery != "" {
             writeError(w, http.StatusForbidden, "WebSocket origin not permitted")
             return
         }
