@@ -579,6 +579,8 @@ func (s *server) createEvent(w http.ResponseWriter, r *http.Request) {
 
 	if in.RequestConfirmation != nil && *in.RequestConfirmation {
 		for _, person := range in.AssigneeIDs {
+			// No self-confirmation: only appointments assigned by someone else.
+			if person == a.ID { continue }
 			_, err = tx.Exec(r.Context(), `INSERT INTO notifications(user_id,event_id,kind,title,message,occurrence_start)
 				SELECT u.id,$2,'event_confirmation_request',$3,'Please confirm this appointment or request a change.',$4
 				FROM users u LEFT JOIN calendar_permissions p ON p.user_id=u.id AND p.calendar_id=$5
