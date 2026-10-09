@@ -28,7 +28,7 @@ func (s *server) respondToConfirmation(w http.ResponseWriter, r *http.Request) {
     if decode(r,&in)!=nil || in.OccurrenceStart.IsZero() {
         writeError(w,400,"An occurrence start is required");return
     }
-    if in.Status!="confirmed" && in.Status!="change_requested" {
+    if in.Status!="confirmed" && in.Status!="change_requested" && in.Status!="pending" {
         writeError(w,400,"Select Confirm or Request Change");return
     }
     in.Reason=cleanText(strings.TrimSpace(in.Reason),1000)
@@ -109,6 +109,8 @@ func (s *server) respondToConfirmation(w http.ResponseWriter, r *http.Request) {
         if in.Status=="change_requested" {
             message="An assigned member requested a schedule change: "+in.Reason
             kind="event_change_requested"
+        } else if in.Status=="pending" {
+            message="An assigned member withdrew their previous response; confirmation is pending."
         }
         _,err=tx.Exec(r.Context(),`INSERT INTO notifications(user_id,event_id,kind,title,message,occurrence_start)
           VALUES($1,$2,$3,$4,$5,$6)`,creator,eventID,kind,title,message,in.OccurrenceStart)
