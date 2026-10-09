@@ -71,7 +71,7 @@ func (s *server) streamNotifications(w http.ResponseWriter, r *http.Request) {
         ctx, cancel = context.WithTimeout(r.Context(), 5*time.Second)
         rows, err := s.db.Query(ctx, `SELECT id,event_id,kind,title,message,occurrence_start,created_at
             FROM notifications
-            WHERE user_id=$1 AND dismissed_at IS NULL AND created_at >= $2
+            WHERE user_id=$1 AND dismissed_at IS NULL AND read_at IS NULL AND created_at >= $2
             ORDER BY created_at ASC, id ASC LIMIT 200`, person, cursor)
         if err != nil { cancel(); return }
         type notice struct {
