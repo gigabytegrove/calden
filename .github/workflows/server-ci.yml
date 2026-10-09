@@ -72,11 +72,11 @@ jobs:
         run: |
           set -euo pipefail
           curl -fsSI http://127.0.0.1:8787/ | tr -d '\r' > /tmp/root-headers.txt
-          curl -fsSI http://127.0.0.1:8787/app.js?v=1.3.1 | tr -d '\r' > /tmp/app-headers.txt
+          curl -fsSI http://127.0.0.1:8787/app.js?v=1.3.2 | tr -d '\r' > /tmp/app-headers.txt
           grep -qi '^Cache-Control: .*no-store' /tmp/root-headers.txt
           grep -qi '^Cache-Control: .*no-store' /tmp/app-headers.txt
-          curl -fsS http://127.0.0.1:8787/ | grep -q '/app.js?v=1.3.1'
-          curl -fsS http://127.0.0.1:8787/ | grep -q '/styles.css?v=1.3.1'
+          curl -fsS http://127.0.0.1:8787/ | grep -q '/app.js?v=1.3.2'
+          curl -fsS http://127.0.0.1:8787/ | grep -q '/styles.css?v=1.3.2'
 
       - name: Set up browser test
         uses: actions/setup-node@v4
