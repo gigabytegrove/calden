@@ -128,6 +128,18 @@ func (s *server) updateEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	previousRows, err := tx.Query(r.Context(), "SELECT user_id FROM event_assignees WHERE event_id=$1", id)
+	if err != nil { writeError(w, 500, "Could not load prior assignments"); return }
+	previous := map[uuid.UUID]bool{}
+	for previousRows.Next() {
+		var person uuid.UUID
+		if err = previousRows.Scan(&person); err != nil { previousRows.Close(); writeError(w, 500, "Could not read prior assignments"); return }
+		previous[person] = true
+	}
+	err = previousRows.Err()
+	previousRows.Close()
+	if err != nil { writeError(w, 500, "Could not finish prior assignments"); return }
+
 	if _, err = tx.Exec(r.Context(), "DELETE FROM event_assignees WHERE event_id=$1", id); err != nil {
 		writeError(w, 500, "Could not update people")
 		return
@@ -137,6 +149,28 @@ func (s *server) updateEvent(w http.ResponseWriter, r *http.Request) {
 			writeError(w, 400, "One of the selected people is invalid")
 			return
 		}
+	}
+	selected := map[uuid.UUID]bool{}
+	for _, person := range in.AssigneeIDs { selected[person] = true }
+	for person := range selected {
+		if previous[person] { continue }
+		_, err = tx.Exec(r.Context(), `INSERT INTO notifications(user_id,event_id,kind,title,message)
+			SELECT u.id,$2,'event_assigned',$3,'You were assigned to this event.'
+			FROM users u LEFT JOIN calendar_permissions p ON p.user_id=u.id AND p.calendar_id=$4
+			WHERE u.id=$1 AND u.active=true AND (u.role='admin' OR COALESCE(p.can_view,false))`,
+			person, id, cleanText(in.Title, 200), in.CalendarID)
+		if err != nil { writeError(w, 500, "Could not notify new assignee"); return }
+	}
+	for person := range previous {
+		if selected[person] { continue }
+		_, err = tx.Exec(r.Context(), "DELETE FROM event_confirmations WHERE event_id=$1 AND user_id=$2", id, person)
+		if err != nil { writeError(w, 500, "Could not reset confirmation"); return }
+		_, err = tx.Exec(r.Context(), `INSERT INTO notifications(user_id,event_id,kind,title,message)
+			SELECT u.id,$2,'event_assigned',$3,'You are no longer assigned to this event.'
+			FROM users u LEFT JOIN calendar_permissions p ON p.user_id=u.id AND p.calendar_id=$4
+			WHERE u.id=$1 AND u.active=true AND (u.role='admin' OR COALESCE(p.can_view,false))`,
+			person, id, cleanText(in.Title, 200), in.CalendarID)
+		if err != nil { writeError(w, 500, "Could not notify former assignee"); return }
 	}
 	if err = s.saveBillDetails(r.Context(), tx, id, in.CalendarID, in); err != nil {
 		writeError(w, 400, "Could not save bill details")
