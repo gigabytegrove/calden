@@ -28,6 +28,11 @@ type Config struct {
 	WebDir    string
 	DataDir   string
 	Version   string
+    PushAccountFile string
+    PushProjectID string
+    PushSenderID string
+    PushAppID string
+    PushAPIKey string
 }
 
 type server struct {
@@ -36,6 +41,11 @@ type server struct {
 	webDir    string
 	dataDir   string
 	version   string
+    pushAccountFile string
+    pushProjectID string
+    pushSenderID string
+    pushAppID string
+    pushAPIKey string
 	updater   *updater.Manager
 	backup    *backup.Manager
 }
@@ -51,7 +61,9 @@ type contextKey string
 const actorKey contextKey = "actor"
 
 func New(cfg Config) http.Handler {
-	s := &server{db: cfg.DB, jwtSecret: cfg.JWTSecret, webDir: cfg.WebDir, dataDir: cfg.DataDir, version: cfg.Version}
+	s := &server{db: cfg.DB, jwtSecret: cfg.JWTSecret, webDir: cfg.WebDir, dataDir: cfg.DataDir, version: cfg.Version,
+    pushAccountFile:cfg.PushAccountFile,pushProjectID:cfg.PushProjectID,
+    pushSenderID:cfg.PushSenderID,pushAppID:cfg.PushAppID,pushAPIKey:cfg.PushAPIKey}
 	s.updater = updater.New(cfg.DataDir, cfg.Version)
 	s.backup = backup.New(cfg.DataDir, cfg.Version)
 	mux := http.NewServeMux()
@@ -106,6 +118,8 @@ func New(cfg Config) http.Handler {
 	mux.Handle("PUT /api/bills/{id}/no-balance", s.auth(http.HandlerFunc(s.setBillNoBalance)))
 	mux.Handle("GET /api/devices", s.auth(http.HandlerFunc(s.listDevices)))
 	mux.Handle("POST /api/devices", s.auth(http.HandlerFunc(s.registerDevice)))
+    mux.Handle("GET /api/notifications/push-config", s.auth(http.HandlerFunc(s.pushClientConfig)))
+    mux.Handle("GET /api/notifications/push-diagnostics", s.auth(s.admin(http.HandlerFunc(s.pushDiagnostics))))
 	mux.Handle("DELETE /api/devices/{id}", s.auth(http.HandlerFunc(s.revokeDevice)))
 	mux.Handle("GET /api/notifications/stream", s.auth(http.HandlerFunc(s.streamNotifications)))
 	mux.Handle("GET /api/notifications", s.auth(http.HandlerFunc(s.listNotifications)))
