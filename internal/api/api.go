@@ -117,6 +117,8 @@ func New(cfg Config) http.Handler {
 	mux.Handle("PUT /api/integrations/monita", s.auth(s.admin(http.HandlerFunc(s.saveMonitaIntegration))))
 	mux.Handle("POST /api/integrations/monita/test", s.auth(s.admin(http.HandlerFunc(s.testMonitaIntegration))))
     mux.Handle("POST /api/integrations/monita/channels", s.auth(s.admin(http.HandlerFunc(s.getMonitaChannels))))
+    mux.Handle("POST /api/integrations/monita/connect", s.auth(s.admin(http.HandlerFunc(s.connectMonita))))
+    mux.Handle("POST /api/integrations/monita/disconnect", s.auth(s.admin(http.HandlerFunc(s.disconnectMonita))))
 	mux.Handle("POST /api/integrations/google/preview", s.auth(s.admin(http.HandlerFunc(s.previewGoogleCalendarExport))))
 	mux.Handle("POST /api/integrations/google/import", s.auth(s.admin(http.HandlerFunc(s.importGoogleCalendarExport))))
 	mux.Handle("GET /api/integrations/google/duplicates", s.auth(s.admin(http.HandlerFunc(s.scanGoogleDuplicates))))

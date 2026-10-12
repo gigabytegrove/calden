@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+    "context"
 	"encoding/json"
 	"io"
 	"strconv"
@@ -198,4 +199,84 @@ func (s *server) getMonitaChannels(w http.ResponseWriter, r *http.Request) {
     }
     if channels == nil { channels = []monitaChannel{} }
     writeJSON(w, 200, map[string]any{"channels":channels})
+}
+
+type monitaConnectRequest struct {
+    ServerURL string `json:"server_url"`
+    Token string `json:"token"`
+    ChannelID uint64 `json:"channel_id"`
+    Enabled bool `json:"enabled"`
+}
+
+// Connect is an atomic native Calden-to-Monita service-account pairing:
+// authenticate, verify read scope and selected channel, verify publishing by
+// sending a test through Monita, then persist the encrypted credential.
+func (s *server) connectMonita(w http.ResponseWriter, r *http.Request) {
+    var in monitaConnectRequest
+    if decode(r, &in) != nil { writeError(w,400,"Check Monita connection details"); return }
+    existing,_:=s.loadMonitaSettings(r)
+    if strings.TrimSpace(in.Token)=="" || in.Token=="********" {in.Token=existing.Token}
+    if strings.TrimSpace(in.ServerURL)=="" {in.ServerURL=existing.ServerURL}
+    address,err:=url.Parse(strings.TrimSpace(in.ServerURL))
+    if err!=nil || (address.Scheme!="https" && address.Scheme!="http") ||
+        address.Host=="" || address.User!=nil || address.Fragment!="" ||
+        address.RawQuery!="" || address.Path!="" {
+        writeError(w,400,"Enter only the HTTP(S) Monita server address");return
+    }
+    if !strings.HasPrefix(in.Token,"SA.") || in.ChannelID==0 {
+        writeError(w,400,"Select a Monita channel and provide its scoped SA. service token");return
+    }
+    cfg:=monitaSettings{ServerURL:strings.TrimRight(address.String(),"/"),
+        Token:in.Token,ChannelID:in.ChannelID,Enabled:true}
+    channels,err:=monitaAvailableChannels(r.Context(),cfg)
+    if err!=nil {writeError(w,502,"Monita authentication/channel discovery failed: "+err.Error());return}
+    valid:=false
+    for _,channel:=range channels {if channel.ID==in.ChannelID { valid=true;break }}
+    if !valid {writeError(w,403,"The token does not have access to that Monita channel");return}
+    if err=sendMonita(cfg,"Calden connected","This channel is linked to Calden.");err!=nil {
+        writeError(w,502,"Monita did not accept the connection test: "+err.Error());return
+    }
+    token,err:=secrets.Seal(s.jwtSecret,in.Token)
+    if err!=nil {writeError(w,500,"Could not encrypt Monita credential");return}
+    cfg.Token=token
+    raw,err:=json.Marshal(cfg)
+    if err!=nil {writeError(w,500,"Could not encode Monita settings");return}
+    var id string
+    err=s.db.QueryRow(r.Context(),`SELECT id::text FROM integrations
+        WHERE kind='monita' ORDER BY created_at LIMIT 1`).Scan(&id)
+    if err==nil {
+        _,err=s.db.Exec(r.Context(),`UPDATE integrations SET name='Monita',
+            config=$2,enabled=true,updated_at=now() WHERE id=$1::uuid`,id,raw)
+    } else {
+        _,err=s.db.Exec(r.Context(),`INSERT INTO integrations(kind,name,config,enabled)
+            VALUES('monita','Monita',$1,true)`,raw)
+    }
+    if err!=nil {writeError(w,500,"Monita was reachable but settings could not be saved");return}
+    s.audit(r,"connect","integration",nil,"Paired Calden with Monita channel",
+        map[string]any{"channel_id":in.ChannelID})
+    writeJSON(w,200,map[string]any{"connected":true,"channel_id":in.ChannelID})
+}
+
+func (s *server) disconnectMonita(w http.ResponseWriter,r *http.Request) {
+    tag,err:=s.db.Exec(r.Context(),`UPDATE integrations
+        SET config=jsonb_set(config,'{token}','""'::jsonb,true),
+            enabled=false,updated_at=now() WHERE kind='monita'`)
+    if err!=nil {writeError(w,500,"Could not disconnect Monita");return}
+    if tag.RowsAffected()==0 {writeJSON(w,200,map[string]bool{"disconnected":true});return}
+    s.audit(r,"disconnect","integration",nil,"Disconnected Monita and cleared token",nil)
+    writeJSON(w,200,map[string]bool{"disconnected":true})
+}
+
+func monitaAvailableChannels(ctx context.Context,cfg monitaSettings) ([]monitaChannel,error) {
+    endpoint:=strings.TrimRight(cfg.ServerURL,"/")+"/service/channels"
+    req,err:=http.NewRequestWithContext(ctx,http.MethodGet,endpoint,nil)
+    if err!=nil{return nil,err}
+    req.Header.Set("Authorization","Bearer "+cfg.Token)
+    response,err:=(&http.Client{Timeout:10*time.Second}).Do(req)
+    if err!=nil{return nil,err}
+    defer response.Body.Close()
+    if response.StatusCode!=200{return nil,fmt.Errorf("channel lookup returned %s",response.Status)}
+    var channels []monitaChannel
+    if err=json.NewDecoder(io.LimitReader(response.Body,128<<10)).Decode(&channels);err!=nil{return nil,err}
+    return channels,nil
 }
