@@ -662,6 +662,62 @@ jobs:
           print("Allocation, split payments, paid/cleared states, and no-balance occurrence test passed.")
           PY
 
+      - name: Verify chores permissions, assignments and admin feature toggle
+        run: |
+          python - <<'PY'
+          import datetime as dt
+          import json
+          import urllib.error
+          import urllib.request
+
+          base="http://127.0.0.1:8787"
+          def request(path, method="GET", payload=None, token=None, expected=None):
+              headers={"Content-Type":"application/json"}
+              if token: headers["Authorization"]="Bearer "+token
+              data=None if payload is None else json.dumps(payload).encode()
+              req=urllib.request.Request(base+path, data=data, headers=headers, method=method)
+              try:
+                  with urllib.request.urlopen(req) as response:
+                      if expected is not None: assert response.status==expected, response.status
+                      result=response.read()
+                      return json.loads(result) if result else None
+              except urllib.error.HTTPError as err:
+                  if expected==err.code: return None
+                  raise AssertionError(f"{method} {path}: HTTP {err.code}: {err.read().decode()}") from err
+
+          admin=request("/api/login","POST",{"username":"testadmin","password":"test-password-123"})["token"]
+          member=request("/api/login","POST",{"username":"seconduser","password":"another-password-123"})["token"]
+          users=request("/api/users",token=admin)
+          assigned=next(u for u in users if u["username"]=="seconduser")
+          settings=request("/api/settings/general",token=admin)
+          assert settings["chores_enabled"] is False, settings
+          request("/api/chores",token=member,expected=403)
+
+          toggled=request("/api/settings/chores","PUT",{"enabled":True},admin)
+          assert toggled["enabled"] is True, toggled
+          assert request("/api/settings/general",token=member)["chores_enabled"] is True
+          due=(dt.datetime.now(dt.timezone.utc)+dt.timedelta(days=2)).date().isoformat()
+          payload={"title":"Chores CI test","notes":"Complete before due date",
+                   "due_date":due,"assigned_to":assigned["id"]}
+          request("/api/chores","POST",payload,member,expected=403)
+          created=request("/api/chores","POST",payload,admin,expected=201)
+          cid=created["id"]
+          items=request("/api/chores",token=member)["items"]
+          row=next(item for item in items if item["id"]==cid)
+          assert row["assigned_to"]==assigned["id"] and row["due_date"]==due, row
+          request(f"/api/chores/{cid}","PUT",payload,member,expected=403)
+          request(f"/api/chores/{cid}/status","PUT",{"status":"done"},member)
+          completed=next(item for item in request("/api/chores",token=admin)["items"] if item["id"]==cid)
+          assert completed["status"]=="done" and completed["completed_at"],completed
+
+          request("/api/settings/chores","PUT",{"enabled":False},admin)
+          request("/api/chores",token=member,expected=403)
+          request("/api/settings/chores","PUT",{"enabled":True},admin)
+          persisted=next(item for item in request("/api/chores",token=admin)["items"] if item["id"]==cid)
+          assert persisted["status"]=="done", persisted
+          request(f"/api/chores/{cid}","DELETE",token=admin,expected=204)
+          PY
+
       - name: Verify event assignment and whole-family notifications
         run: |
           python - <<'PY'
