@@ -276,7 +276,16 @@ jobs:
               throw new Error('Household reminder row was not created.');
             }
             await eventForm.locator('button[type="submit"]').click();
-            await page.locator('#event-dialog').waitFor({ state: 'hidden' });
+            await page.locator('#event-dialog').waitFor({ state: 'hidden', timeout: 6000 }).catch(async cause => {
+               const value = await page.locator('#event-error').textContent().catch(() => '');
+               const modal = await page.locator('#event-dialog').evaluate(e => ({
+                 open: e.open, title: e.querySelector('[name="title"]')?.value,
+                 calendar: e.querySelector('[name="calendar_id"]')?.value,
+                 start: e.querySelector('[name="starts_at"]')?.value,
+                 end: e.querySelector('[name="ends_at"]')?.value
+               }));
+               throw new Error('Event editor stayed open: ' + JSON.stringify({value, modal, cause: cause.message}));
+             });
 
             await page.locator('#calendar-search').fill('Web UI CI Event');
             await page.locator('#calendar-view').getByText('Web UI CI Event', { exact: true }).waitFor({ state: 'visible' });
@@ -300,7 +309,16 @@ jobs:
             await eventForm.locator('input[name="ends_at"]').fill(allDayDates.end);
             await eventForm.locator('input[name="all_day"]').check();
             await eventForm.locator('button[type="submit"]').click();
-            await page.locator('#event-dialog').waitFor({ state: 'hidden' });
+            await page.locator('#event-dialog').waitFor({ state: 'hidden', timeout: 6000 }).catch(async cause => {
+               const value = await page.locator('#event-error').textContent().catch(() => '');
+               const modal = await page.locator('#event-dialog').evaluate(e => ({
+                 open: e.open, title: e.querySelector('[name="title"]')?.value,
+                 calendar: e.querySelector('[name="calendar_id"]')?.value,
+                 start: e.querySelector('[name="starts_at"]')?.value,
+                 end: e.querySelector('[name="ends_at"]')?.value
+               }));
+               throw new Error('Event editor stayed open: ' + JSON.stringify({value, modal, cause: cause.message}));
+             });
             const allDayRendered = page.locator('#calendar-view').getByText('All Day Exclusive CI', { exact: true });
             await allDayRendered.first().waitFor({ state: 'visible' });
             const allDayCount = await allDayRendered.count();
@@ -391,7 +409,16 @@ jobs:
             await eventForm.locator('input[name="bill_amount_is_estimate"]').check();
             await eventForm.locator('select[name="bill_payer_user_id"]').selectOption({ label: 'Second User' });
             await eventForm.locator('button[type="submit"]').click();
-            await page.locator('#event-dialog').waitFor({ state: 'hidden' });
+            await page.locator('#event-dialog').waitFor({ state: 'hidden', timeout: 6000 }).catch(async cause => {
+               const value = await page.locator('#event-error').textContent().catch(() => '');
+               const modal = await page.locator('#event-dialog').evaluate(e => ({
+                 open: e.open, title: e.querySelector('[name="title"]')?.value,
+                 calendar: e.querySelector('[name="calendar_id"]')?.value,
+                 start: e.querySelector('[name="starts_at"]')?.value,
+                 end: e.querySelector('[name="ends_at"]')?.value
+               }));
+               throw new Error('Event editor stayed open: ' + JSON.stringify({value, modal, cause: cause.message}));
+             });
             await page.locator('#bill-list').getByText('Electric CI Bill', { exact: true }).waitFor({ state: 'visible' });
             await page.locator('#bill-list').getByText('Second User', { exact: false }).first().waitFor({ state: 'visible' });
             let billRow = page.locator('#bill-list .bill-row').filter({ hasText: 'Electric CI Bill' });
@@ -450,7 +477,16 @@ jobs:
             await eventForm.locator('input[name="title"]').fill('Delete Me Event');
             await eventForm.locator('select[name="calendar_id"]').selectOption({ label: 'Delete Me CI' });
             await eventForm.locator('button[type="submit"]').click();
-            await page.locator('#event-dialog').waitFor({ state: 'hidden' });
+            await page.locator('#event-dialog').waitFor({ state: 'hidden', timeout: 6000 }).catch(async cause => {
+               const value = await page.locator('#event-error').textContent().catch(() => '');
+               const modal = await page.locator('#event-dialog').evaluate(e => ({
+                 open: e.open, title: e.querySelector('[name="title"]')?.value,
+                 calendar: e.querySelector('[name="calendar_id"]')?.value,
+                 start: e.querySelector('[name="starts_at"]')?.value,
+                 end: e.querySelector('[name="ends_at"]')?.value
+               }));
+               throw new Error('Event editor stayed open: ' + JSON.stringify({value, modal, cause: cause.message}));
+             });
 
             await page.locator('.nav-item[data-page="calendars"]').click();
             const deleteCard = page.locator('#calendar-list .management-card').filter({ hasText: 'Delete Me CI' });
