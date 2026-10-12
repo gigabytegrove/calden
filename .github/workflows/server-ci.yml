@@ -126,7 +126,7 @@ jobs:
               throw new Error('Unexpected setup heading: ' + heading);
             }
 
-            const logoLoaded = await page.locator('.brand-logo').first().evaluate(img =>
+            const logoLoaded = await page.locator('.calden-official-mark').first().evaluate(img =>
               img.complete && img.naturalWidth > 0 && img.naturalHeight > 0
             );
             if (!logoLoaded) throw new Error('Official CalDen logo did not load');
