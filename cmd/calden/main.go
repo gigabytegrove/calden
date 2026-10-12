@@ -58,7 +58,7 @@ func main() {
 
 	workerCtx, workerCancel := context.WithCancel(context.Background())
 	defer workerCancel()
-	reminders.Start(workerCtx, db)
+	reminders.Start(workerCtx, db, jwtSecret)
 
 	handler := api.New(api.Config{
 		DB:        db,

@@ -8,6 +8,8 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
+	"github.com/gigabytegrove/calden/internal/secrets"
 	"strings"
 	"time"
 
@@ -21,6 +23,7 @@ type monitaSettings struct {
 	ServerURL      string `json:"server_url"`
 	Token          string `json:"token"`
 	DefaultChannel string `json:"default_channel"`
+    ChannelID uint64 `json:"channel_id"`
 }
 
 type reminderSource struct {
@@ -44,24 +47,24 @@ type dueReminder struct {
 	Destination     *string
 }
 
-func Start(ctx context.Context, db *pgxpool.Pool) {
+func Start(ctx context.Context, db *pgxpool.Pool, signingSecret []byte) {
 	go func() {
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
-		run(ctx, db)
+		run(ctx, db, signingSecret)
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				run(ctx, db)
+				run(ctx, db, signingSecret)
 			}
 		}
 	}()
 }
 
-func run(ctx context.Context, db *pgxpool.Pool) {
-	cfg, ok := loadMonita(ctx, db)
+func run(ctx context.Context, db *pgxpool.Pool, signingSecret []byte) {
+	cfg, ok := loadMonita(ctx, db, signingSecret)
 	if !ok {
 		return
 	}
@@ -200,7 +203,7 @@ func alreadyDelivered(ctx context.Context, db *pgxpool.Pool, reminderID uuid.UUI
 	return status == "sent" || attempts >= 5
 }
 
-func loadMonita(ctx context.Context, db *pgxpool.Pool) (monitaSettings, bool) {
+func loadMonita(ctx context.Context, db *pgxpool.Pool, signingSecret []byte) (monitaSettings, bool) {
 	var raw []byte
 	var enabled bool
 	if err := db.QueryRow(ctx, `SELECT config,enabled FROM integrations WHERE kind='monita' ORDER BY created_at LIMIT 1`).Scan(&raw, &enabled); err != nil || !enabled {
@@ -208,23 +211,31 @@ func loadMonita(ctx context.Context, db *pgxpool.Pool) (monitaSettings, bool) {
 	}
 	var cfg monitaSettings
 	if json.Unmarshal(raw, &cfg) != nil || cfg.ServerURL == "" || cfg.Token == "" {
-		return monitaSettings{}, false
-	}
-	return cfg, true
+        return monitaSettings{}, false
+    }
+    var err error
+    cfg.Token, err = secrets.Open(signingSecret, cfg.Token)
+    if err != nil || cfg.Token == "" { return monitaSettings{}, false }
+    return cfg, true
 }
 
 func sendMonita(cfg monitaSettings, channel, title, message string) error {
 	endpoint := strings.TrimRight(cfg.ServerURL, "/") + "/message?token=" + url.QueryEscape(cfg.Token)
-	payload := map[string]any{"title": title, "message": message, "priority": 5}
-	if channel != "" {
-		payload["channel"] = channel
-	}
+    payload := map[string]any{"title": title, "message": message, "priority": 5}
+    serviceMode := strings.HasPrefix(cfg.Token, "SA.")
+    if serviceMode {
+        if cfg.ChannelID == 0 { return fmt.Errorf("Monita service channel is not selected") }
+        endpoint = strings.TrimRight(cfg.ServerURL, "/") + "/service/application/" + strconv.FormatUint(cfg.ChannelID, 10) + "/message"
+    } else if channel != "" {
+        payload["channel"] = channel
+    }
 	raw, _ := json.Marshal(payload)
 	req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(raw))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
+    if serviceMode { req.Header.Set("Authorization", "Bearer "+cfg.Token) }
 	req.Header.Set("User-Agent", "CalDen")
 	resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
 	if err != nil {
