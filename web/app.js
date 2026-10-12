@@ -1423,6 +1423,7 @@ function activateSettingsTab(tab,writeURL=false){
   if(writeURL&&state.currentPage==="settings")history.pushState({calden:true},"",caldenPageURL("settings"));
   $$(".settings-nav-item").forEach(button=>button.classList.toggle("active",button.dataset.settingsTab===tab));
   $$("[data-settings-pane]").forEach(pane=>pane.classList.toggle("hidden",pane.dataset.settingsPane!==tab));
+  if(tab==="account")loadPrivateBusyTime();
   if(tab==="integrations"){loadMonita();setGoogleImportFile(state.googleImportFile)}
   if(tab==="updates")loadUpdater();
   if(tab==="backups")loadBackups();
@@ -2206,6 +2207,22 @@ $("#event-form").addEventListener("submit",async e=>{
     }
   }
   try{
+    if(!billActive) {
+      const preview=await api("/api/scheduling/conflicts",{
+        method:"POST",
+        body:JSON.stringify({
+          calendar_id:payload.calendar_id,
+          exclude_event_id:state.editingEvent?.id||null,
+          starts_at:payload.starts_at,ends_at:payload.ends_at,
+          assignee_ids:payload.assignee_ids,
+          recurrence:payload.recurrence
+        })
+      });
+      if(preview.conflicts?.length) {
+        const count=preview.conflicts.length;
+        if(!confirm(count+" scheduling conflict(s) were found. Private busy times do not show their details. Save this appointment anyway?"))return;
+      }
+    }
     await api(target,{method,body:JSON.stringify(body)});
     $("#event-dialog").close();state.editingEvent=null;state.editingScope="series";state.preserveRawRecurrence=false;
     state.calendars=await api("/api/calendars");
@@ -2673,6 +2690,42 @@ $("#monita-load-channels")?.addEventListener("click",async()=>{
     status.textContent=(result.channels||[]).length+" available Monita channel(s) loaded.";
   }catch(err){status.textContent=err.message}
   finally{button.disabled=false}
+});
+
+async function loadPrivateBusyTime(){
+  const list=$("#busy-block-list"),status=$("#busy-block-status");
+  try{
+    const result=await api("/api/scheduling/busy");
+    const items=result.items||[];
+    list.innerHTML=items.length?items.map(item=>{
+      const start=new Date(item.starts_at).toLocaleString();
+      const end=new Date(item.ends_at).toLocaleString();
+      return `<div class="row"><span>${escapeHTML(start)} – ${escapeHTML(end)} · ${escapeHTML(item.label||"Busy")}</span><button type="button" class="button secondary compact" data-busy-remove="${escapeAttr(item.id)}">Remove</button></div>`;
+    }).join(""):'<p class="muted">No private busy blocks.</p>';
+    status.textContent="";
+  }catch(error){status.textContent=error.message}
+}
+$("#busy-block-form").addEventListener("submit",async event=>{
+  event.preventDefault();
+  const form=event.currentTarget,fd=new FormData(form);
+  const status=$("#busy-block-status");
+  try{
+    const start=new Date(fd.get("starts_at")),end=new Date(fd.get("ends_at"));
+    if(!Number.isFinite(start.getTime())||!Number.isFinite(end.getTime())||
+      end<=start)throw Error("End time must be later than start time.");
+    await api("/api/scheduling/busy",{method:"POST",body:JSON.stringify({
+      starts_at:start.toISOString(),ends_at:end.toISOString(),
+      label:String(fd.get("label")||"")
+    })});
+    form.reset();await loadPrivateBusyTime();status.textContent="Private busy time saved.";
+  }catch(error){status.textContent=error.message}
+});
+$("#busy-block-list").addEventListener("click",async event=>{
+  const button=event.target.closest("[data-busy-remove]");if(!button)return;
+  button.disabled=true;
+  try{await api("/api/scheduling/busy/"+encodeURIComponent(button.dataset.busyRemove),
+    {method:"DELETE"});await loadPrivateBusyTime()}
+  catch(error){$("#busy-block-status").textContent=error.message;button.disabled=false}
 });
 $("#connect-monita").addEventListener("click",async()=>{
   const form=$("#monita-form"),status=$("#monita-status"),button=$("#connect-monita");
