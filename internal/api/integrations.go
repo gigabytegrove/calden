@@ -170,15 +170,19 @@ type monitaChannel struct {
 // List available channels through Monita's scoped service-account API.
 // This endpoint does not transmit service tokens to the browser.
 func (s *server) getMonitaChannels(w http.ResponseWriter, r *http.Request) {
-    cfg, err := s.loadMonitaSettings(r)
-    if err != nil || !strings.HasPrefix(cfg.Token, "SA.") {
-        writeError(w, 400, "Save a Monita service-account token to load channels")
+    var input monitaSettings
+    if decode(r, &input) != nil { writeError(w, 400, "Check the Monita address and token"); return }
+    saved, _ := s.loadMonitaSettings(r)
+    if strings.TrimSpace(input.ServerURL) == "" { input.ServerURL = saved.ServerURL }
+    if input.Token == "" || input.Token == "********" { input.Token = saved.Token }
+    if !strings.HasPrefix(input.Token, "SA.") {
+        writeError(w, 400, "Channel discovery requires a scoped Monita service-account token (SA.)")
         return
     }
-    address := strings.TrimRight(cfg.ServerURL, "/") + "/service/channels"
+    address := strings.TrimRight(input.ServerURL, "/") + "/service/channels"
     req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, address, nil)
     if err != nil { writeError(w, 400, "Invalid Monita server address"); return }
-    req.Header.Set("Authorization", "Bearer " + cfg.Token)
+    req.Header.Set("Authorization", "Bearer " + input.Token)
     response, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
     if err != nil { writeError(w, 502, "Could not contact Monita: " + err.Error()); return }
     defer response.Body.Close()
