@@ -387,14 +387,14 @@ The Compose file maps that host port to CalDen's internal port `8787`.
 
 ## Development status
 
-CalDen is released as version 1.3.8. Backups remain recommended before each update.
+CalDen server source version is 1.4.0. Backups remain recommended before each update.
 
 The current version is intended for active testing and development. Database migrations are automatic, but backups are strongly recommended before updating between development builds.
 
 Current version:
 
 ```text
-1.3.8
+1.4.0
 ```
 
 ## Project layout
