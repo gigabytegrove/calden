@@ -1862,6 +1862,12 @@ async function loadMonita(){
   try{
     const m=await api("/api/integrations/monita"),form=$("#monita-form");
     form.enabled.checked=!!m.enabled;form.server_url.value=m.server_url||"";form.token.value=m.token||"";form.default_channel.value=m.default_channel||"";
+    const options=form.channel_id;
+    if(options){
+      options.innerHTML='<option value="0">Select a channel</option>';
+      if(m.channel_id){const option=document.createElement("option");option.value=String(m.channel_id);option.textContent="Saved channel #"+m.channel_id;option.selected=true;options.append(option)}
+      options.dataset.selected=String(m.channel_id||0);
+    }
   }catch(err){$("#monita-status").textContent=err.message}
 }
 
@@ -2645,9 +2651,28 @@ $("#import-google-calendar")?.addEventListener("click",async()=>{
   }
 });
 
+$("#monita-load-channels")?.addEventListener("click",async()=>{
+  const button=$("#monita-load-channels"),form=$("#monita-form"),status=$("#monita-status");
+  button.disabled=true;status.textContent="Loading Monita channels…";
+  try{
+    const result=await api("/api/integrations/monita/channels",{
+      method:"POST",body:JSON.stringify({server_url:form.server_url.value,token:form.token.value})
+    });
+    const select=form.channel_id,chosen=select.value!=="0"?select.value:select.dataset.selected||"0";
+    select.innerHTML='<option value="0">Select a channel</option>';
+    for(const channel of result.channels||[]){
+      const option=document.createElement("option");
+      option.value=String(channel.id);option.textContent=channel.name||("Channel "+channel.id);
+      select.append(option);
+    }
+    if([...select.options].some(option=>option.value===chosen))select.value=chosen;
+    status.textContent=(result.channels||[]).length+" available Monita channel(s) loaded.";
+  }catch(err){status.textContent=err.message}
+  finally{button.disabled=false}
+});
 $("#monita-form").addEventListener("submit",async e=>{
   e.preventDefault();const form=e.currentTarget;$("#monita-status").textContent="";
-  const payload={enabled:form.enabled.checked,server_url:form.server_url.value,token:form.token.value,default_channel:form.default_channel.value};
+  const payload={enabled:form.enabled.checked,server_url:form.server_url.value,token:form.token.value,default_channel:form.default_channel.value,channel_id:Number(form.channel_id.value||0)};
   try{await api("/api/integrations/monita",{method:"PUT",body:JSON.stringify(payload)});$("#monita-status").textContent="Monita settings saved."}
   catch(err){$("#monita-status").textContent=err.message}
 });
