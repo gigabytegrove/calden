@@ -209,8 +209,8 @@ func (s *server) deleteOccurrence(w http.ResponseWriter, r *http.Request) {
     // assignments, even when the override is about to be deleted.
     if _, err = tx.Exec(r.Context(), `INSERT INTO notifications(
         user_id,event_id,kind,title,message,occurrence_start)
-        SELECT DISTINCT u.id,$1,'event_cancelled',e.title,
-            'An occurrence of this recurring appointment was cancelled.',$2
+        SELECT DISTINCT u.id,$1::uuid,'event_cancelled',e.title,
+            'An occurrence of this recurring appointment was cancelled.',$2::timestamptz
         FROM events e JOIN event_assignees ea ON ea.event_id=e.id
         JOIN users u ON u.id=ea.user_id
         LEFT JOIN calendar_permissions p ON p.calendar_id=e.calendar_id AND p.user_id=u.id
@@ -319,7 +319,7 @@ func (s *server) restoreOccurrence(w http.ResponseWriter, r *http.Request) {
     }
     if _, err = tx.Exec(r.Context(), `INSERT INTO notifications(user_id,event_id,kind,title,message,occurrence_start)
         SELECT DISTINCT u.id,e.id,'event_schedule_changed',e.title,
-            'A previously cancelled recurring appointment occurrence was restored.',$2
+            'A previously cancelled recurring appointment occurrence was restored.',$2::timestamptz
         FROM events e JOIN event_assignees ea ON ea.event_id=e.id
         JOIN users u ON u.id=ea.user_id
         LEFT JOIN calendar_permissions p ON p.calendar_id=e.calendar_id AND p.user_id=u.id
