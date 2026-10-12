@@ -87,6 +87,7 @@
       <a class="nav-item active" data-page="calendar" href="/calendar">Calendar</a>
       <a class="nav-item bill-nav hidden" data-page="bills" href="/bills">Bills</a>
       <a class="nav-item" data-page="agenda" href="/agenda">Agenda</a>
+      <a class="nav-item chore-nav hidden" data-page="chores" href="/chores">Tasks &amp; Chores</a>
       <a class="nav-item admin-only" data-page="people" href="/people">People</a>
       <a class="nav-item calendar-manager" data-page="calendars" href="/calendars">Calendars</a>
       <a class="nav-item calendar-manager" data-page="categories" href="/categories">Categories</a>
@@ -160,6 +161,32 @@
       <div class="page-header"><div><p class="eyebrow">Everything in order</p><h2>Agenda</h2></div>
         <div class="agenda-tools"><input id="agenda-search" type="search" placeholder="Search events and bills" aria-label="Search agenda"><select id="agenda-calendar" aria-label="Agenda calendar"><option value="">All calendars</option></select><select id="agenda-kind" aria-label="Agenda type"><option value="all">All types</option><option value="events">Events only</option><option value="bills">Bills only</option></select><select id="agenda-range" aria-label="Agenda timeframe"><option value="7">Next 7 days</option><option value="14">Next 14 days</option><option value="30" selected>Next 30 days</option><option value="90">Next 90 days</option></select><span id="event-count"></span></div></div>
       <div id="events" class="events"></div>
+    </section>
+
+    <section id="page-chores" class="app-page hidden">
+      <div class="page-header"><div><p class="eyebrow">Household responsibilities</p><h2>Tasks &amp; Chores</h2>
+      <p class="muted">Know what's due, who is responsible, and what's completed.</p></div>
+      <button id="chore-add" class="button chore-manager" type="button">+ Add chore</button></div>
+      <div id="chore-summary" class="chore-summary"></div>
+      <div class="chore-controls"><label>Show <select id="chore-filter"><option value="all">All</option>
+      <option value="mine">Assigned to me</option><option value="open">Not finished</option>
+      <option value="done">Completed</option></select></label>
+      <button type="button" id="chore-refresh" class="button secondary compact">Refresh</button></div>
+      <div id="chore-list" class="chore-list"></div>
+      <p id="chore-status" class="status-line"></p>
+      <section id="chore-editor-panel" class="panel stack hidden">
+        <h3 id="chore-editor-heading">Add chore</h3>
+        <form id="chore-form" class="stack">
+          <input type="hidden" name="id">
+          <label>Task or chore<input name="title" maxlength="200" required placeholder="Take out the trash"></label>
+          <label>Details<textarea name="notes" maxlength="4000" rows="3"></textarea></label>
+          <div class="two"><label>Due by<input name="due_date" type="date" required></label>
+          <label>Assigned to<select name="assigned_to" required></select></label></div>
+          <div class="form-actions"><button id="chore-cancel" class="button secondary" type="button">Cancel</button>
+          <span class="grow"></span><button class="button" type="submit">Save chore</button></div>
+          <p id="chore-form-status" class="status-line"></p>
+        </form>
+      </section>
     </section>
 
     <section id="page-people" class="app-page hidden admin-only">
@@ -440,6 +467,13 @@
               </div>
               <div class="form-actions"><span class="grow"></span><button type="submit" class="button">Save household settings</button></div>
               <p id="general-settings-status" class="status-line"></p>
+              <div class="chore-feature-settings">
+                <h3>Tasks &amp; Chores</h3>
+                <p class="muted">Enable household chores and deadlines. Disabling hides the section without deleting tasks.</p>
+                <label class="toggle-row"><input id="settings-chores-enabled" type="checkbox"><span>Enable Tasks &amp; Chores</span></label>
+                <button type="button" id="save-chores-enabled" class="button secondary">Save chores setting</button>
+                <p id="settings-chores-status" class="status-line"></p>
+              </div>
             </form>
           </section>
 
@@ -482,7 +516,7 @@
   </main>
 
   <nav class="mobile-nav">
-    <a class="active" data-page="calendar" href="/calendar">Calendar</a><a class="bill-nav hidden" data-page="bills" href="/bills">Bills</a><a data-page="agenda" href="/agenda">Agenda</a><button id="nav-add" type="button">Add</button><a data-page="settings" href="/settings">Settings</a>
+    <a class="active" data-page="calendar" href="/calendar">Calendar</a><a class="bill-nav hidden" data-page="bills" href="/bills">Bills</a><a data-page="agenda" href="/agenda">Agenda</a><a class="chore-nav hidden" data-page="chores" href="/chores">Chores</a><button id="nav-add" type="button">Add</button><a data-page="settings" href="/settings">Settings</a>
   </nav>
 </div>
 
