@@ -6,7 +6,7 @@ function reportCalDenClientError(reason){
   if(!token)return;
   fetch("/api/client-errors",{method:"POST",cache:"no-store",
     headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},
-    body:JSON.stringify({message:String(reason?.message||reason||"Unknown JavaScript error").slice(0,400),version:"1.2.13"})
+    body:JSON.stringify({message:String(reason?.message||reason||"Unknown JavaScript error").slice(0,400),version:"1.3.4"})
   }).catch(()=>{});
 }
 let caldenBooting=true;
@@ -83,7 +83,7 @@ function addDays(value,days){const d=new Date(value);d.setDate(d.getDate()+days)
 function sameDay(a,b){return startOfDay(a).getTime()===startOfDay(b).getTime()}
 function localInput(d){const p=n=>String(n).padStart(2,"0");return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`}
 const maxAvatarUploadBytes=10*1024*1024;
-function roleLabel(role){return role==="admin"?"Administrator":role==="restricted"?"Restricted member":"Family member"}
+function roleLabel(role){return role==="admin"?"Administrator":role==="restricted"?"Restricted member":role==="planner"?"Planner":"Family member"}
 function avatarMarkup(user,sizeClass=""){
   if(user?.avatar_url){
     return `<img class="avatar-image ${sizeClass}" src="${escapeAttr(user.avatar_url)}" alt="">`;
@@ -286,6 +286,7 @@ function renderApp(){
   $("#sidebar-role").textContent=roleLabel(state.me.role);
   $("#sidebar-avatar").innerHTML=state.me.avatar_url?`<img src="${escapeAttr(state.me.avatar_url)}" alt="">`:escapeHTML(state.me.initials||"?");
   $$(".admin-only").forEach(el=>el.classList.toggle("hidden",state.me.role!=="admin"));
+  $$(".calendar-manager").forEach(el=>el.classList.toggle("hidden",!["admin","planner"].includes(state.me.role)));
   $$(".admin-settings").forEach(el=>el.classList.toggle("hidden",state.me.role!=="admin"));
   $("#settings-account-name").textContent=state.me.display_name;
   $("#settings-account-username").textContent=state.me.username;
@@ -401,8 +402,9 @@ window.addEventListener("popstate",()=>{if(state.me)applyCalDenRoute(true).catch
 
 function navigate(page,load=true,writeURL=true){
   if(!caldenPages.has(page))page="calendar";
-  const adminPages=new Set(["people","calendars","categories","integrations","updates","backups","activity"]);
+  const adminPages=new Set(["people","integrations","updates","backups","activity"]);
   if(adminPages.has(page)&&state.me?.role!=="admin")page="calendar";
+  if(["calendars","categories"].includes(page)&&!["admin","planner"].includes(state.me?.role))page="calendar";
   state.currentPage=page;
   if(writeURL)history.pushState({calden:true},"",caldenPageURL(page));
   $$(".app-page").forEach(el=>el.classList.toggle("hidden",el.id!==`page-${page}`));
@@ -456,7 +458,7 @@ function personChoice(u){
 function calendarViewStart(){
   const anchor=startOfDay(state.anchorDate);
   if(state.viewDays===1)return anchor;
-  const firstDay=state.settings?.week_start==="monday"?1:0;
+  const firstDay=(state.me?.week_start||state.settings?.week_start)==="monday"?1:0;
   const offset=(anchor.getDay()-firstDay+7)%7;
   return addDays(anchor,-offset);
 }
@@ -1329,7 +1331,7 @@ function beginPersonEdit(id){
 }
 
 function renderCalendars(){
-  if(state.me.role!=="admin")return;
+  if(!["admin","planner"].includes(state.me.role))return;
   $("#calendar-list").innerHTML=state.calendars.map(c=>`<article class="management-card">
     <span class="calendar-swatch" style="--cal:${safeColor(c.color)}"></span>
     <div class="management-copy"><strong>${escapeHTML(c.name)}</strong><span>${escapeHTML(c.description||"No description")}</span><small>${c.calendar_type==="bill_pay"?"Bill Pay · ":""}${c.can_edit?"Editable":"View only"} · ${Number(c.event_count)||0} event${Number(c.event_count)===1?"":"s"}</small></div>
@@ -1372,7 +1374,7 @@ async function beginCalendarEdit(id){
 }
 
 function renderCategories(){
-  if(state.me.role!=="admin")return;
+  if(!["admin","planner"].includes(state.me.role))return;
   $("#category-list").innerHTML=state.categories.map(cat=>`<article class="management-card">
     <span class="calendar-swatch" style="--cal:${safeColor(cat.color)}"></span>
     <div class="management-copy"><strong>${escapeHTML(cat.name)}</strong><span>${escapeHTML(cat.description||"No description")}</span><small>${Number(cat.event_count)||0} event${Number(cat.event_count)===1?"":"s"} using this category · ${escapeHTML(cat.color)}</small></div>
@@ -1431,6 +1433,8 @@ function renderSettings(){
     form.week_start.value=state.settings?.week_start||"sunday";
     form.default_view.value=String(state.settings?.default_view||7);
   }
+  const personalWeekStart=$("#settings-personal-week-start");
+  if(personalWeekStart)personalWeekStart.value=state.me?.week_start||"default";
   renderEventControls();
   const duration=$("#settings-default-duration"),scroll=$("#settings-scroll-now");
   if(duration)duration.value=String(state.defaultDuration);
@@ -1681,7 +1685,7 @@ function openBillEvent(){
 
 function openEvent(existing=null,dateHint=null,scope="series"){
   if(!state.calendars.some(c=>c.can_edit)){
-    if(state.me.role==="admin"){navigate("calendars");return}
+    if(["admin","planner"].includes(state.me.role)){navigate("calendars");return}
     alert("You do not have a calendar you can add events to yet.");return;
   }
   const form=$("#event-form");form.reset();form.request_confirmation.checked=!!existing?.request_confirmation;state.editingEvent=existing;state.editingScope=scope;state.preserveRawRecurrence=false;
@@ -2424,11 +2428,19 @@ $("#delete-category").addEventListener("click",async()=>{
 });
 
 $$(".settings-nav-item").forEach(button=>button.addEventListener("click",()=>activateSettingsTab(button.dataset.settingsTab,true)));
-$("#display-settings-form").addEventListener("submit",e=>{
+$("#display-settings-form").addEventListener("submit",async e=>{
   e.preventDefault();
   state.defaultCalendar=$("#settings-default-calendar").value;
   state.defaultDuration=Number($("#settings-default-duration").value)||60;
   state.scrollNow=$("#settings-scroll-now").checked;
+  const weekStart=$("#settings-personal-week-start").value;
+  try {
+    await api("/api/me/week-start",{method:"PUT",body:JSON.stringify({week_start:weekStart})});
+    state.me.week_start=weekStart==="default"?null:weekStart;
+  } catch(err) {
+    $("#display-settings-status").textContent=err.message;
+    return;
+  }
   localStorage.setItem("calden_default_calendar",state.defaultCalendar);
   localStorage.setItem("calden_default_duration",String(state.defaultDuration));
   localStorage.setItem("calden_scroll_now",String(state.scrollNow));
@@ -2437,6 +2449,10 @@ $("#display-settings-form").addEventListener("submit",e=>{
 });
 $("#reset-display-settings").addEventListener("click",()=>{
   state.defaultCalendar="";state.defaultDuration=60;state.scrollNow=true;
+  $("#settings-personal-week-start").value="default";
+  api("/api/me/week-start",{method:"PUT",body:JSON.stringify({week_start:"default"})}).then(()=>{
+    state.me.week_start=null;renderCalendar();
+  }).catch(err=>{$("#display-settings-status").textContent=err.message;});
   localStorage.removeItem("calden_default_calendar");
   localStorage.removeItem("calden_default_duration");
   localStorage.removeItem("calden_scroll_now");
