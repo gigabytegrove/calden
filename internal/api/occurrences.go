@@ -132,6 +132,26 @@ func (s *server) updateOccurrence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+    // A changed occurrence invalidates responses for that occurrence only.
+    // Preserve confirmations for other dates in the recurring series.
+    if _, err = tx.Exec(r.Context(), `DELETE FROM event_confirmations
+        WHERE (event_id=$1 OR event_id=$2) AND occurrence_start IN ($3,$4)`,
+        parentID, replacementID, in.OriginalStart, in.Event.StartsAt); err != nil {
+        writeError(w, 500, "Could not reset occurrence confirmations")
+        return
+    }
+    if _, err = tx.Exec(r.Context(), `INSERT INTO notifications(
+        user_id,event_id,kind,title,message,occurrence_start)
+        SELECT DISTINCT u.id,$1,'event_schedule_changed',$2,
+            'A recurring appointment occurrence was changed. Review its updated details.',$3
+        FROM event_assignees ea JOIN users u ON u.id=ea.user_id
+        LEFT JOIN calendar_permissions p ON p.user_id=u.id AND p.calendar_id=$4
+        WHERE ea.event_id=$1 AND u.active
+          AND (u.role IN ('admin','planner') OR COALESCE(p.can_view,false))`,
+        replacementID, cleanText(in.Event.Title, 200), in.Event.StartsAt, in.Event.CalendarID); err != nil {
+        writeError(w, 500, "Could not notify occurrence participants")
+        return
+    }
 	if err = tx.Commit(r.Context()); err != nil {
 		writeError(w, 500, "Could not save occurrence")
 		return
@@ -181,6 +201,26 @@ func (s *server) deleteOccurrence(w http.ResponseWriter, r *http.Request) {
 	_ = tx.QueryRow(r.Context(), `SELECT replacement_event_id
 		FROM event_occurrence_exceptions WHERE event_id=$1 AND original_start=$2`,
 		parentID, in.OriginalStart).Scan(&replacementID)
+    // Recipients include the original series and any occurrence-specific
+    // assignments, even when the override is about to be deleted.
+    if _, err = tx.Exec(r.Context(), `INSERT INTO notifications(
+        user_id,event_id,kind,title,message,occurrence_start)
+        SELECT DISTINCT u.id,$1,'event_cancelled',e.title,
+            'An occurrence of this recurring appointment was cancelled.',$2
+        FROM events e JOIN event_assignees ea ON ea.event_id=e.id
+        JOIN users u ON u.id=ea.user_id
+        LEFT JOIN calendar_permissions p ON p.calendar_id=e.calendar_id AND p.user_id=u.id
+        WHERE (e.id=$1 OR (e.recurrence_parent_id=$1 AND e.recurrence_original_start=$2))
+          AND u.active AND (u.role IN ('admin','planner') OR COALESCE(p.can_view,false))`,
+        parentID, in.OriginalStart); err != nil {
+        writeError(w, 500, "Could not notify cancelled occurrence")
+        return
+    }
+    if _, err = tx.Exec(r.Context(), `DELETE FROM event_confirmations WHERE event_id=$1 AND occurrence_start=$2`,
+        parentID, in.OriginalStart); err != nil {
+        writeError(w, 500, "Could not reset cancelled occurrence confirmations")
+        return
+    }
 	if replacementID != nil && *replacementID != uuid.Nil {
 		if _, err = tx.Exec(r.Context(), `DELETE FROM events WHERE id=$1`, *replacementID); err != nil {
 			writeError(w, 500, "Could not remove occurrence override")
@@ -268,6 +308,22 @@ func (s *server) restoreOccurrence(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "Could not restore occurrence")
 		return
 	}
+	if _, err = tx.Exec(r.Context(), `DELETE FROM event_confirmations WHERE event_id=$1 AND occurrence_start=$2`,
+        parentID, in.OriginalStart); err != nil {
+        writeError(w, 500, "Could not reset restored occurrence confirmations")
+        return
+    }
+    if _, err = tx.Exec(r.Context(), `INSERT INTO notifications(user_id,event_id,kind,title,message,occurrence_start)
+        SELECT DISTINCT u.id,e.id,'event_schedule_changed',e.title,
+            'A previously cancelled recurring appointment occurrence was restored.',$2
+        FROM events e JOIN event_assignees ea ON ea.event_id=e.id
+        JOIN users u ON u.id=ea.user_id
+        LEFT JOIN calendar_permissions p ON p.calendar_id=e.calendar_id AND p.user_id=u.id
+        WHERE e.id=$1 AND u.active AND (u.role IN ('admin','planner') OR COALESCE(p.can_view,false))`,
+        parentID, in.OriginalStart); err != nil {
+        writeError(w, 500, "Could not notify restored occurrence")
+        return
+    }
 	if err = tx.Commit(r.Context()); err != nil {
 		writeError(w, 500, "Could not restore occurrence")
 		return
