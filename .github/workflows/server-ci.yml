@@ -98,6 +98,16 @@ jobs:
             const page = await browser.newPage();
             const errors = [];
 
+            // Scheduling-conflict warnings now require explicit confirmation.
+            // Preserve the original test semantics by affirmatively acknowledging
+            // this one specific warning, while dismissing other dialogs as before.
+            page.on('dialog', async dialog => {
+              if (dialog.type() === 'confirm' && dialog.message().includes('scheduling conflict(s)')) {
+                await dialog.accept();
+              } else {
+                await dialog.dismiss();
+              }
+            });
             page.on('pageerror', err => errors.push('PAGE ERROR: ' + err.message));
             page.on('console', msg => {
               if (msg.type() === 'error') errors.push('CONSOLE ERROR: ' + msg.text());
