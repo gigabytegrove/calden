@@ -6,7 +6,7 @@ function reportCalDenClientError(reason){
   if(!token)return;
   fetch("/api/client-errors",{method:"POST",cache:"no-store",
     headers:{"Content-Type":"application/json","Authorization":"Bearer "+token},
-    body:JSON.stringify({message:String(reason?.message||reason||"Unknown JavaScript error").slice(0,400),version:"1.3.4"})
+    body:JSON.stringify({message:String(reason?.message||reason||"Unknown JavaScript error").slice(0,400),version:"1.3.5"})
   }).catch(()=>{});
 }
 let caldenBooting=true;
@@ -2447,12 +2447,16 @@ $("#display-settings-form").addEventListener("submit",async e=>{
   $("#display-settings-status").textContent="Display settings saved.";
   renderCalendar();
 });
-$("#reset-display-settings").addEventListener("click",()=>{
+$("#reset-display-settings").addEventListener("click",async()=>{
+  try{
+    await api("/api/me/week-start",{method:"PUT",body:JSON.stringify({week_start:"default"})});
+    state.me.week_start=null;
+  }catch(err){
+    $("#display-settings-status").textContent=err.message;
+    return;
+  }
   state.defaultCalendar="";state.defaultDuration=60;state.scrollNow=true;
   $("#settings-personal-week-start").value="default";
-  api("/api/me/week-start",{method:"PUT",body:JSON.stringify({week_start:"default"})}).then(()=>{
-    state.me.week_start=null;renderCalendar();
-  }).catch(err=>{$("#display-settings-status").textContent=err.message;});
   localStorage.removeItem("calden_default_calendar");
   localStorage.removeItem("calden_default_duration");
   localStorage.removeItem("calden_scroll_now");
