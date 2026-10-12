@@ -450,7 +450,13 @@
             <label>Monita channel<select name="channel_id" id="monita-channel-id"><option value="0">Select a channel</option></select></label>
             <div class="form-actions"><button id="monita-load-channels" type="button" class="button secondary">Load channels</button></div>
             <label>Legacy default channel<input name="default_channel" placeholder="Legacy token only"></label>
-            <div class="form-actions"><button id="test-monita" type="button" class="button secondary">Send test</button><span class="grow"></span><button type="submit" class="button">Save Monita</button></div>
+            <div class="form-actions">
+              <button id="connect-monita" type="button" class="button">Connect &amp; verify</button>
+              <button id="test-monita" type="button" class="button secondary">Send test</button>
+              <button id="disconnect-monita" type="button" class="button secondary">Disconnect</button>
+              <span class="grow"></span><button type="submit" class="button secondary">Save settings</button>
+            </div>
+            <p class="muted">Connection checks channel access and sends a test before saving. Only the encrypted credential is stored in Calden; the token never appears again in the browser.</p>
             <p id="monita-status" class="status-line"></p>
           </form>
         </section>
