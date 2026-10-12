@@ -570,6 +570,8 @@ jobs:
           occurrences = [e for e in events if e["id"] == event_id]
           assert len(occurrences) == 2, occurrences
           first, later = occurrences
+          assert all(e.get("calendar_type") == "bill_pay" for e in occurrences), occurrences
+          assert all(e.get("bill_payment_status") == "due" for e in occurrences), occurrences
 
           allocated = request(f"/api/bills/{event_id}/allocation", "PUT", {
               "occurrence_start": first["occurrence_start"],
@@ -824,6 +826,8 @@ jobs:
           series = [e for e in events if e["id"] == series_id]
           assert len(series) == 4, series
           assert all(e["is_recurring"] for e in series), series
+          assert all(e.get("calendar_type") == "standard" for e in series), series
+          assert all("bill_payment_status" not in e and "bill_amount" not in e for e in series), series
           assert all(e["category_id"] == medical["id"] for e in series), series
           assert all(e["color"].lower() == family["color"].lower() for e in series), series
           assert all(e["calendar_color"].lower() == family["color"].lower() for e in series), series
@@ -860,6 +864,8 @@ jobs:
           assert not any(e["starts_at"] == original_second for e in series), series
           moved = next(e for e in series if e.get("is_occurrence_override"))
           assert moved["title"] == "Moved recurring CI Event", moved
+          assert moved.get("calendar_type") == "standard", moved
+          assert "bill_payment_status" not in moved and "bill_amount" not in moved, moved
           assert moved["occurrence_start"] == original_second, moved
           assert moved["category_id"] == medical["id"], moved
           assert moved["color"].lower() == family["color"].lower(), moved
