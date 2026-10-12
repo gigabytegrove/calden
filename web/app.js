@@ -2207,7 +2207,7 @@ $("#event-form").addEventListener("submit",async e=>{
     }
   }
   try{
-    if(!billActive) {
+    if(!billActive && !payload.all_day) {
       const preview=await api("/api/scheduling/conflicts",{
         method:"POST",
         body:JSON.stringify({
