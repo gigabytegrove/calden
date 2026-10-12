@@ -728,6 +728,57 @@ jobs:
           request(f"/api/chores/{cid}","DELETE",token=admin,expected=204)
           PY
 
+      - name: Verify private busy times and scheduling conflict permissions
+        run: |
+          python - <<'PY'
+          import datetime as dt
+          import json
+          import urllib.request
+          import urllib.error
+
+          base="http://127.0.0.1:8787"
+          def call(path,method="GET",body=None,token=None,expect=200):
+              hdr={"Content-Type":"application/json"}
+              if token:hdr["Authorization"]="Bearer "+token
+              req=urllib.request.Request(base+path,
+                  data=None if body is None else json.dumps(body).encode(),
+                  headers=hdr,method=method)
+              try:
+                  with urllib.request.urlopen(req) as response:
+                      assert response.status==expect,(path,response.status,expect)
+                      data=response.read()
+                      return json.loads(data) if data else {}
+              except urllib.error.HTTPError as error:
+                  if error.code==expect:return {}
+                  raise AssertionError(f"{method} {path}: HTTP {error.code} {error.read().decode()}") from error
+
+          admin=call("/api/login","POST",{"username":"testadmin","password":"test-password-123"})["token"]
+          member=call("/api/login","POST",{"username":"seconduser","password":"another-password-123"})["token"]
+          users=call("/api/users",token=admin)
+          memberID=next(u["id"] for u in users if u["username"]=="seconduser")
+          calendars=call("/api/calendars",token=admin)
+          calendar=next(c["id"] for c in calendars if c["calendar_type"]!="bill_pay")
+          now=dt.datetime.now(dt.timezone.utc)
+          start=(now+dt.timedelta(hours=3)).replace(microsecond=0)
+          end=start+dt.timedelta(hours=2)
+          request={"starts_at":start.isoformat(),"ends_at":end.isoformat(),"label":"Private appointment"}
+          created=call("/api/scheduling/busy","POST",request,member,201)
+          identifier=created["id"]
+          assert len(call("/api/scheduling/busy",token=member)["items"])==1
+          assert call("/api/scheduling/busy",token=admin)["items"]==[]
+          candidate={"calendar_id":calendar,
+              "starts_at":(start+dt.timedelta(minutes=30)).isoformat(),
+              "ends_at":(end+dt.timedelta(minutes=30)).isoformat(),
+              "assignee_ids":[memberID]}
+          call("/api/scheduling/conflicts","POST",candidate,member,403)
+          conflicts=call("/api/scheduling/conflicts","POST",candidate,admin)["conflicts"]
+          assert any(c["kind"]=="private_busy" for c in conflicts),conflicts
+          assert "Private appointment" not in json.dumps(conflicts),conflicts
+          call(f"/api/scheduling/busy/{identifier}","DELETE",token=admin,expect=404)
+          call(f"/api/scheduling/busy/{identifier}","DELETE",token=member,expect=204)
+          assert call("/api/scheduling/busy",token=member)["items"]==[]
+          PY
+
       - name: Verify event assignment and whole-family notifications
         run: |
           python - <<'PY'
