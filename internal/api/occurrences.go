@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"log"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -137,6 +138,7 @@ func (s *server) updateOccurrence(w http.ResponseWriter, r *http.Request) {
     if _, err = tx.Exec(r.Context(), `DELETE FROM event_confirmations
         WHERE (event_id=$1 OR event_id=$2) AND occurrence_start IN ($3,$4)`,
         parentID, replacementID, in.OriginalStart, in.Event.StartsAt); err != nil {
+        log.Printf("Calden: occurrence confirmation cleanup failed: %v", err)
         writeError(w, 500, "Could not reset occurrence confirmations")
         return
     }
@@ -149,11 +151,13 @@ func (s *server) updateOccurrence(w http.ResponseWriter, r *http.Request) {
         WHERE ea.event_id=$1 AND u.active
           AND (u.role IN ('admin','planner') OR COALESCE(p.can_view,false))`,
         replacementID, cleanText(in.Event.Title, 200), in.Event.StartsAt, in.Event.CalendarID); err != nil {
+        log.Printf("Calden: occurrence participant notification failed: %v", err)
         writeError(w, 500, "Could not notify occurrence participants")
         return
     }
 	if err = tx.Commit(r.Context()); err != nil {
-		writeError(w, 500, "Could not save occurrence")
+		log.Printf("Calden: occurrence commit failed: %v", err)
+        writeError(w, 500, "Could not save occurrence")
 		return
 	}
 	s.audit(r, "update_occurrence", "event", &parentID, "Changed one recurring occurrence", map[string]any{
