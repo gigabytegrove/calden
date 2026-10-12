@@ -83,7 +83,7 @@ func (s *server) saveMonitaIntegration(w http.ResponseWriter, r *http.Request) {
 
     raw, _ := json.Marshal(in)
 	var id string
-	err := s.db.QueryRow(r.Context(), `SELECT id::text FROM integrations WHERE kind='monita' ORDER BY created_at LIMIT 1`).Scan(&id)
+	err = s.db.QueryRow(r.Context(), `SELECT id::text FROM integrations WHERE kind='monita' ORDER BY created_at LIMIT 1`).Scan(&id)
 	if err == nil {
 		_, err = s.db.Exec(r.Context(), `UPDATE integrations SET name='Monita',config=$2,enabled=$3,updated_at=now() WHERE id=$1::uuid`, id, raw, in.Enabled)
 	} else {
@@ -124,6 +124,7 @@ func (s *server) loadMonitaSettings(r *http.Request) (monitaSettings, error) {
 		return cfg, err
 	}
 	cfg.Enabled = enabled
+    var err error
     cfg.Token, err = secrets.Open(s.jwtSecret, cfg.Token)
 	return cfg, err
 }
