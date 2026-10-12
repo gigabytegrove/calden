@@ -267,11 +267,9 @@ If Monita is unavailable when a system reminder is due, CalDen records the faile
 
 ## Mobile app
 
-The mobile app is the next major client-side development phase after the Alpha11 server/web cleanup is locked in.
+The native Android application is developed in [gigabytegrove/calden-android](https://github.com/gigabytegrove/calden-android) alongside this server. CalDen 1.3.6 supports Android's home-screen calendar and agenda widgets, date-aware quick event creation, per-user week start preferences, the Planner role, confirmations, and the per-user notification inbox.
 
-The mobile client will use the existing CalDen server and API rather than duplicating scheduling logic. The server already owns the household data model, permissions, calendars, event assignments, recurring events, Bill Pay state, notifications, and integrations.
-
-The mobile repository and feature list will be documented here once that client is ready for active testing. Until then, the responsive web app remains the supported phone/tablet interface.
+Android source version 1.3.6 is available. APK builds must be compiled and signature-verified before installation; the presence of source or a tag alone does not prove that an APK is ready.
 
 ## Ports and storage
 
@@ -389,14 +387,14 @@ The Compose file maps that host port to CalDen's internal port `8787`.
 
 ## Development status
 
-CalDen is released as version 1.2.0. Backups remain recommended before each update.
+CalDen is released as version 1.3.6. Backups remain recommended before each update.
 
 The current version is intended for active testing and development. Database migrations are automatic, but backups are strongly recommended before updating between development builds.
 
 Current version:
 
 ```text
-1.2.0
+1.3.6
 ```
 
 ## Project layout
