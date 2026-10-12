@@ -386,7 +386,7 @@ func (s *server) importParsedCalendar(
 
 func (s *server) canViewCalendar(r *http.Request, calendarID uuid.UUID) bool {
 	actor := currentActor(r)
-	if actor.Role == "admin" {
+	if actor.Role == "admin" || actor.Role == "planner" {
 		return true
 	}
 	var allowed bool
@@ -418,7 +418,7 @@ func (s *server) resolveImportCategory(ctx context.Context, tx pgx.Tx, name stri
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
 	}
-	if actor.Role != "admin" {
+	if actor.Role != "admin" && actor.Role != "planner" {
 		return nil, nil
 	}
 	err = tx.QueryRow(ctx, `INSERT INTO categories(name,color,icon,description,created_by)

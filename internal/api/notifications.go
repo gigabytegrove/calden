@@ -46,7 +46,7 @@ func (s *server) createEventNotifications(
 			LEFT JOIN calendar_permissions p
 			  ON p.user_id=u.id AND p.calendar_id=$1
 			WHERE u.active=true
-			  AND (u.role='admin' OR COALESCE(p.can_view,false)=true)
+			  AND (u.role IN ('admin','planner') OR COALESCE(p.can_view,false)=true)
 			ORDER BY u.id`, calendarID)
 		if err != nil {
 			return err
@@ -95,7 +95,7 @@ func (s *server) ensureBillReviewNotifications(ctx context.Context, userID uuid.
 		LEFT JOIN event_recurrence er ON er.event_id=e.id
 		WHERE e.recurrence_parent_id IS NULL
 		  AND c.calendar_type='bill_pay'
-		  AND ($2='admin' OR COALESCE(p.can_view,false)=true)
+		  AND ($2 IN ('admin','planner') OR COALESCE(p.can_view,false)=true)
 		  AND (b.payer_user_id IS NULL OR b.payer_user_id=$1)
 		  AND e.starts_at < $4
 		  AND (er.event_id IS NOT NULL OR e.ends_at > $3)

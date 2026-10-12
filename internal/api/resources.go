@@ -22,9 +22,10 @@ func (s *server) me(w http.ResponseWriter, r *http.Request) {
 		Initials    string    `json:"initials"`
 		AvatarURL   *string   `json:"avatar_url"`
 		ConfirmationEnabled bool `json:"confirmation_enabled"`
+		WeekStart *string `json:"week_start"`
 	}
-	if err := s.db.QueryRow(r.Context(), `SELECT id,username,display_name,role,initials,avatar_url,confirmation_enabled FROM users WHERE id=$1`, a.ID).
-		Scan(&out.ID, &out.Username, &out.DisplayName, &out.Role, &out.Initials, &out.AvatarURL, &out.ConfirmationEnabled); err != nil {
+	if err := s.db.QueryRow(r.Context(), `SELECT id,username,display_name,role,initials,avatar_url,confirmation_enabled,week_start FROM users WHERE id=$1`, a.ID).
+		Scan(&out.ID, &out.Username, &out.DisplayName, &out.Role, &out.Initials, &out.AvatarURL, &out.ConfirmationEnabled, &out.WeekStart); err != nil {
 		writeError(w, 500, "Could not load your account")
 		return
 	}
@@ -76,7 +77,7 @@ func (s *server) createUser(w http.ResponseWriter, r *http.Request) {
 	if in.Role == "" {
 		in.Role = "member"
 	}
-	if in.Role != "member" && in.Role != "restricted" && in.Role != "admin" {
+	if in.Role != "member" && in.Role != "restricted" && in.Role != "admin" && in.Role != "planner" {
 		writeError(w, 400, "Choose a valid account type")
 		return
 	}
@@ -105,7 +106,7 @@ func (s *server) listCalendars(w http.ResponseWriter, r *http.Request) {
 		(SELECT count(*) FROM events e WHERE e.calendar_id=c.id AND e.recurrence_parent_id IS NULL)
 		FROM calendars c
 		LEFT JOIN calendar_permissions p ON p.calendar_id=c.id AND p.user_id=$1
-		WHERE $2='admin' OR COALESCE(p.can_view,false)=true ORDER BY c.name`, a.ID, a.Role)
+		WHERE $2 IN ('admin','planner') OR COALESCE(p.can_view,false)=true ORDER BY c.name`, a.ID, a.Role)
 	if err != nil {
 		writeError(w, 500, "Could not load calendars")
 		return
@@ -118,7 +119,7 @@ func (s *server) listCalendars(w http.ResponseWriter, r *http.Request) {
 		var canEdit, canDelete bool
 		var eventCount int
 		if rows.Scan(&id, &name, &color, &icon, &description, &calendarType, &canEdit, &canDelete, &eventCount) == nil {
-			if a.Role == "admin" {
+			if a.Role == "admin" || a.Role == "planner" {
 				canEdit = true
 				canDelete = true
 			}
@@ -273,7 +274,7 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 		LEFT JOIN calendar_permissions p ON p.calendar_id=c.id AND p.user_id=$1
 		LEFT JOIN event_recurrence er ON er.event_id=e.id
 		WHERE e.recurrence_parent_id IS NULL
-		  AND ($2='admin' OR COALESCE(p.can_view,false)=true)
+		  AND ($2 IN ('admin','planner') OR COALESCE(p.can_view,false)=true)
 		  AND (
 			(er.event_id IS NULL AND e.starts_at < $4 AND e.ends_at > $3)
 			OR
@@ -382,7 +383,7 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 		LEFT JOIN categories rcat ON rcat.id=replacement.category_id
 		LEFT JOIN calendar_permissions rp ON rp.calendar_id=rc.id AND rp.user_id=$1
 		WHERE replacement.recurrence_parent_id IS NOT NULL
-		  AND ($2='admin' OR COALESCE(rp.can_view,false)=true)
+		  AND ($2 IN ('admin','planner') OR COALESCE(rp.can_view,false)=true)
 		  AND replacement.starts_at < $4
 		  AND replacement.ends_at > $3
 		ORDER BY replacement.starts_at`, a.ID, a.Role, from, to)
@@ -585,7 +586,7 @@ func (s *server) createEvent(w http.ResponseWriter, r *http.Request) {
 			_, err = tx.Exec(r.Context(), `INSERT INTO notifications(user_id,event_id,kind,title,message,occurrence_start)
 				SELECT u.id,$2,'event_confirmation_request',$3,'Please confirm this appointment or request a change.',$4
 				FROM users u LEFT JOIN calendar_permissions p ON p.user_id=u.id AND p.calendar_id=$5
-				WHERE u.id=$1 AND u.active AND u.confirmation_enabled AND (u.role='admin' OR COALESCE(p.can_view,false))`,
+				WHERE u.id=$1 AND u.active AND u.confirmation_enabled AND (u.role IN ('admin','planner') OR COALESCE(p.can_view,false))`,
 				person, id, cleanText(in.Title, 200), in.StartsAt, in.CalendarID)
 			if err != nil { writeError(w, 500, "Could not create confirmation request"); return }
 		}
