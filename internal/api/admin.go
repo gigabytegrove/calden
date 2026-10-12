@@ -31,7 +31,7 @@ func (s *server) updateUser(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "Name is required")
 		return
 	}
-	if in.Role != "admin" && in.Role != "member" && in.Role != "restricted" {
+	if in.Role != "admin" && in.Role != "member" && in.Role != "restricted" && in.Role != "planner" {
 		writeError(w, 400, "Choose a valid account type")
 		return
 	}
