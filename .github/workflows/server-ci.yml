@@ -472,13 +472,12 @@ jobs:
               throw new Error('Category was not permanently deleted.');
             }
 
-            await page.locator('.nav-item[data-page="integrations"]').click();
-            await page.locator('#page-integrations').waitFor({ state: 'visible' });
-            await page.locator('#google-import-drop').waitFor({ state: 'visible' });
-            await page.locator('#page-integrations').getByText('Google Calendar', { exact: true }).waitFor({ state: 'visible' });
-
             await page.locator('.nav-item[data-page="settings"]').click();
             await page.locator('#page-settings').waitFor({ state: 'visible' });
+            await page.locator('.settings-nav-item[data-settings-tab="integrations"]').click();
+            await page.locator('[data-settings-pane="integrations"]').waitFor({ state: 'visible' });
+            await page.locator('#google-import-drop').waitFor({ state: 'visible' });
+            await page.locator('[data-settings-pane="integrations"]').getByText('Google Calendar', { exact: true }).waitFor({ state: 'visible' });
             await page.locator('.settings-nav-item[data-settings-tab="calendar"]').click();
             await page.locator('[data-settings-pane="calendar"]').waitFor({ state: 'visible' });
             await page.locator('#settings-default-duration').selectOption('90');
