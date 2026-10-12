@@ -144,11 +144,11 @@ func (s *server) updateOccurrence(w http.ResponseWriter, r *http.Request) {
     }
     if _, err = tx.Exec(r.Context(), `INSERT INTO notifications(
         user_id,event_id,kind,title,message,occurrence_start)
-        SELECT DISTINCT u.id,$1,'event_schedule_changed',$2,
-            'A recurring appointment occurrence was changed. Review its updated details.',$3
+        SELECT DISTINCT u.id,$1::uuid,'event_schedule_changed',$2::text,
+            'A recurring appointment occurrence was changed. Review its updated details.',$3::timestamptz
         FROM event_assignees ea JOIN users u ON u.id=ea.user_id
         LEFT JOIN calendar_permissions p ON p.user_id=u.id AND p.calendar_id=$4
-        WHERE ea.event_id=$1 AND u.active
+        WHERE ea.event_id=$1::uuid AND u.active
           AND (u.role IN ('admin','planner') OR COALESCE(p.can_view,false))`,
         replacementID, cleanText(in.Event.Title, 200), in.Event.StartsAt, in.Event.CalendarID); err != nil {
         log.Printf("Calden: occurrence participant notification failed: %v", err)
