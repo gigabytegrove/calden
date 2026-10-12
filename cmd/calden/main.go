@@ -18,6 +18,7 @@ import (
 
 	"github.com/gigabytegrove/calden/internal/api"
 	"github.com/gigabytegrove/calden/internal/reminders"
+    "github.com/gigabytegrove/calden/internal/push"
 	"github.com/gigabytegrove/calden/internal/store"
 )
 
@@ -59,6 +60,8 @@ func main() {
 	workerCtx, workerCancel := context.WithCancel(context.Background())
 	defer workerCancel()
 	reminders.Start(workerCtx, db, jwtSecret)
+    push.Start(workerCtx, db, jwtSecret, env("CALDEN_FCM_SERVICE_ACCOUNT_FILE",""),
+        env("CALDEN_FCM_PROJECT_ID",""))
 
 	handler := api.New(api.Config{
 		DB:        db,
@@ -66,6 +69,11 @@ func main() {
 		WebDir:    webDir,
 		DataDir:   dataDir,
 		Version:   version,
+        PushAccountFile:env("CALDEN_FCM_SERVICE_ACCOUNT_FILE",""),
+        PushProjectID:env("CALDEN_FCM_PROJECT_ID",""),
+        PushSenderID:env("CALDEN_FCM_SENDER_ID",""),
+        PushAppID:env("CALDEN_FCM_ANDROID_APP_ID",""),
+        PushAPIKey:env("CALDEN_FCM_API_KEY",""),
 	})
 
 	srv := &http.Server{
