@@ -766,3 +766,26 @@ dialog::backdrop{background:rgba(15,23,42,.58);backdrop-filter:blur(2px)}
 .sidebar-logo-surface{width:100%;height:auto;min-height:70px;display:flex;align-items:center;justify-content:center;background:transparent;border:0;border-radius:0;box-shadow:none;overflow:visible;padding:0}
 .sidebar-logo-surface .calden-official-mark{width:100%;height:auto;max-height:110px;object-fit:contain;filter:none;background:transparent;border:0;padding:0}
 .sidebar-brand-copy{display:none}
+
+/* Tasks & Chores */
+.chore-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:12px 0 18px}
+.chore-summary-item{padding:16px 20px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;display:flex;flex-direction:column}
+.chore-summary-item strong{font-size:1.6rem;color:#172b47}
+.chore-summary-item span,.chore-meta{font-size:.85rem;color:#64748b}
+.chore-controls{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px}
+.chore-controls label{display:flex;gap:8px;align-items:center}
+.chore-list{display:grid;gap:10px}
+.chore-card{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px}
+.chore-card h3{margin:0 0 6px;font-size:1rem}
+.chore-card p{white-space:pre-wrap;margin:0 0 8px}
+.chore-overdue{border-left:4px solid #d97706}
+.chore-meta,.chore-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.chore-person{display:flex;align-items:center;gap:7px}
+.chore-person .avatar{width:26px;height:26px}
+.chore-state{font-weight:650}
+.chore-actions label{font-size:.8rem;display:flex;flex-direction:column;gap:4px}
+.chore-actions select{min-width:120px}
+.chore-feature-settings{border-top:1px solid #e2e8f0;padding-top:16px;margin-top:12px}
+#chore-editor-panel{margin-top:18px;max-width:640px}
+.chore-empty{padding:30px;text-align:center}
+@media(max-width:650px){.chore-card{align-items:flex-start;flex-direction:column}.chore-summary-item{padding:10px}.chore-summary-item strong{font-size:1.25rem}}
