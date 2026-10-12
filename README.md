@@ -387,14 +387,14 @@ The Compose file maps that host port to CalDen's internal port `8787`.
 
 ## Development status
 
-CalDen is released as version 1.3.7. Backups remain recommended before each update.
+CalDen is released as version 1.3.8. Backups remain recommended before each update.
 
 The current version is intended for active testing and development. Database migrations are automatic, but backups are strongly recommended before updating between development builds.
 
 Current version:
 
 ```text
-1.3.7
+1.3.8
 ```
 
 ## Project layout
@@ -433,3 +433,19 @@ Integrations, Updates and Backups are now Settings subpages at `/settings/integr
 ## 1.2.2 Settings stability
 
 Fix an incorrect Settings pane selector that could prevent CalDen from loading in the initial 1.2.1 publishing attempt. Install 1.2.2, not the earlier 1.2.1 tag.
+
+## Tasks & Chores and live sync (1.3.8)
+
+Household administrators may enable **Tasks & Chores** from Settings → Household.
+The feature starts disabled on existing installations. Turning it off hides the
+section without deleting assignments. Household administrators and Planners can
+assign chores; assigned members can mark Pending, In progress, or Done.
+
+Server changes to events, calendars, bills and chores now invalidate connected
+Android app/widget caches through the authenticated Calden WebSocket, without
+sharing private event data. Clients also catch up through REST when reconnecting.
+Android's battery and background limits may delay updates when the direct
+connection is not running.
+
+The Android 1.3.8 source also adds a **30-day calendar-only widget**, a native
+Tasks & Chores screen, and confirmation/error messaging for event saving.
