@@ -515,6 +515,19 @@
                 <div><span>Account type</span><strong id="settings-account-role"></strong></div>
               </div>
             </article>
+            <section class="panel stack">
+              <h3>Private busy time</h3>
+              <p class="muted">Reserve time when you aren't available. Other household members see only that the time is busy, never your label or notes.</p>
+              <form id="busy-block-form" class="stack">
+                <div class="two">
+                  <label>From<input name="starts_at" type="datetime-local" required></label>
+                  <label>Until<input name="ends_at" type="datetime-local" required></label>
+                </div>
+                <label>Private note<input name="label" maxlength="120" placeholder="Optional; only you can see this"></label>
+                <div class="form-actions"><span class="grow"></span><button type="submit" class="button secondary">Block time</button></div>
+              </form>
+              <div id="busy-block-list" class="stack"></div><p id="busy-block-status" class="status-line"></p>
+            </section>
           </section>
         </div>
       </div>
