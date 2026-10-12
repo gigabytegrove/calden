@@ -418,8 +418,11 @@
           <form id="monita-form" class="stack integration-form">
             <label class="toggle-row"><input name="enabled" type="checkbox"><span>Use Monita for family reminders</span></label>
             <label>Monita server<input name="server_url" placeholder="https://notify.example.com"></label>
-            <label>Token<input name="token" type="password" autocomplete="off" placeholder="Your Monita token"></label>
-            <label>Default channel<input name="default_channel" placeholder="Family"></label>
+            <label>Service-account token or legacy channel token<input name="token" type="password" autocomplete="off" placeholder="SA. service token"></label>
+            <p class="muted">For scoped access, create a Monita service account with channel:read and message:write permissions. Legacy channel tokens still work.</p>
+            <label>Monita channel<select name="channel_id" id="monita-channel-id"><option value="0">Select a channel</option></select></label>
+            <div class="form-actions"><button id="monita-load-channels" type="button" class="button secondary">Load channels</button></div>
+            <label>Legacy default channel<input name="default_channel" placeholder="Legacy token only"></label>
             <div class="form-actions"><button id="test-monita" type="button" class="button secondary">Send test</button><span class="grow"></span><button type="submit" class="button">Save Monita</button></div>
             <p id="monita-status" class="status-line"></p>
           </form>
