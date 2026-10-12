@@ -2754,8 +2754,8 @@ $("#rollback-update").addEventListener("click",async()=>{
 
 function renderChores(){
   const enabled=!!state.settings?.chores_enabled;
-  $(".chore-nav").forEach(el=>el.classList.toggle("hidden",!enabled));
-  $(".chore-manager").forEach(el=>el.classList.toggle("hidden",!["admin","planner"].includes(state.me?.role)));
+  $$(".chore-nav").forEach(el=>el.classList.toggle("hidden",!enabled));
+  $$(".chore-manager").forEach(el=>el.classList.toggle("hidden",!["admin","planner"].includes(state.me?.role)));
   if(!enabled)return;
   const list=$("#chore-list"),all=state.chores||[],filter=$("#chore-filter").value;
   const mine=state.me?.id,manage=["admin","planner"].includes(state.me?.role);
