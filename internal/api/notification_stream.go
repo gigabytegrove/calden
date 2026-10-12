@@ -62,6 +62,7 @@ func (s *server) streamNotifications(w http.ResponseWriter, r *http.Request) {
     ping := time.NewTicker(20 * time.Second)
     defer ping.Stop()
 
+    previousRevision := ""
     for {
         if !session.ExpiresAt.IsZero() && !time.Now().Before(session.ExpiresAt) { return }
         ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
@@ -102,6 +103,17 @@ func (s *server) streamNotifications(w http.ResponseWriter, r *http.Request) {
         for _, n := range outgoing {
             _ = connection.SetWriteDeadline(time.Now().Add(5*time.Second))
             if err := connection.WriteJSON(n); err != nil { return }
+        }
+        // Invalidate the app/widget caches even when an event change did not
+        // create a notification. The revision contains no private calendar data.
+        ctx, cancel = context.WithTimeout(r.Context(), 5*time.Second)
+        var revision string
+        versionErr := s.db.QueryRow(ctx, `SELECT value FROM app_settings WHERE key='data_revision'`).Scan(&revision)
+        cancel()
+        if versionErr == nil && revision != previousRevision {
+            previousRevision = revision
+            _ = connection.SetWriteDeadline(time.Now().Add(5*time.Second))
+            if err := connection.WriteJSON(map[string]any{"type":"data_changed","revision":revision}); err != nil { return }
         }
         select {
         case <-done: return
