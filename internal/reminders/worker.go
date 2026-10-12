@@ -103,6 +103,7 @@ func run(ctx context.Context, db *pgxpool.Pool, signingSecret []byte) {
 	}
 
 	for _, d := range due {
+        if !claimReminder(ctx,db,d.ReminderID,d.OccurrenceStart) {continue}
 		destination := cfg.DefaultChannel
 		if d.Destination != nil && strings.TrimSpace(*d.Destination) != "" {
 			destination = strings.TrimSpace(*d.Destination)
@@ -114,19 +115,20 @@ func run(ctx context.Context, db *pgxpool.Pool, signingSecret []byte) {
 		}
 		err := sendMonita(cfg, destination, d.Title, message)
 		if err != nil {
-			_, _ = db.Exec(ctx, `INSERT INTO reminder_deliveries(reminder_id,occurrence_start,status,attempts,last_error,updated_at)
-				VALUES($1,$2,'failed',1,$3,now())
-				ON CONFLICT(reminder_id,occurrence_start) DO UPDATE
-				SET status='failed',attempts=reminder_deliveries.attempts+1,last_error=$3,updated_at=now()`,
-				d.ReminderID, d.OccurrenceStart, cleanError(err))
+            // The claim incremented attempts before sending. Schedule bounded
+            // exponential backoff rather than retrying every 30 seconds.
+            _, _ = db.Exec(ctx, `UPDATE reminder_deliveries SET
+                status='failed',last_error=$3,next_attempt_at=now()+
+                    (LEAST(3600,30*power(2,LEAST(attempts,7))) * interval '1 second'),
+                leased_until=NULL,updated_at=now()
+                WHERE reminder_id=$1 AND occurrence_start=$2`,
+                d.ReminderID,d.OccurrenceStart,cleanError(err))
 			log.Printf("Monita reminder %s occurrence %s failed: %v", d.ReminderID, d.OccurrenceStart.Format(time.RFC3339), err)
 			continue
 		}
-		_, _ = db.Exec(ctx, `INSERT INTO reminder_deliveries(reminder_id,occurrence_start,status,attempts,last_error,sent_at,updated_at)
-			VALUES($1,$2,'sent',1,NULL,now(),now())
-			ON CONFLICT(reminder_id,occurrence_start) DO UPDATE
-			SET status='sent',attempts=reminder_deliveries.attempts+1,last_error=NULL,sent_at=now(),updated_at=now()`,
-			d.ReminderID, d.OccurrenceStart)
+        _, _ = db.Exec(ctx, `UPDATE reminder_deliveries
+            SET status='sent',last_error=NULL,leased_until=NULL,sent_at=now(),updated_at=now()
+            WHERE reminder_id=$1 AND occurrence_start=$2`,d.ReminderID,d.OccurrenceStart)
 	}
 }
 
@@ -257,4 +259,21 @@ func cleanError(err error) string {
 		s = s[:500]
 	}
 	return s
+}
+
+func claimReminder(ctx context.Context, db *pgxpool.Pool, reminderID uuid.UUID, date time.Time) bool {
+    var claimed int
+    err:=db.QueryRow(ctx,`INSERT INTO reminder_deliveries(
+        reminder_id,occurrence_start,status,attempts,leased_until,next_attempt_at)
+        VALUES($1,$2,'leased',1,now()+interval '90 seconds',now())
+        ON CONFLICT (reminder_id,occurrence_start)
+        DO UPDATE SET status='leased',attempts=reminder_deliveries.attempts+1,
+            leased_until=now()+interval '90 seconds',updated_at=now()
+        WHERE reminder_deliveries.status!='sent'
+          AND reminder_deliveries.attempts<5
+          AND reminder_deliveries.next_attempt_at<=now()
+          AND (reminder_deliveries.status!='leased'
+              OR reminder_deliveries.leased_until<now())
+        RETURNING attempts`,reminderID,date).Scan(&claimed)
+    return err==nil
 }
