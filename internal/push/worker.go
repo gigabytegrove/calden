@@ -45,7 +45,7 @@ type dispatcher struct {
     http *http.Client
 }
 type delivery struct {
-    NoticeID,DeviceID uuid.UUID
+    NoticeID,DeviceID,RecipientID uuid.UUID
     Token string
     Title,Message,Kind string
     EventID *uuid.UUID
@@ -139,11 +139,11 @@ func (d *dispatcher) lease(ctx context.Context) (delivery,error){
            AND p.device_id=c.device_id
        RETURNING p.notification_id,p.device_id,p.attempts
     )
-    SELECT c.notification_id,c.device_id,d.push_token,n.title,n.message,n.kind,
+    SELECT c.notification_id,c.device_id,n.user_id,d.push_token,n.title,n.message,n.kind,
         n.event_id,n.occurrence_start,c.attempts
     FROM claimed c JOIN calden_devices d ON d.id=c.device_id
       JOIN notifications n ON n.id=c.notification_id`).Scan(
-      &item.NoticeID,&item.DeviceID,&item.Token,&item.Title,&item.Message,
+      &item.NoticeID,&item.DeviceID,&item.RecipientID,&item.Token,&item.Title,&item.Message,
       &item.Kind,&item.EventID,&item.OccurrenceStart,&item.Attempts)
     if err!=nil {return item,err}
     if err=tx.Commit(ctx);err!=nil{return item,err}
@@ -230,6 +230,7 @@ func (d *dispatcher) send(ctx context.Context,item delivery,token string) error{
     if err!=nil{return err}
     data:=map[string]string{
         "calden_type":"notification","notification_id":item.NoticeID.String(),
+        "recipient_user_id":item.RecipientID.String(),
         "title":item.Title,"message":item.Message,"kind":item.Kind,
     }
     if item.EventID!=nil {data["event_id"]=item.EventID.String()}
