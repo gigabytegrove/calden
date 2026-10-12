@@ -11,6 +11,7 @@ type generalSettingsPayload struct {
 	Timezone      string `json:"timezone"`
 	WeekStart     string `json:"week_start"`
 	DefaultView   int    `json:"default_view"`
+	ChoresEnabled bool `json:"chores_enabled"`
 }
 
 func (s *server) generalSettings(w http.ResponseWriter, r *http.Request) {
@@ -20,7 +21,7 @@ func (s *server) generalSettings(w http.ResponseWriter, r *http.Request) {
 		WeekStart:     "sunday",
 		DefaultView:   7,
 	}
-	rows, err := s.db.Query(r.Context(), `SELECT key,value FROM app_settings WHERE key IN ('household_name','timezone','week_start','default_view')`)
+	rows, err := s.db.Query(r.Context(), `SELECT key,value FROM app_settings WHERE key IN ('household_name','timezone','week_start','default_view','chores_enabled')`)
 	if err != nil {
 		writeError(w, 500, "Could not load family settings")
 		return
@@ -32,6 +33,8 @@ func (s *server) generalSettings(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		switch key {
+		case "chores_enabled":
+            out.ChoresEnabled = value == "true"
 		case "household_name":
 			out.HouseholdName = value
 		case "timezone":
@@ -112,6 +115,9 @@ func (s *server) saveGeneralSettings(w http.ResponseWriter, r *http.Request) {
 		"household_name": in.HouseholdName, "timezone": in.Timezone,
 		"week_start": in.WeekStart, "default_view": in.DefaultView,
 	})
+	enabled, err := s.choresEnabled(r)
+    if err != nil {writeError(w, 500, "Could not load Tasks & Chores setting");return}
+    in.ChoresEnabled = enabled
 	writeJSON(w, http.StatusOK, in)
 }
 
