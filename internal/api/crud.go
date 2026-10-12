@@ -38,7 +38,7 @@ type eventInput struct {
 
 func (s *server) canEditCalendar(r *http.Request, calendarID uuid.UUID) bool {
 	a := currentActor(r)
-	if a.Role == "admin" {
+	if a.Role == "admin" || a.Role == "planner" {
 		return true
 	}
 	var allowed bool
@@ -160,7 +160,7 @@ func (s *server) updateEvent(w http.ResponseWriter, r *http.Request) {
 		_, err = tx.Exec(r.Context(), `INSERT INTO notifications(user_id,event_id,kind,title,message)
 			SELECT u.id,$2,'event_assigned',$3,'You were assigned to this event.'
 			FROM users u LEFT JOIN calendar_permissions p ON p.user_id=u.id AND p.calendar_id=$4
-			WHERE u.id=$1 AND u.active=true AND (u.role='admin' OR COALESCE(p.can_view,false))`,
+			WHERE u.id=$1 AND u.active=true AND (u.role IN ('admin','planner') OR COALESCE(p.can_view,false))`,
 			person, id, cleanText(in.Title, 200), in.CalendarID)
 		if err != nil { writeError(w, 500, "Could not notify new assignee"); return }
 	}
@@ -171,7 +171,7 @@ func (s *server) updateEvent(w http.ResponseWriter, r *http.Request) {
 		_, err = tx.Exec(r.Context(), `INSERT INTO notifications(user_id,event_id,kind,title,message)
 			SELECT u.id,$2,'event_assigned',$3,'You are no longer assigned to this event.'
 			FROM users u LEFT JOIN calendar_permissions p ON p.user_id=u.id AND p.calendar_id=$4
-			WHERE u.id=$1 AND u.active=true AND (u.role='admin' OR COALESCE(p.can_view,false))`,
+			WHERE u.id=$1 AND u.active=true AND (u.role IN ('admin','planner') OR COALESCE(p.can_view,false))`,
 			person, id, cleanText(in.Title, 200), in.CalendarID)
 		if err != nil { writeError(w, 500, "Could not notify former assignee"); return }
 	}
@@ -192,7 +192,7 @@ func (s *server) updateEvent(w http.ResponseWriter, r *http.Request) {
 			SELECT u.id,$2,$3,$4,$5,$6
 			FROM users u LEFT JOIN calendar_permissions p ON p.user_id=u.id AND p.calendar_id=$7
 			WHERE u.id=$1 AND u.active AND ($3!='event_confirmation_request' OR u.confirmation_enabled)
-              AND (u.role='admin' OR COALESCE(p.can_view,false))`,
+              AND (u.role IN ('admin','planner') OR COALESCE(p.can_view,false))`,
 			person,id,kind,cleanText(in.Title,200),message,in.StartsAt,in.CalendarID)
 		if err != nil { writeError(w,500,"Could not notify about updated event"); return }
 	}
@@ -285,7 +285,7 @@ func (s *server) deleteEvent(w http.ResponseWriter, r *http.Request) {
 		SELECT u.id,NULL,'event_cancelled',$2,'An appointment you were assigned to was cancelled.'
 		FROM event_assignees ea JOIN users u ON u.id=ea.user_id
 		LEFT JOIN calendar_permissions p ON p.calendar_id=$3 AND p.user_id=u.id
-		WHERE ea.event_id=$1 AND u.active AND (u.role='admin' OR COALESCE(p.can_view,false))`,
+		WHERE ea.event_id=$1 AND u.active AND (u.role IN ('admin','planner') OR COALESCE(p.can_view,false))`,
 		id, cancelledTitle, calendarID)
 	if err != nil { writeError(w, 500, "Could not notify cancellation"); return }
 	if _, err = cancelTx.Exec(r.Context(), "DELETE FROM events WHERE id=$1", id); err != nil {

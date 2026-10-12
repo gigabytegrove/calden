@@ -61,6 +61,7 @@ func New(cfg Config) http.Handler {
 	mux.HandleFunc("POST /api/setup", s.setup)
 	mux.HandleFunc("POST /api/login", s.login)
 	mux.Handle("GET /api/me", s.auth(http.HandlerFunc(s.me)))
+	mux.Handle("PUT /api/me/week-start", s.auth(http.HandlerFunc(s.savePersonalWeekStart)))
 	mux.Handle("PUT /api/me/confirmation-preferences", s.auth(http.HandlerFunc(s.updateConfirmationPreference)))
 	mux.Handle("GET /api/settings/general", s.auth(http.HandlerFunc(s.generalSettings)))
 	mux.Handle("GET /api/activity", s.auth(s.admin(http.HandlerFunc(s.listAudit))))
@@ -72,15 +73,15 @@ func New(cfg Config) http.Handler {
 	mux.Handle("POST /api/users/{id}/avatar", s.auth(http.HandlerFunc(s.uploadUserAvatar)))
 	mux.Handle("DELETE /api/users/{id}/avatar", s.auth(http.HandlerFunc(s.deleteUserAvatar)))
 	mux.Handle("GET /api/calendars", s.auth(http.HandlerFunc(s.listCalendars)))
-	mux.Handle("POST /api/calendars", s.auth(s.admin(http.HandlerFunc(s.createCalendar))))
+	mux.Handle("POST /api/calendars", s.auth(s.calendarManager(http.HandlerFunc(s.createCalendar))))
 	mux.Handle("GET /api/categories", s.auth(http.HandlerFunc(s.listCategories)))
-	mux.Handle("POST /api/categories", s.auth(s.admin(http.HandlerFunc(s.createCategory))))
-	mux.Handle("PUT /api/categories/{id}", s.auth(s.admin(http.HandlerFunc(s.updateCategory))))
-	mux.Handle("DELETE /api/categories/{id}", s.auth(s.admin(http.HandlerFunc(s.deleteCategory))))
-	mux.Handle("GET /api/calendars/{id}/permissions", s.auth(s.admin(http.HandlerFunc(s.calendarPermissions))))
+	mux.Handle("POST /api/categories", s.auth(s.calendarManager(http.HandlerFunc(s.createCategory))))
+	mux.Handle("PUT /api/categories/{id}", s.auth(s.calendarManager(http.HandlerFunc(s.updateCategory))))
+	mux.Handle("DELETE /api/categories/{id}", s.auth(s.calendarManager(http.HandlerFunc(s.deleteCategory))))
+	mux.Handle("GET /api/calendars/{id}/permissions", s.auth(s.calendarManager(http.HandlerFunc(s.calendarPermissions))))
 	mux.Handle("GET /api/calendars/{id}/export.ics", s.auth(http.HandlerFunc(s.exportCalendarICS)))
 	mux.Handle("POST /api/calendars/{id}/import.ics", s.auth(http.HandlerFunc(s.importCalendarICS)))
-	mux.Handle("PUT /api/calendars/{id}/permissions", s.auth(s.admin(http.HandlerFunc(s.setCalendarPermissions))))
+	mux.Handle("PUT /api/calendars/{id}/permissions", s.auth(s.calendarManager(http.HandlerFunc(s.setCalendarPermissions))))
 	mux.Handle("GET /api/events", s.auth(http.HandlerFunc(s.listEvents)))
 	mux.Handle("POST /api/events", s.auth(http.HandlerFunc(s.createEvent)))
 	mux.Handle("GET /api/events/{id}/confirmations", s.auth(http.HandlerFunc(s.getEventConfirmations)))
@@ -104,8 +105,8 @@ func New(cfg Config) http.Handler {
 	mux.Handle("PUT /api/events/{id}/occurrences", s.auth(http.HandlerFunc(s.updateOccurrence)))
 	mux.Handle("DELETE /api/events/{id}/occurrences", s.auth(http.HandlerFunc(s.deleteOccurrence)))
 	mux.Handle("POST /api/events/{id}/occurrences/restore", s.auth(http.HandlerFunc(s.restoreOccurrence)))
-	mux.Handle("PUT /api/calendars/{id}", s.auth(s.admin(http.HandlerFunc(s.updateCalendar))))
-	mux.Handle("DELETE /api/calendars/{id}", s.auth(s.admin(http.HandlerFunc(s.deleteCalendar))))
+	mux.Handle("PUT /api/calendars/{id}", s.auth(s.calendarManager(http.HandlerFunc(s.updateCalendar))))
+	mux.Handle("DELETE /api/calendars/{id}", s.auth(s.calendarManager(http.HandlerFunc(s.deleteCalendar))))
 	mux.Handle("GET /api/integrations/monita", s.auth(s.admin(http.HandlerFunc(s.getMonitaIntegration))))
 	mux.Handle("PUT /api/integrations/monita", s.auth(s.admin(http.HandlerFunc(s.saveMonitaIntegration))))
 	mux.Handle("POST /api/integrations/monita/test", s.auth(s.admin(http.HandlerFunc(s.testMonitaIntegration))))
@@ -454,6 +455,17 @@ func (s *server) admin(next http.Handler) http.Handler {
 	})
 }
 
+// calendarManager authorizes calendar management, not system administration.
+func (s *server) calendarManager(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        role := currentActor(r).Role
+        if role != "admin" && role != "planner" {
+            writeError(w, http.StatusForbidden, "Calendar manager access is required")
+            return
+        }
+        next.ServeHTTP(w, r)
+    })
+}
 func validateLogin(username, password string) error {
 	u := strings.TrimSpace(username)
 	if len(u) < 3 || len(u) > 50 {

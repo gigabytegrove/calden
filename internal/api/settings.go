@@ -114,3 +114,25 @@ func (s *server) saveGeneralSettings(w http.ResponseWriter, r *http.Request) {
 	})
 	writeJSON(w, http.StatusOK, in)
 }
+
+
+// savePersonalWeekStart stores the authenticated user's cross-device override.
+func (s *server) savePersonalWeekStart(w http.ResponseWriter, r *http.Request) {
+    var in struct { WeekStart string `json:"week_start"` }
+    if decode(r, &in) != nil {
+        writeError(w, http.StatusBadRequest, "Choose a week start")
+        return
+    }
+    in.WeekStart = strings.ToLower(strings.TrimSpace(in.WeekStart))
+    if in.WeekStart != "default" && in.WeekStart != "sunday" && in.WeekStart != "monday" {
+        writeError(w, http.StatusBadRequest, "Choose household default, Sunday, or Monday")
+        return
+    }
+    _, err := s.db.Exec(r.Context(), "UPDATE users SET week_start=NULLIF($1,'default'),updated_at=now() WHERE id=$2", in.WeekStart, currentActor(r).ID)
+    if err != nil {
+        writeError(w, http.StatusInternalServerError, "Could not save your week start")
+        return
+    }
+    s.audit(r, "update", "settings", nil, "Updated personal week start", map[string]any{"week_start":in.WeekStart})
+    writeJSON(w, http.StatusOK, map[string]string{"week_start":in.WeekStart})
+}
