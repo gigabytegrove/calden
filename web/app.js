@@ -2674,6 +2674,31 @@ $("#monita-load-channels")?.addEventListener("click",async()=>{
   }catch(err){status.textContent=err.message}
   finally{button.disabled=false}
 });
+$("#connect-monita").addEventListener("click",async()=>{
+  const form=$("#monita-form"),status=$("#monita-status"),button=$("#connect-monita");
+  if(!form.channel_id.value || form.channel_id.value==="0"){
+    status.textContent="Load and select an authorized Monita channel first.";return;
+  }
+  button.disabled=true;status.textContent="Connecting and verifying channel access…";
+  try{
+    const payload={server_url:form.server_url.value,token:form.token.value,
+      channel_id:Number(form.channel_id.value),enabled:true};
+    await api("/api/integrations/monita/connect",{method:"POST",body:JSON.stringify(payload)});
+    status.textContent="Monita connected. The selected channel received a test notification.";
+    await loadMonita();
+  }catch(err){status.textContent=err.message}
+  finally{button.disabled=false}
+});
+$("#disconnect-monita").addEventListener("click",async()=>{
+  const status=$("#monita-status");
+  if(!confirm("Disconnect Monita? This clears the saved service token and disables Monita reminders."))return;
+  status.textContent="Disconnecting Monita…";
+  try{
+    await api("/api/integrations/monita/disconnect",{method:"POST",body:"{}"});
+    await loadMonita();
+    status.textContent="Monita disconnected. Credential cleared.";
+  }catch(err){status.textContent=err.message}
+});
 $("#monita-form").addEventListener("submit",async e=>{
   e.preventDefault();const form=e.currentTarget;$("#monita-status").textContent="";
   const payload={enabled:form.enabled.checked,server_url:form.server_url.value,token:form.token.value,default_channel:form.default_channel.value,channel_id:Number(form.channel_id.value||0)};
