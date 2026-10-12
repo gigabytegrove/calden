@@ -761,6 +761,7 @@ jobs:
           import json
           import urllib.request
           import urllib.parse
+          import urllib.error
 
           base = "http://127.0.0.1:8787"
 
@@ -770,10 +771,13 @@ jobs:
                   headers["Authorization"] = "Bearer " + token
               data = None if payload is None else json.dumps(payload).encode()
               req = urllib.request.Request(base + path, data=data, headers=headers, method=method)
-              with urllib.request.urlopen(req) as response:
-                  if response.status == 204:
-                      return None
-                  return json.load(response)
+              try:
+                  with urllib.request.urlopen(req) as response:
+                      if response.status == 204:
+                          return None
+                      return json.load(response)
+              except urllib.error.HTTPError as failure:
+                  raise AssertionError(f"{method} {path}: HTTP {failure.code}: {failure.read().decode()}") from failure
 
           token = request("/api/login", "POST", {
               "username": "testadmin",
