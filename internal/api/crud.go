@@ -196,6 +196,19 @@ func (s *server) updateEvent(w http.ResponseWriter, r *http.Request) {
 			person,id,kind,cleanText(in.Title,200),message,in.StartsAt,in.CalendarID)
 		if err != nil { writeError(w,500,"Could not notify about updated event"); return }
 	}
+    // Unassigned appointments represent the whole permitted household.
+    // Reschedule notices must still reach all permitted viewers.
+    if len(selected)==0 && changedSchedule {
+        _, err=tx.Exec(r.Context(), `INSERT INTO notifications(
+            user_id,event_id,kind,title,message,occurrence_start)
+            SELECT u.id,$1,'event_schedule_changed',$2,
+                'A shared household appointment was updated.',$3
+            FROM users u LEFT JOIN calendar_permissions p
+                ON p.user_id=u.id AND p.calendar_id=$4
+            WHERE u.active AND (u.role IN ('admin','planner') OR COALESCE(p.can_view,false))`,
+            id,cleanText(in.Title,200),in.StartsAt,in.CalendarID)
+        if err!=nil {writeError(w,500,"Could not notify household about updated appointment");return}
+    }
 	if err = s.saveBillDetails(r.Context(), tx, id, in.CalendarID, in); err != nil {
 		writeError(w, 400, "Could not save bill details")
 		return
@@ -288,6 +301,16 @@ func (s *server) deleteEvent(w http.ResponseWriter, r *http.Request) {
 		WHERE ea.event_id=$1 AND u.active AND (u.role IN ('admin','planner') OR COALESCE(p.can_view,false))`,
 		id, cancelledTitle, calendarID)
 	if err != nil { writeError(w, 500, "Could not notify cancellation"); return }
+    // If no one was assigned, the shared appointment was visible to all
+    // authorized calendar members. Their cancellation must not go unnoticed.
+    _,err=cancelTx.Exec(r.Context(), `INSERT INTO notifications(user_id,event_id,kind,title,message)
+        SELECT u.id,NULL,'event_cancelled',$2,'A shared household appointment was cancelled.'
+        FROM users u LEFT JOIN calendar_permissions p
+            ON p.user_id=u.id AND p.calendar_id=$3
+        WHERE u.active AND (u.role IN ('admin','planner') OR COALESCE(p.can_view,false))
+          AND NOT EXISTS(SELECT 1 FROM event_assignees WHERE event_id=$1)`,
+        id,cancelledTitle,calendarID)
+    if err!=nil {writeError(w,500,"Could not notify household cancellation");return}
 	if _, err = cancelTx.Exec(r.Context(), "DELETE FROM events WHERE id=$1", id); err != nil {
 		writeError(w, 500, "Could not delete event")
 		return
