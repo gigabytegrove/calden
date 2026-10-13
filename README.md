@@ -1,20 +1,42 @@
 <p align="center">
-  <img src="web/calden-logo-official.webp" alt="CalDen" width="520">
+  <img src="web/calden-logo-official.webp" alt="Calden" width="520">
 </p>
 
-<h1 align="center">CalDen</h1>
+<h1 align="center">Calden</h1>
 
 <p align="center"><strong>A family calendar and scheduling system you control.</strong></p>
 
-CalDen is a self-hosted family calendar built for normal people, not calendar administrators. It keeps household schedules in one place, makes it obvious which calendar an event belongs to, and shows exactly who an event is assigned to.
+Calden keeps your family's appointments, schedules, bills, reminders, and shared tasks together. Everyone can have their own account, and you decide what each person can see or change.
 
 A calendar has its own color. A person has their own identity. The two never compete with each other.
 
-CalDen 1.2.0 is the first stable release. Development continues on the existing web application, with compatible in-place updates.
+**Current server release: 1.4.4.** Calden runs on your own server, and you can update it from **Settings → Updates**.
 
-## What CalDen does
+## For families: getting started
 
-CalDen gives a household one shared place to manage schedules without forcing every calendar to be shared with everybody.
+**Someone in your household sets up Calden once.** Everyone else just opens the family calendar address and signs in with the account they've been given.
+
+1. Open the Calden address in your browser.
+2. Sign in with your own username and password.
+3. Open **Calendar** to see appointments and family plans. Choose a date, then **Add event** to add something.
+4. Open **Agenda** for a simple list of what's coming up, **Bills** to track payments, or **Tasks & Chores** for shared household jobs.
+5. Look in **Notifications** for assignments and updates. To receive phone alerts, use the Calden Android app when a verified installable version is available.
+
+**Every date matters.** Calden now shows the year clearly when you create an appointment and checks the date stored by the server. The date a notification was sent is labeled separately from the appointment date.
+
+### Common questions
+
+**Will everyone see everything?** Not unless you choose that. Each calendar has its own visibility and editing settings.
+
+**What if I accidentally hide Bills or Agenda?** Those sections can be turned on again by the household administrator; your events and bill records are not deleted.
+
+**Can people have different reminders?** Yes. Reminders and notification choices can be managed individually. Android sound choices are set on each phone, not for the entire household.
+
+**What if something isn't working?** First check that you're signed in to the correct household. If you need help installing or connecting, ask whoever set up your Calden server. The technical setup instructions are below.
+
+## What Calden does
+
+Calden gives a household one shared place to manage schedules without forcing every calendar to be shared with everybody.
 
 You can use it to:
 
@@ -27,12 +49,12 @@ You can use it to:
 - give people their own sign-in
 - use reminder records for personal-device notifications
 - send household-wide reminders through Monita
-- use CalDen from a browser on desktop, tablet, or phone
-- use the same CalDen server/API as the foundation for the upcoming mobile app
+- use Calden from a browser on desktop, tablet, or phone
+- connect an Android companion app to the same household calendar
 
-## How CalDen is organized
+## How Calden is organized
 
-CalDen follows three simple rules:
+Calden follows three simple rules:
 
 **Calendar = where the event belongs**
 
@@ -46,11 +68,11 @@ The assigned person's icon or initials appear with the event.
 
 Personal reminders can stay on the person's phone. Household reminders can be sent through Monita.
 
-For example, a green **Bills** calendar can contain an Internet Bill assigned to Brad and an Electric Bill assigned to Jen. Both events stay green because they belong to Bills, while the person icon shows who is responsible for each one. Calendar bill status markers show allocated, paid, and cleared bills at a glance. Bill activity is tracked per occurrence: funds can be marked **Allocated** when money is moved into a bill-pay account, then **Paid** when the withdrawal actually happens, and **Cleared** after it settles. A month can also have no balance or several split/partial payments, each with its actual payer, payment date, and cleared date. CalDen creates an end-of-day bill follow-up for open bills so the assigned payer can confirm the autopay came out.
+For example, a green **Bills** calendar can contain an Internet Bill assigned to Brad and an Electric Bill assigned to Jen. Both events stay green because they belong to Bills, while the person icon shows who is responsible for each one. Calendar bill status markers show allocated, paid, and cleared bills at a glance. Bill activity is tracked per occurrence: funds can be marked **Allocated** when money is moved into a bill-pay account, then **Paid** when the withdrawal actually happens, and **Cleared** after it settles. A month can also have no balance or several split/partial payments, each with its actual payer, payment date, and cleared date. Calden creates an end-of-day bill follow-up for open bills so the assigned payer can confirm the autopay came out.
 
 ## Current features
 
-The current development build includes:
+Calden includes:
 
 - guided first-run setup wizard
 - automatic persistent database credential generation
@@ -75,7 +97,7 @@ The current development build includes:
 - real 1 Day, 7 Day, 14 Day, and 30 Day calendar views
 - recurring events with single-occurrence changes
 - standard iCalendar import/export
-- Google Calendar ZIP migration with preview and explicit mapping, plus an in-place repair tool for duplicate Google-imported event rows already stored in CalDen
+- Google Calendar ZIP migration with preview and explicit mapping, plus an in-place repair tool for duplicate Google-imported event rows already stored in Calden
 - profile images for family members
 - personal-device reminder records
 - Monita household reminder records
@@ -89,7 +111,7 @@ The current development build includes:
 - Docker deployment
 - health checks
 
-CalDen is being developed as a rolling product. Features are being added to the working application rather than held for a future rewrite.
+Calden is being developed as a rolling product. Features are being added to the working application rather than held for a future rewrite.
 
 The production web bundle is built with Tailwind CSS v4. Docker and release builds compile it automatically. For direct source development outside Docker, run:
 
@@ -98,24 +120,28 @@ npm install
 npm run build:css
 ```
 
+## Set up your own Calden server
+
+The steps below are for **the person hosting Calden**, not everyone in the family. You will need Docker and Docker Compose on a computer or server that stays on. Your family members only need the address and an account.
+
 ## Quick install with Docker Compose
 
-### 1. Download CalDen
+### 1. Download Calden
 
 ```bash
 git clone https://github.com/gigabytegrove/calden.git
 cd calden
 ```
 
-### 2. Start CalDen
+### 2. Start Calden
 
-CalDen does not require you to create a database password or edit an environment file for a normal installation. On the first start, Docker generates a private random database password and keeps it in the persistent `calden-secrets` volume.
+Calden does not require you to create a database password or edit an environment file for a normal installation. On the first start, Docker generates a private random database password and keeps it in the persistent `calden-secrets` volume.
 
 ```bash
 docker compose up -d --build
 ```
 
-### 3. Open CalDen
+### 3. Open Calden
 
 By default:
 
@@ -123,7 +149,7 @@ By default:
 http://YOUR-SERVER-IP:8787
 ```
 
-The first time CalDen opens, a guided setup wizard walks you through your family name, time zone, first administrator account, and starter calendars. When setup finishes, CalDen opens with useful calendars already in place.
+The first time Calden opens, a guided setup wizard walks you through your family name, time zone, first administrator account, and starter calendars. When setup finishes, Calden opens with useful calendars already in place.
 
 You can then add family members, change calendar access, connect Monita, and start scheduling.
 
@@ -147,11 +173,11 @@ For Docker platforms that only accept pasted Compose and do **not** clone the re
 docker-compose.dokploy.yml
 ```
 
-That version builds CalDen directly from the public GitHub repository. Dokploy does not need a local checkout, a GitHub Container Registry login, or a manually configured database password.
+That version builds Calden directly from the public GitHub repository. Dokploy does not need a local checkout, a GitHub Container Registry login, or a manually configured database password.
 
 ## Dokploy
 
-CalDen supports both normal Git deployments and Docker Raw deployments in Dokploy.
+Calden supports both normal Git deployments and Docker Raw deployments in Dokploy.
 
 ### Recommended: Git deployment
 
@@ -161,7 +187,7 @@ Point Dokploy at:
 https://github.com/gigabytegrove/calden
 ```
 
-Use the repository Compose file. Because Dokploy has the repository in this mode, `build: .` can see the CalDen Dockerfile and source code.
+Use the repository Compose file. Because Dokploy has the repository in this mode, `build: .` can see the Calden Dockerfile and source code.
 
 ### Docker Raw deployment
 
@@ -193,32 +219,32 @@ CALDEN_PORT=8787
 
 ### Source deployment
 
-From the CalDen directory:
+From the Calden directory:
 
 ```bash
 git pull --ff-only
 docker compose up -d --build
 ```
 
-CalDen runs database migrations automatically when the updated container starts.
+Calden runs database migrations automatically when the updated container starts.
 
 ### Docker Raw / Dokploy deployment
 
-Redeploy the application. Docker rebuilds CalDen from the current public `main` branch and reuses the existing data volumes.
+Redeploy the application. Docker rebuilds Calden from the current public `main` branch and reuses the existing data volumes.
 
 No registry login is required.
 
 ## Backups
 
-A complete CalDen backup has three important parts:
+A complete Calden backup has three important parts:
 
 - the PostgreSQL database
-- the CalDen data volume
-- the CalDen secrets volume
+- the Calden data volume
+- the Calden secrets volume
 
 The database contains users, calendars, events, permissions, reminders, and settings.
 
-The CalDen data volume contains server-generated application data such as the persistent signing secret. The `calden-secrets` volume contains the automatically generated PostgreSQL password and must be preserved with the database.
+The Calden data volume contains server-generated application data such as the persistent signing secret. The `calden-secrets` volume contains the automatically generated PostgreSQL password and must be preserved with the database.
 
 For a manual PostgreSQL backup:
 
@@ -244,14 +270,14 @@ Do not remove the data volumes during a normal update.
 
 ## Monita reminders
 
-CalDen can use Monita for household-wide reminders.
+Calden can use Monita for household-wide reminders.
 
-In CalDen:
+In Calden:
 
 1. Open **Manage**
 2. Find **Monita**
 3. Enter the Monita server address
-4. Enter the token CalDen should use
+4. Enter the token Calden should use
 5. Choose the default channel
 6. Turn on Monita reminders
 7. Send a test
@@ -263,11 +289,11 @@ An event can then have both:
 
 These are separate on purpose. The person responsible for an event can get a private phone reminder while the rest of the household still receives the system-wide reminder.
 
-If Monita is unavailable when a system reminder is due, CalDen records the failed delivery and retries it instead of taking the calendar offline.
+If Monita is unavailable when a system reminder is due, Calden records the failed delivery and retries it instead of taking the calendar offline.
 
 ## Mobile app
 
-The native Android application is developed in [gigabytegrove/calden-android](https://github.com/gigabytegrove/calden-android) alongside this server. CalDen 1.3.6 supports Android's home-screen calendar and agenda widgets, date-aware quick event creation, per-user week start preferences, the Planner role, confirmations, and the per-user notification inbox.
+The native Android application is developed in [gigabytegrove/calden-android](https://github.com/gigabytegrove/calden-android) alongside this server. Calden 1.3.6 supports Android's home-screen calendar and agenda widgets, date-aware quick event creation, per-user week start preferences, the Planner role, confirmations, and the per-user notification inbox.
 
 Android source version 1.3.6 is available. APK builds must be compiled and signature-verified before installation; the presence of source or a tag alone does not prove that an APK is ready.
 
@@ -293,7 +319,7 @@ PostgreSQL is not published to the host by default.
 
 ## Reverse proxy and HTTPS
 
-If CalDen is exposed outside your home network, put it behind an HTTPS reverse proxy.
+If Calden is exposed outside your home network, put it behind an HTTPS reverse proxy.
 
 Forward the proxy to:
 
@@ -303,7 +329,7 @@ http://CALDEN-SERVER:8787
 
 or to whichever host port you selected with `CALDEN_PORT`.
 
-CalDen does not require a special URL path. Hosting it at the root of a hostname is the simplest setup, for example:
+Calden does not require a special URL path. Hosting it at the root of a hostname is the simplest setup, for example:
 
 ```text
 https://calendar.example.com
@@ -311,7 +337,7 @@ https://calendar.example.com
 
 ## Health check
 
-CalDen exposes:
+Calden exposes:
 
 ```text
 /api/health
@@ -343,17 +369,17 @@ If `CALDEN_DATABASE_URL` is supplied, it takes priority over the individual data
 
 ### "failed to read dockerfile: open Dockerfile: no such file or directory"
 
-The local-source Compose file was started somewhere that does not contain the CalDen repository.
+The local-source Compose file was started somewhere that does not contain the Calden repository.
 
 This commonly happens when `compose.yaml` is pasted into a Dokploy **Docker Raw** application.
 
-Use `docker-compose.dokploy.yml`. It fetches the public CalDen repository as the Docker build context and does not depend on a local Dockerfile.
+Use `docker-compose.dokploy.yml`. It fetches the public Calden repository as the Docker build context and does not depend on a local Dockerfile.
 
 ### "unauthorized" when pulling ghcr.io/gigabytegrove/calden
 
 Older Docker Raw examples used the GitHub Container Registry image. GHCR package visibility can require authentication even when the source repository itself is public.
 
-Current CalDen Docker Raw deployments do not use GHCR. Replace the old Compose with `docker-compose.dokploy.yml` and redeploy.
+Current Calden Docker Raw deployments do not use GHCR. Replace the old Compose with `docker-compose.dokploy.yml` and redeploy.
 
 ### Database password
 
@@ -363,7 +389,7 @@ If you are migrating an older installation that already has a manually configure
 
 ### The database is not ready yet
 
-The CalDen container waits for PostgreSQL's health check before starting. On the first launch PostgreSQL may need several seconds to initialize.
+The Calden container waits for PostgreSQL's health check before starting. On the first launch PostgreSQL may need several seconds to initialize.
 
 Check:
 
@@ -373,7 +399,7 @@ docker compose logs db
 docker compose logs calden
 ```
 
-### I changed the browser port and CalDen stopped responding
+### I changed the browser port and Calden stopped responding
 
 Do not change the application's internal container port.
 
@@ -383,11 +409,11 @@ Set only:
 CALDEN_PORT=YOUR-PORT
 ```
 
-The Compose file maps that host port to CalDen's internal port `8787`.
+The Compose file maps that host port to Calden's internal port `8787`.
 
 ## Development status
 
-CalDen server source version is 1.4.3. Backups remain recommended before each update.
+Calden server source version is 1.4.3. Backups remain recommended before each update.
 
 The current version is intended for active testing and development. Database migrations are automatic, but backups are strongly recommended before updating between development builds.
 
@@ -401,9 +427,9 @@ Current version:
 
 ```text
 calden/
-├── cmd/                 CalDen server entry point
+├── cmd/                 Calden server entry point
 ├── internal/            Server, storage, reminder, and integration code
-├── web/                 CalDen web interface
+├── web/                 Calden web interface
 ├── Dockerfile
 ├── compose.yaml
 ├── docker-compose.example.yml
@@ -412,11 +438,11 @@ calden/
 
 ## License
 
-CalDen is under active development. The repository's license file governs redistribution and use.
+Calden is under active development. The repository's license file governs redistribution and use.
 
 ## Navigable URLs and update caching
 
-Main pages have real paths (`/calendar`, `/bills`, `/agenda`, `/people`, `/settings`), and individual events and bills can be linked as `/events/{id}?at={occurrence}` and `/bills/{id}?at={occurrence}`. The event details dialog has **Copy link**. Browser Back/Forward and deep links after login restore the view, subject to each account's permissions. CalDen now serves all static UI files with no-store headers and compares the running version against the browser shell so a completed update automatically refreshes the interface without Ctrl+F5.
+Main pages have real paths (`/calendar`, `/bills`, `/agenda`, `/people`, `/settings`), and individual events and bills can be linked as `/events/{id}?at={occurrence}` and `/bills/{id}?at={occurrence}`. The event details dialog has **Copy link**. Browser Back/Forward and deep links after login restore the view, subject to each account's permissions. Calden now serves all static UI files with no-store headers and compares the running version against the browser shell so a completed update automatically refreshes the interface without Ctrl+F5.
 
 ## Calendar, agenda and household reminders (1.2.0)
 
@@ -428,11 +454,11 @@ Personal phone reminders can target one named member independent of the event's 
 
 ## Settings and updater (1.2.1)
 
-Integrations, Updates and Backups are now Settings subpages at `/settings/integrations`, `/settings/updates`, and `/settings/backups`. Previous direct links continue to resolve. While an update is running, progress is visible; after completion, CalDen shows the result and moves the completed steps into a collapsed activity history. Allocated bills show a high-contrast warning-gold badge with a dark monochrome hourglass.
+Integrations, Updates and Backups are now Settings subpages at `/settings/integrations`, `/settings/updates`, and `/settings/backups`. Previous direct links continue to resolve. While an update is running, progress is visible; after completion, Calden shows the result and moves the completed steps into a collapsed activity history. Allocated bills show a high-contrast warning-gold badge with a dark monochrome hourglass.
 
 ## 1.2.2 Settings stability
 
-Fix an incorrect Settings pane selector that could prevent CalDen from loading in the initial 1.2.1 publishing attempt. Install 1.2.2, not the earlier 1.2.1 tag.
+Fix an incorrect Settings pane selector that could prevent Calden from loading in the initial 1.2.1 publishing attempt. Install 1.2.2, not the earlier 1.2.1 tag.
 
 ## Tasks & Chores and live sync (1.3.8)
 
@@ -457,3 +483,12 @@ Tasks & Chores supports recurring household work (daily, weekly, every two weeks
 ## Appointment date reliability (1.4.3)
 
 Calden keeps the selected civil date intact when opening an event from a calendar date, confirms the PostgreSQL start and end timestamps after creation or updates (including recurring occurrence edits), and navigates to the saved date. The Notifications inbox explicitly identifies its timestamp as **Notified** rather than the appointment date. The January 13, 2027 test case is included in automated browser and API regression tests. See [1.4.3 release notes](docs/releases/v1.4.3.md).
+
+## Recent updates
+
+- [1.4.4](docs/releases/v1.4.4.md) — consistent Calden name and clearer setup, help, and update wording
+- [1.4.3](docs/releases/v1.4.3.md) — appointments stay on the date you choose
+- [1.4.2](docs/releases/v1.4.2.md) — check saved dates and make notification dates clearer
+- [1.4.1](docs/releases/v1.4.1.md) — shared chores, optional sections, and device lists
+
+The [release notes index](docs/releases/README.md) contains earlier versions.
