@@ -10,8 +10,8 @@ const source = fs.readFileSync(path.resolve(__dirname, "../web/app.js"), "utf8")
 const first = source.indexOf("function dateInputValue(");
 const last = source.indexOf("function eventStartDate(", first);
 assert.ok(first >= 0 && last > first, "Could not locate production date helpers");
-const { dateInputValue, calendarDate } = vm.runInNewContext(
-  source.slice(first, last) + "\n({dateInputValue,calendarDate})",
+const { dateInputValue, calendarDate, eventStartFromHint } = vm.runInNewContext(
+  source.slice(first, last) + "\n({dateInputValue,calendarDate,eventStartFromHint})",
   { Date, Number, String }
 );
 
@@ -52,4 +52,34 @@ test("timestamp inputs remain converted to local calendar date", () => {
   } finally {
     process.env.TZ = before;
   }
+});
+
+test("January 13 2027 selected in appointment editor never becomes October 13 2026", () => {
+  const before=process.env.TZ;
+  try {
+    for (const zone of ["America/New_York","America/Los_Angeles","Pacific/Honolulu","UTC"]) {
+      process.env.TZ=zone;
+      const jan=eventStartFromHint("2027-01-13");
+      assert.equal(dateInputValue(jan),"2027-01-13",zone);
+      assert.equal(jan.getHours(),9,zone);
+      assert.equal(dateInputValue(new Date(jan.toISOString())),"2027-01-13",zone);
+      assert.notEqual(dateInputValue(jan),"2026-10-13",zone);
+    }
+  } finally { process.env.TZ=before; }
+});
+
+test("date-only selections across New Year and daylight saving preserve their calendar day",()=>{
+  const before=process.env.TZ;
+  try{
+    process.env.TZ="America/New_York";
+    for(const date of ["2026-10-13","2027-01-13","2027-03-14","2027-11-07","2028-02-29"]){
+      const selected=eventStartFromHint(date);
+      assert.equal(dateInputValue(selected),date);
+      assert.equal(selected.getHours(),9);
+    }
+  }finally{process.env.TZ=before;}
+});
+
+test("invalid initial appointment dates are rejected, never reset to today",()=>{
+  assert.throws(()=>eventStartFromHint("invalid-date"),/Invalid selected appointment date/);
 });
