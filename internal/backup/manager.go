@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	Product            = "CalDen"
+	Product            = "Calden"
 	FormatVersion      = 1
 	PendingRestoreName = ".calden-restore-pending.tar.gz"
 	RestoreResultName  = ".calden-restore-result.json"
@@ -248,7 +248,7 @@ func validateBundle(path, dataDir string) (Manifest, string, error) {
 	defer file.Close()
 	gz, err := gzip.NewReader(file)
 	if err != nil {
-		return Manifest{}, "", errors.New("file is not a gzip-compressed CalDen backup")
+		return Manifest{}, "", errors.New("file is not a gzip-compressed Calden backup")
 	}
 	defer gz.Close()
 	tr := tar.NewReader(gz)
@@ -311,11 +311,11 @@ func validateBundle(path, dataDir string) (Manifest, string, error) {
 			foundDump = true
 		}
 	}
-	if !foundManifest || manifest.Product != Product || manifest.FormatVersion != FormatVersion {
-		return Manifest{}, "", errors.New("file is not a supported CalDen backup")
+	if !foundManifest || !strings.EqualFold(manifest.Product, Product) || manifest.FormatVersion != FormatVersion {
+		return Manifest{}, "", errors.New("file is not a supported Calden backup")
 	}
 	if manifest.DatabaseFile != "calden.dump" || !foundDump {
-		return Manifest{}, "", errors.New("CalDen database backup is missing")
+		return Manifest{}, "", errors.New("Calden database backup is missing")
 	}
 	cleanup = false
 	return manifest, dumpPath, nil
