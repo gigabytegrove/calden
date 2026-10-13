@@ -1770,7 +1770,10 @@ function openEvent(existing=null,dateHint=null,scope="series"){
     [...form.querySelectorAll('input[name="assignee"]')].forEach(i=>i.checked=sourceAssignees.some(a=>a.id===i.value));
   }else{
     $("#repeat-editor").classList.remove("hidden");$("#series-scope-note").classList.add("hidden");$("#advanced-recurrence-note")?.classList.add("hidden");
-    const start=dateHint?new Date(dateHint):new Date(Date.now()+3600000);
+    const start=dateHint
+      ? (typeof dateHint==="string" && /^\d{4}-\d{2}-\d{2}$/.test(dateHint)
+          ? calendarDate(dateHint) : new Date(dateHint))
+      : new Date(Date.now()+3600000);
     if(!dateHint)start.setMinutes(0,0,0);else start.setSeconds(0,0);
     if(dateHint&&start.getHours()===0&&start.getMinutes()===0)start.setHours(9);
     const end=new Date(start.getTime()+state.defaultDuration*60000);
