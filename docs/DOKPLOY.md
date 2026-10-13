@@ -1,6 +1,6 @@
-# Deploying CalDen with Dokploy or Raw Docker Compose
+# Deploying Calden with Dokploy or Raw Docker Compose
 
-CalDen supports both a normal Git deployment and a Docker Raw deployment.
+Calden supports both a normal Git deployment and a Docker Raw deployment.
 
 ## Recommended: Git deployment
 
@@ -28,7 +28,7 @@ docker-compose.dokploy.yml
 
 Do **not** paste `compose.yaml` into Docker Raw. Its `build: .` context expects the repository to already exist on disk.
 
-The Docker Raw file builds CalDen directly from:
+The Docker Raw file builds Calden directly from:
 
 ```text
 https://github.com/gigabytegrove/calden.git#main
@@ -40,7 +40,7 @@ No GitHub Container Registry login is required.
 
 A new installation requires no environment variables.
 
-CalDen generates a private PostgreSQL password on first start and stores it in the persistent `calden-secrets` volume.
+Calden generates a private PostgreSQL password on first start and stores it in the persistent `calden-secrets` volume.
 
 Optional settings:
 
@@ -52,7 +52,7 @@ CALDEN_DB_USER=calden
 
 Only set `CALDEN_DB_PASSWORD` when migrating an existing installation that already uses a manually configured database password.
 
-The external browser port can be changed with `CALDEN_PORT`. The CalDen container itself always listens on port `8787`.
+The external browser port can be changed with `CALDEN_PORT`. The Calden container itself always listens on port `8787`.
 
 ## Persistent storage
 
@@ -65,14 +65,14 @@ calden-secrets
 ```
 
 - `calden-db` contains PostgreSQL data.
-- `calden-data` contains CalDen application data.
+- `calden-data` contains Calden application data.
 - `calden-secrets` contains the generated PostgreSQL password.
 
 Back up all three. Do not remove them during a normal update.
 
 ## First launch
 
-After PostgreSQL and CalDen report healthy, open:
+After PostgreSQL and Calden report healthy, open:
 
 ```text
 http://YOUR-SERVER-IP:8787
@@ -80,7 +80,7 @@ http://YOUR-SERVER-IP:8787
 
 or the HTTPS hostname configured in your reverse proxy.
 
-The first-run setup creates the household and first administrator account. CalDen does not ship with a default application password.
+The first-run setup creates the household and first administrator account. Calden does not ship with a default application password.
 
 ## Updating
 
@@ -93,11 +93,11 @@ docker compose up -d --build
 
 For Docker Raw, redeploy the application. The Docker build context is the current public `main` branch.
 
-CalDen runs database migrations automatically on startup.
+Calden runs database migrations automatically on startup.
 
 ## Reverse proxy
 
-Route the CalDen hostname to the CalDen service on port `8787`.
+Route the Calden hostname to the Calden service on port `8787`.
 
 PostgreSQL should remain internal to the Compose network and should not be published to the internet.
 
@@ -125,7 +125,7 @@ docker compose logs db
 docker compose logs calden
 ```
 
-CalDen's HTTP health endpoint is:
+Calden's HTTP health endpoint is:
 
 ```text
 /api/health
