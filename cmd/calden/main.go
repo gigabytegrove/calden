@@ -26,7 +26,7 @@ var version = "0.1.0-alpha11.2"
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "version" {
-		fmt.Printf("CalDen\nVersion: %s\n", version)
+		fmt.Printf("Calden\nVersion: %s\n", version)
 		return
 	}
 	port := env("CALDEN_PORT", "8787")
@@ -87,7 +87,7 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("CalDen %s listening on :%s", version, port)
+		log.Printf("Calden %s listening on :%s", version, port)
 		err := srv.ListenAndServe()
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("http server: %v", err)
