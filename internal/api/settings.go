@@ -12,16 +12,19 @@ type generalSettingsPayload struct {
 	WeekStart     string `json:"week_start"`
 	DefaultView   int    `json:"default_view"`
 	ChoresEnabled bool `json:"chores_enabled"`
+    BillsEnabled bool `json:"bills_enabled"`
+    AgendaEnabled bool `json:"agenda_enabled"`
 }
 
 func (s *server) generalSettings(w http.ResponseWriter, r *http.Request) {
 	out := generalSettingsPayload{
+        BillsEnabled: true, AgendaEnabled: true,
 		HouseholdName: "My Family",
 		Timezone:      "UTC",
 		WeekStart:     "sunday",
 		DefaultView:   7,
 	}
-	rows, err := s.db.Query(r.Context(), `SELECT key,value FROM app_settings WHERE key IN ('household_name','timezone','week_start','default_view','chores_enabled')`)
+	rows, err := s.db.Query(r.Context(), `SELECT key,value FROM app_settings WHERE key IN ('household_name','timezone','week_start','default_view','chores_enabled','bills_enabled','agenda_enabled')`)
 	if err != nil {
 		writeError(w, 500, "Could not load family settings")
 		return
@@ -35,6 +38,10 @@ func (s *server) generalSettings(w http.ResponseWriter, r *http.Request) {
 		switch key {
 		case "chores_enabled":
             out.ChoresEnabled = value == "true"
+        case "bills_enabled":
+            out.BillsEnabled = value != "false"
+        case "agenda_enabled":
+            out.AgendaEnabled = value != "false"
 		case "household_name":
 			out.HouseholdName = value
 		case "timezone":
@@ -118,6 +125,9 @@ func (s *server) saveGeneralSettings(w http.ResponseWriter, r *http.Request) {
 	enabled, err := s.choresEnabled(r)
     if err != nil {writeError(w, 500, "Could not load Tasks & Chores setting");return}
     in.ChoresEnabled = enabled
+    in.BillsEnabled = true
+    in.AgendaEnabled = true
+    _ = s.db.QueryRow(r.Context(), "SELECT COALESCE((SELECT value='true' FROM app_settings WHERE key='bills_enabled'),true),COALESCE((SELECT value='true' FROM app_settings WHERE key='agenda_enabled'),true)").Scan(&in.BillsEnabled,&in.AgendaEnabled)
 	writeJSON(w, http.StatusOK, in)
 }
 
@@ -141,4 +151,32 @@ func (s *server) savePersonalWeekStart(w http.ResponseWriter, r *http.Request) {
     }
     s.audit(r, "update", "settings", nil, "Updated personal week start", map[string]any{"week_start":in.WeekStart})
     writeJSON(w, http.StatusOK, map[string]string{"week_start":in.WeekStart})
+}
+
+
+// Feature switches are visibility controls. Existing bill events, payment
+// records, agenda data, and reminders are never modified by this endpoint.
+func (s *server) saveFeatureVisibility(w http.ResponseWriter, r *http.Request) {
+    var in struct {
+        BillsEnabled *bool `json:"bills_enabled"`
+        AgendaEnabled *bool `json:"agenda_enabled"`
+    }
+    if decode(r,&in)!=nil || (in.BillsEnabled==nil && in.AgendaEnabled==nil) {
+        writeError(w,400,"Choose Bills or Agenda visibility");return
+    }
+    tx,err:=s.db.Begin(r.Context())
+    if err!=nil{writeError(w,500,"Could not save household features");return}
+    defer tx.Rollback(r.Context())
+    for _,change:=range []struct{Key string; Enabled *bool}{
+        {"bills_enabled",in.BillsEnabled},{"agenda_enabled",in.AgendaEnabled},
+    } {
+        if change.Enabled==nil{continue}
+        value:="false";if *change.Enabled{value="true"}
+        if _,err=tx.Exec(r.Context(),
+            "INSERT INTO app_settings(key,value) VALUES($1,$2) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value,updated_at=now()",
+            change.Key,value);err!=nil{writeError(w,500,"Could not update household features");return}
+    }
+    if err=tx.Commit(r.Context());err!=nil{writeError(w,500,"Could not save household features");return}
+    s.audit(r,"update","settings",nil,"Changed household feature visibility",nil)
+    s.generalSettings(w,r)
 }
