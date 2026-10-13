@@ -28,7 +28,7 @@ const savedScrollNow=localStorage.getItem("calden_scroll_now")!=="false";
 
 const state={
   token:localStorage.getItem("calden_token")||"",
-  me:null,settings:null,users:[],calendars:[],categories:[],events:[],chores:[],
+  me:null,settings:null,users:[],calendars:[],categories:[],events:[],chores:[],householdDevices:[],
   editingEvent:null,editingScope:"series",preserveRawRecurrence:false,editingCalendar:null,editingCategory:null,editingUser:null,
   setupStep:0,currentPage:"calendar",
   viewDays:[1,7,14,30].includes(savedDays)?savedDays:7,
@@ -407,6 +407,8 @@ function navigate(page,load=true,writeURL=true){
   if(adminPages.has(page)&&state.me?.role!=="admin")page="calendar";
   if(["calendars","categories"].includes(page)&&!["admin","planner"].includes(state.me?.role))page="calendar";
   if(page==="chores"&&!state.settings?.chores_enabled)page="calendar";
+  if(page==="agenda"&&state.settings?.agenda_enabled===false)page="calendar";
+  if(page==="bills"&&state.settings?.bills_enabled===false)page="calendar";
   state.currentPage=page;
   if(writeURL)history.pushState({calden:true},"",caldenPageURL(page));
   $$(".app-page").forEach(el=>el.classList.toggle("hidden",el.id!==`page-${page}`));
@@ -419,6 +421,7 @@ function navigate(page,load=true,writeURL=true){
   if(page==="notifications")loadNotifications(false).catch(()=>renderNotifications());
   if(page==="bills")loadBillMonth();
   if(page==="chores")loadChores();
+  if(page==="people")loadHouseholdDevices();
   if(page==="settings")activateSettingsTab(state.settingsTab);
   if(page==="activity")loadActivity();
 }
@@ -494,9 +497,11 @@ function renderCalendarFilters(){
 }
 
 function renderBillNavigation(){
-  const visible=state.calendars.some(cal=>cal.calendar_type==="bill_pay");
+  const visible=state.settings?.bills_enabled!==false && state.calendars.some(cal=>cal.calendar_type==="bill_pay");
   document.querySelectorAll(".bill-nav").forEach(el=>el.classList.toggle("hidden",!visible));
-  if(!visible&&state.currentPage==="bills"&&!location.pathname.startsWith("/bills/"))navigate("calendar",false);
+  document.querySelectorAll(".agenda-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.agenda_enabled===false));
+  if(!visible&&state.currentPage==="bills")navigate("calendar",false);
+  if(state.settings?.agenda_enabled===false&&state.currentPage==="agenda")navigate("calendar",false);
 }
 
 async function loadBillMonth(){
@@ -1236,6 +1241,7 @@ function decorateNavigation(){
     calendar:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3v3m12-3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/></svg>',
     bills:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Zm3 5h6m-6 4h6m-6 4h4"/></svg>',
     agenda:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>',
+    chores:'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 2 2 3-4m2 3h4M7 16l2 2 3-4m2 3h4"/></svg>',
     people:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 20v-1.5A3.5 3.5 0 0 0 12.5 15h-5A3.5 3.5 0 0 0 4 18.5V20m5.5-8A3.5 3.5 0 1 0 9.5 5a3.5 3.5 0 0 0 0 7Zm7-5a3 3 0 0 1 0 5.8M19 20v-1.5a3.5 3.5 0 0 0-2.1-3.2"/></svg>',
     calendars:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h12a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Zm-3 4v10a2 2 0 0 0 2 2m3-9h8m-8 4h5"/></svg>',
     categories:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 12 8-8h7v7l-8 8L4 12Zm11-4h.01"/></svg>',
@@ -1302,14 +1308,31 @@ function renderNotifications(){
 
 function renderPeople(){
   if(state.me.role!=="admin")return;
-  $("#people-list").innerHTML=state.users.map(u=>`<article class="management-card ${u.active===false?"inactive":""}">
-    <div class="management-avatar">${avatarMarkup(u)}</div>
-    <div class="management-copy"><strong>${escapeHTML(u.display_name)}</strong><span>@${escapeHTML(u.username)}</span><small>${roleLabel(u.role)} · ${u.active===false?"Inactive":"Active"}</small></div>
-    <button class="button secondary compact edit-person" type="button" data-user-id="${u.id}">Edit</button>
-  </article>`).join("");
+  const devices=state.householdDevices||[];
+  $("#people-list").innerHTML=state.users.map(u=>{
+    const owned=devices.filter(d=>d.user_id===u.id);
+    const deviceRows=owned.length?owned.map(d=>
+      `<div class="person-device-row">📱 <strong>${escapeHTML(d.name)}</strong> · ${escapeHTML(d.platform)} · ${d.enabled?"Connected":"Disabled"} · Seen ${escapeHTML(d.last_seen_at?new Date(d.last_seen_at).toLocaleString():"Unknown")}</div>`
+    ).join(""):'<p class="muted">No registered devices</p>';
+    return `<article class="management-card ${u.active===false?"inactive":""}">
+      <div class="management-avatar">${avatarMarkup(u)}</div>
+      <div class="management-copy"><strong>${escapeHTML(u.display_name)}</strong><span>@${escapeHTML(u.username)}</span><small>${roleLabel(u.role)} · ${u.active===false?"Inactive":"Active"}</small></div>
+      <button class="button secondary compact edit-person" type="button" data-user-id="${escapeAttr(u.id)}">Edit</button>
+      <details class="person-devices"><summary>Registered devices (${owned.length})</summary>${deviceRows}</details>
+    </article>`;
+  }).join("");
   $("#people-list").querySelectorAll(".edit-person").forEach(b=>b.addEventListener("click",()=>beginPersonEdit(b.dataset.userId)));
 }
-
+async function loadHouseholdDevices(){
+  if(state.me?.role!=="admin")return;
+  try{
+    const result=await api("/api/devices/household");
+    state.householdDevices=result.items||[];
+    renderPeople();
+  }catch(err){
+    $("#person-status").textContent="Could not load household devices: "+err.message;
+  }
+}
 function resetPersonForm(){
   const form=$("#person-form");form.reset();state.editingUser=null;
   form.user_id.value="";form.username.disabled=false;form.active.checked=true;
@@ -1438,6 +1461,8 @@ function renderSettings(){
     form.default_view.value=String(state.settings?.default_view||7);
   }
   $("#settings-chores-enabled").checked=!!state.settings?.chores_enabled;
+  $("#settings-bills-enabled").checked=state.settings?.bills_enabled!==false;
+  $("#settings-agenda-enabled").checked=state.settings?.agenda_enabled!==false;
   const personalWeekStart=$("#settings-personal-week-start");
   if(personalWeekStart)personalWeekStart.value=state.me?.week_start||"default";
   renderEventControls();
@@ -2256,6 +2281,11 @@ $("#person-form").addEventListener("submit",async e=>{
       await apiForm("/api/users/"+userID+"/avatar",data);
     }
     state.users=await api("/api/users");
+resetPersonForm();renderPeople();renderCalendarPermissionChecks();renderEventControls();
+    $("#person-status").textContent=editing?"Person updated.":"Person added.";
+  }catch(err){$("#person-error").textContent=err.message}
+});
+$("#cancel-person-edit").addEventListener("click",resetPersonForm);
     $("#refresh-devices").addEventListener("click",loadRegisteredDevices);
 $("#devices-list").addEventListener("click",async event=>{
   const button=event.target.closest("[data-revoke-device]");
@@ -2278,11 +2308,8 @@ $("#event-request-change").addEventListener("click",()=>{
 });
 $("#event-send-change").addEventListener("click",()=>submitEventConfirmation("change_requested"));
 
-resetPersonForm();renderPeople();renderCalendarPermissionChecks();renderEventControls();
-    $("#person-status").textContent=editing?"Person updated.":"Person added.";
-  }catch(err){$("#person-error").textContent=err.message}
-});
-$("#cancel-person-edit").addEventListener("click",resetPersonForm);
+
+
 $("#person-avatar-file").addEventListener("change",e=>{
   if(!e.target.files?.[0])return;
   previewAvatarFile(e.target,$("#person-avatar-preview"),$("#person-error"));
@@ -2835,53 +2862,71 @@ function renderChores(){
   $$(".chore-nav").forEach(el=>el.classList.toggle("hidden",!enabled));
   $$(".chore-manager").forEach(el=>el.classList.toggle("hidden",!["admin","planner"].includes(state.me?.role)));
   if(!enabled)return;
-  const list=$("#chore-list"),all=state.chores||[],filter=$("#chore-filter").value;
-  const mine=state.me?.id,manage=["admin","planner"].includes(state.me?.role);
-  const shown=all.filter(t=>filter==="mine"?t.assigned_to===mine:filter==="open"?t.status!=="done":filter==="done"?t.status==="done":true);
+  const all=state.chores||[],filter=$("#chore-filter").value,mine=state.me?.id;
+  const manage=["admin","planner"].includes(state.me?.role);
+  const shown=all.filter(t=>filter==="mine"?(t.assignee_ids||[t.assigned_to]).includes(mine):filter==="open"?t.status!=="done":filter==="done"?t.status==="done":true)
+    .sort((a,b)=>a.due_date.localeCompare(b.due_date)||a.title.localeCompare(b.title));
   const done=all.filter(t=>t.status==="done").length;
-  $("#chore-summary").innerHTML=`<div class="chore-summary-item"><strong>${all.length-done}</strong><span>To do</span></div><div class="chore-summary-item"><strong>${done}</strong><span>Finished</span></div><div class="chore-summary-item"><strong>${all.length}</strong><span>Total</span></div>`;
+  $("#chore-summary").innerHTML=`<div class="chore-summary-item"><strong>${all.length-done}</strong><span>To do</span></div><div class="chore-summary-item"><strong>${done}</strong><span>Finished</span></div><div class="chore-summary-item"><strong>${all.length}</strong><span>Occurrences</span></div>`;
+  const list=$("#chore-list");
   if(!shown.length){list.innerHTML='<div class="panel chore-empty">No chores in this view.</div>';return}
-  const local=new Date(),today=[local.getFullYear(),String(local.getMonth()+1).padStart(2,"0"),String(local.getDate()).padStart(2,"0")].join("-");
+  const d=new Date(),today=[d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");
+  const labels={none:"One time",daily:"Every day",weekly:"Weekly",biweekly:"Every 2 weeks",monthly:"Monthly",yearly:"Yearly"};
   list.innerHTML=shown.map(t=>{
-    const overdue=t.status!=="done"&&t.due_date<today,mayUpdate=manage||t.assigned_to===mine;
-    const owner=state.users.find(u=>u.id===t.assigned_to)||{display_name:t.assignee_name,avatar_url:t.assignee_avatar_url,initials:t.assignee_initials};
-    const label=t.status==="done"?"Done":t.status==="in_progress"?"In progress":overdue?"Overdue":"Pending";
+    const overdue=t.status!=="done"&&t.due_date<today;
     const date=new Date(t.due_date+"T12:00:00").toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"});
-    const controls=mayUpdate?`<label>Progress<select data-chore-status="${escapeAttr(t.id)}"><option value="pending" ${t.status==="pending"?"selected":""}>Pending</option><option value="in_progress" ${t.status==="in_progress"?"selected":""}>In progress</option><option value="done" ${t.status==="done"?"selected":""}>Done</option></select></label>`:"";
-    const management=manage?`<button class="button secondary compact" data-chore-edit="${escapeAttr(t.id)}" type="button">Edit</button><button class="button secondary compact" data-chore-delete="${escapeAttr(t.id)}" type="button">Delete</button>`:"";
-    return `<article class="panel chore-card ${overdue?"chore-overdue":""}"><div><h3>${escapeHTML(t.title)}</h3><p class="muted">${escapeHTML(t.notes||"")}</p><div class="chore-meta"><span class="chore-person"><i class="avatar">${avatarMarkup(owner)}</i>${escapeHTML(owner.display_name||"Household member")}</span><span>Due ${escapeHTML(date)}</span><span class="chore-state">${label}</span></div></div><div class="chore-actions">${controls}${management}</div></article>`;
+    const participants=Array.isArray(t.assignees)&&t.assignees.length?t.assignees:[{id:t.assigned_to,name:t.assignee_name,status:t.status,avatar_url:t.assignee_avatar_url,initials:t.assignee_initials}];
+    const personRows=participants.map(p=>{
+      const editable=manage||p.id===mine;
+      const owner=state.users.find(u=>u.id===p.id)||{display_name:p.name,avatar_url:p.avatar_url,initials:p.initials};
+      const progress=editable?`<select aria-label="Progress for ${escapeAttr(owner.display_name||p.name)}" data-chore-status="${escapeAttr(t.id)}" data-chore-person="${escapeAttr(p.id)}" data-chore-date="${escapeAttr(t.occurrence_date||t.due_date)}"><option value="pending" ${p.status==="pending"?"selected":""}>Pending</option><option value="in_progress" ${p.status==="in_progress"?"selected":""}>In progress</option><option value="done" ${p.status==="done"?"selected":""}>Done</option></select>`:`<span>${p.status==="done"?"Done":p.status==="in_progress"?"In progress":"Pending"}</span>`;
+      return `<div class="chore-assignee-progress"><i class="avatar">${avatarMarkup(owner)}</i><strong>${escapeHTML(owner.display_name||p.name||"Household member")}</strong>${progress}</div>`;
+    }).join("");
+    const management=manage?`<div class="chore-actions"><button class="button secondary compact" data-chore-edit="${escapeAttr(t.id)}" type="button">Edit series</button><button class="button secondary compact" data-chore-delete="${escapeAttr(t.id)}" type="button">Delete series</button></div>`:"";
+    return `<article class="panel chore-card ${overdue?"chore-overdue":""}"><div><h3>${escapeHTML(t.title)}</h3><p class="muted">${escapeHTML(t.notes||"")}</p><div class="chore-meta"><span>Due ${escapeHTML(date)}</span><span class="chore-repeat-tag">${labels[t.recurrence_rule]||"One time"}</span>${overdue?'<span class="chore-state">Overdue</span>':""}</div><div class="chore-assignee-list">${personRows}</div>${management}</div></article>`;
   }).join("");
 }
 async function loadChores(){
   if(!state.settings?.chores_enabled)return;
-  try{const data=await api("/api/chores");state.chores=data.items||[];$("#chore-status").textContent="";renderChores()}
+  try{const result=await api("/api/chores");state.chores=result.items||[];$("#chore-status").textContent="";renderChores()}
   catch(err){$("#chore-status").textContent=err.message}
+}
+function updateChoreRepeat(){
+  const form=$("#chore-form");
+  const repeat=form.elements.namedItem("recurrence_rule").value!=="none";
+  $("#chore-repeat-until-wrap").classList.toggle("hidden",!repeat);
+  if(!repeat)form.elements.namedItem("recurrence_until").value="";
 }
 function openChoreEditor(chore=null){
   if(!["admin","planner"].includes(state.me?.role))return;
-  const form=$("#chore-form"),fld=name=>form.elements.namedItem(name);
+  const form=$("#chore-form"),field=name=>form.elements.namedItem(name);
   form.reset();
-  fld("id").value=chore?.id||"";
-  fld("title").value=chore?.title||"";
-  fld("notes").value=chore?.notes||"";
+  field("id").value=chore?.id||"";
+  field("title").value=chore?.title||"";
+  field("notes").value=chore?.notes||"";
   const today=new Date(),day=[today.getFullYear(),String(today.getMonth()+1).padStart(2,"0"),String(today.getDate()).padStart(2,"0")].join("-");
-  fld("due_date").value=chore?.due_date||day;
-  const active=state.users.filter(u=>u.active!==false);
-  fld("assigned_to").innerHTML='<option value="">Choose a person</option>'+active.map(u=>`<option value="${escapeAttr(u.id)}">${escapeHTML(u.display_name)}</option>`).join("");
-  fld("assigned_to").value=chore?.assigned_to||"";
-  $("#chore-editor-heading").textContent=chore?"Edit chore":"Add chore";
+  field("due_date").value=chore?.series_due_date||chore?.due_date||day;
+  field("recurrence_rule").value=chore?.recurrence_rule||"none";
+  field("recurrence_until").value=chore?.recurrence_until||"";
+  updateChoreRepeat();
+  const assigned=new Set(chore?.assignee_ids||[chore?.assigned_to||state.me?.id]);
+  $("#chore-assignees").innerHTML=state.users.filter(u=>u.active!==false).map(u=>`<label class="chore-member-choice"><input type="checkbox" name="assignee_id" value="${escapeAttr(u.id)}" ${assigned.has(u.id)?"checked":""}><i class="avatar">${avatarMarkup(u)}</i><span>${escapeHTML(u.display_name)}</span></label>`).join("");
+  $("#chore-editor-heading").textContent=chore?"Edit task series":"Add task or chore";
   $("#chore-form-status").textContent="";
   $("#chore-editor-panel").classList.remove("hidden");
-  fld("title").focus();
+  field("title").focus();
 }
 $("#chore-add").addEventListener("click",()=>openChoreEditor());
 $("#chore-cancel").addEventListener("click",()=>$("#chore-editor-panel").classList.add("hidden"));
 $("#chore-refresh").addEventListener("click",loadChores);
 $("#chore-filter").addEventListener("change",renderChores);
+$("#chore-form").elements.namedItem("recurrence_rule").addEventListener("change",updateChoreRepeat);
 $("#chore-form").addEventListener("submit",async event=>{
   event.preventDefault();
-  const form=event.currentTarget, fld=name=>form.elements.namedItem(name), id=fld("id").value;
-  const payload={title:fld("title").value.trim(),notes:fld("notes").value,due_date:fld("due_date").value,assigned_to:fld("assigned_to").value};
+  const form=event.currentTarget,field=name=>form.elements.namedItem(name),id=field("id").value;
+  const assignee_ids=[...form.querySelectorAll('input[name="assignee_id"]:checked')].map(input=>input.value);
+  if(!assignee_ids.length){$("#chore-form-status").textContent="Choose at least one person.";return}
+  const payload={title:field("title").value.trim(),notes:field("notes").value,due_date:field("due_date").value,assignee_ids,recurrence_rule:field("recurrence_rule").value,recurrence_until:field("recurrence_until").value};
   try{
     await api(id?"/api/chores/"+encodeURIComponent(id):"/api/chores",{method:id?"PUT":"POST",body:JSON.stringify(payload)});
     $("#chore-editor-panel").classList.add("hidden");await loadChores();
@@ -2891,7 +2936,7 @@ $("#chore-list").addEventListener("click",async event=>{
   const edit=event.target.closest("[data-chore-edit]"),del=event.target.closest("[data-chore-delete]");
   if(edit){openChoreEditor(state.chores.find(t=>t.id===edit.dataset.choreEdit));return}
   if(del){
-    if(!confirm("Delete this chore?"))return;
+    if(!confirm("Delete this entire chore series and its completion history?"))return;
     try{await api("/api/chores/"+encodeURIComponent(del.dataset.choreDelete),{method:"DELETE"});await loadChores()}
     catch(err){$("#chore-status").textContent=err.message}
   }
@@ -2899,8 +2944,10 @@ $("#chore-list").addEventListener("click",async event=>{
 $("#chore-list").addEventListener("change",async event=>{
   const select=event.target.closest("[data-chore-status]");if(!select)return;
   select.disabled=true;
-  try{await api("/api/chores/"+encodeURIComponent(select.dataset.choreStatus)+"/status",{method:"PUT",body:JSON.stringify({status:select.value})});await loadChores()}
-  catch(err){$("#chore-status").textContent=err.message;await loadChores()}
+  try{
+    await api("/api/chores/"+encodeURIComponent(select.dataset.choreStatus)+"/status",{method:"PUT",body:JSON.stringify({status:select.value,assignee_id:select.dataset.chorePerson,occurrence_date:select.dataset.choreDate})});
+    await loadChores();
+  }catch(err){$("#chore-status").textContent=err.message;await loadChores()}
 });
 $("#save-chores-enabled").addEventListener("click",async()=>{
   const enabled=$("#settings-chores-enabled").checked;
@@ -2911,6 +2958,17 @@ $("#save-chores-enabled").addEventListener("click",async()=>{
     $("#settings-chores-status").textContent=result.enabled?"Tasks & Chores enabled.":"Tasks & Chores disabled. Existing tasks remain saved.";
     renderChores();
   }catch(err){$("#settings-chores-status").textContent=err.message;$("#settings-chores-enabled").checked=!!state.settings.chores_enabled}
+});
+$("#save-feature-visibility").addEventListener("click",async()=>{
+  const changes={bills_enabled:$("#settings-bills-enabled").checked,agenda_enabled:$("#settings-agenda-enabled").checked};
+  const status=$("#settings-feature-status");
+  status.textContent="Saving…";
+  try{
+    state.settings=await api("/api/settings/features",{method:"PUT",body:JSON.stringify(changes)});
+    renderBillNavigation();
+    if((state.currentPage==="bills"&&!state.settings.bills_enabled)||(state.currentPage==="agenda"&&!state.settings.agenda_enabled))navigate("calendar");
+    status.textContent="Household visibility updated. Your data is unchanged.";
+  }catch(err){status.textContent=err.message;renderSettings()}
 });
 
 resetPersonForm();
