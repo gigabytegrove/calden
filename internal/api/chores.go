@@ -304,6 +304,7 @@ func (s *server) changeChoreStatus(w http.ResponseWriter,r *http.Request) {
     err=s.db.QueryRow(r.Context(),"SELECT due_date,recurrence_rule,recurrence_until,assigned_to FROM chores WHERE id=$1",id).Scan(&start,&rule,&until,&primary)
     if errors.Is(err,pgx.ErrNoRows){writeError(w,404,"Chore not found");return}
     if err!=nil{writeError(w,500,"Could not find chore");return}
+    if input.AssigneeID=="" && canManageChores(actor.Role){target=primary}
     date:=start.Format("2006-01-02")
     if input.OccurrenceDate!=""{date=input.OccurrenceDate}
     when,err:=choreDate(date)
