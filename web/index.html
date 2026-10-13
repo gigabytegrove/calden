@@ -86,7 +86,7 @@
     <nav class="primary-nav" aria-label="Main navigation">
       <a class="nav-item active" data-page="calendar" href="/calendar">Calendar</a>
       <a class="nav-item bill-nav hidden" data-page="bills" href="/bills">Bills</a>
-      <a class="nav-item" data-page="agenda" href="/agenda">Agenda</a>
+      <a class="nav-item agenda-nav" data-page="agenda" href="/agenda">Agenda</a>
       <a class="nav-item chore-nav hidden" data-page="chores" href="/chores">Tasks &amp; Chores</a>
       <a class="nav-item admin-only" data-page="people" href="/people">People</a>
       <a class="nav-item calendar-manager" data-page="calendars" href="/calendars">Calendars</a>
@@ -180,8 +180,10 @@
           <input type="hidden" name="id">
           <label>Task or chore<input name="title" maxlength="200" required placeholder="Take out the trash"></label>
           <label>Details<textarea name="notes" maxlength="4000" rows="3"></textarea></label>
-          <div class="two"><label>Due by<input name="due_date" type="date" required></label>
-          <label>Assigned to<select name="assigned_to" required></select></label></div>
+          <div class="two"><label>First due date<input name="due_date" type="date" required></label>
+          <label>Repeat<select name="recurrence_rule"><option value="none">Does not repeat</option><option value="daily">Every day</option><option value="weekly">Every week</option><option value="biweekly">Every 2 weeks</option><option value="monthly">Every month</option><option value="yearly">Every year</option></select></label></div>
+          <label id="chore-repeat-until-wrap" class="hidden">Repeat until (optional)<input name="recurrence_until" type="date"></label>
+          <fieldset class="chore-assignees-field"><legend>People responsible</legend><p class="muted">Assign one or more people. Each person completes their own part of each occurrence.</p><div id="chore-assignees" class="chore-member-grid"></div></fieldset>
           <div class="form-actions"><button id="chore-cancel" class="button secondary" type="button">Cancel</button>
           <span class="grow"></span><button class="button" type="submit">Save chore</button></div>
           <p id="chore-form-status" class="status-line"></p>
@@ -474,6 +476,12 @@
               <div class="form-actions"><span class="grow"></span><button type="submit" class="button">Save household settings</button></div>
               <p id="general-settings-status" class="status-line"></p>
               <div class="chore-feature-settings">
+                <h3>Optional household sections</h3>
+                <p class="muted">Hide sections without removing calendars, bills, events or tasks.</p>
+                <label class="toggle-row"><input id="settings-bills-enabled" type="checkbox"><span>Show Bills</span></label>
+                <label class="toggle-row"><input id="settings-agenda-enabled" type="checkbox"><span>Show Agenda</span></label>
+                <button type="button" id="save-feature-visibility" class="button secondary">Save visibility</button>
+                <p id="settings-feature-status" class="status-line"></p>
                 <h3>Tasks &amp; Chores</h3>
                 <p class="muted">Enable household chores and deadlines. Disabling hides the section without deleting tasks.</p>
                 <label class="toggle-row"><input id="settings-chores-enabled" type="checkbox"><span>Enable Tasks &amp; Chores</span></label>
@@ -535,7 +543,7 @@
   </main>
 
   <nav class="mobile-nav">
-    <a class="active" data-page="calendar" href="/calendar">Calendar</a><a class="bill-nav hidden" data-page="bills" href="/bills">Bills</a><a data-page="agenda" href="/agenda">Agenda</a><a class="chore-nav hidden" data-page="chores" href="/chores">Chores</a><button id="nav-add" type="button">Add</button><a data-page="settings" href="/settings">Settings</a>
+    <a class="active" data-page="calendar" href="/calendar">Calendar</a><a class="bill-nav hidden" data-page="bills" href="/bills">Bills</a><a class="agenda-nav" data-page="agenda" href="/agenda">Agenda</a><a class="chore-nav hidden" data-page="chores" href="/chores">Chores</a><button id="nav-add" type="button">Add</button><a data-page="settings" href="/settings">Settings</a>
   </nav>
 </div>
 
