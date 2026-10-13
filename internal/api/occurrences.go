@@ -163,9 +163,10 @@ func (s *server) updateOccurrence(w http.ResponseWriter, r *http.Request) {
 	s.audit(r, "update_occurrence", "event", &parentID, "Changed one recurring occurrence", map[string]any{
 		"original_start": in.OriginalStart, "replacement_event_id": replacementID, "new_start": in.Event.StartsAt,
 	})
-	writeJSON(w, http.StatusOK, map[string]any{
-		"id": replacementID, "series_id": parentID, "original_start": in.OriginalStart,
-	})
+    result:=s.eventSaveResult(r,replacementID)
+    result["series_id"]=parentID
+    result["original_start"]=in.OriginalStart
+    writeJSON(w,http.StatusOK,result)
 }
 
 func (s *server) deleteOccurrence(w http.ResponseWriter, r *http.Request) {
