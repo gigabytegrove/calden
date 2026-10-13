@@ -67,7 +67,7 @@ func (s *server) saveMonitaIntegration(w http.ResponseWriter, r *http.Request) {
 		in.Token = existingToken
 	}
 	if in.Enabled && in.Token == "" {
-        writeError(w, 400, "Enter the Monita token CalDen should use")
+        writeError(w, 400, "Enter the Monita token Calden should use")
         return
     }
     // Monita service-account credentials use scoped channel-read/message-write
@@ -106,7 +106,7 @@ func (s *server) testMonitaIntegration(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "Turn on the Monita connection first")
 		return
 	}
-	if err = sendMonita(cfg, "CalDen is connected", "This is a test reminder from CalDen."); err != nil {
+	if err = sendMonita(cfg, "Calden is connected", "This is a test reminder from Calden."); err != nil {
 		writeError(w, 502, "Monita did not accept the test reminder: "+err.Error())
 		return
 	}
@@ -150,7 +150,7 @@ func sendMonita(cfg monitaSettings, title, message string) error {
 	}
 	req.Header.Set("Content-Type", "application/json")
     if serviceMode { req.Header.Set("Authorization", "Bearer "+cfg.Token) }
-	req.Header.Set("User-Agent", "CalDen")
+	req.Header.Set("User-Agent", "Calden")
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
