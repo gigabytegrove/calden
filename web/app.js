@@ -1128,7 +1128,7 @@ function renderNotificationInbox(){
     const billReview=item.kind==="bill_review";
     const startValue=billReview&&item.occurrence_start?item.occurrence_start:item.starts_at;
     const start=startValue?(item.all_day?calendarDate(startValue):new Date(startValue)):null;
-    const when=start?(item.all_day?formatDate(start,{weekday:"short",month:"short",day:"numeric"}):formatDate(start,{weekday:"short",month:"short",day:"numeric"})+" · "+formatTime(start)):"Event updated";
+    const when=start?(item.all_day?formatDate(start,{weekday:"short",month:"short",day:"numeric",year:"numeric"}):formatDate(start,{weekday:"short",month:"short",day:"numeric",year:"numeric"})+" · "+formatTime(start)):"Event date unavailable";
     const family=item.kind==="event_family";
     const color=safeColor(item.calendar_color||"#64748b");
     const iconClass=billReview?"bill":family?"family":"assigned";
@@ -1141,7 +1141,7 @@ function renderNotificationInbox(){
         <strong>${escapeHTML(item.title)}</strong>
         <small>${escapeHTML(item.message)} ${escapeHTML(when)}</small>
       </span>
-      <span class="notification-inbox-side"><i style="--cal:${color}"></i><time>${escapeHTML(formatDate(new Date(item.created_at),{month:"short",day:"numeric"}))}</time></span>
+      <span class="notification-inbox-side"><i style="--cal:${color}"></i><time title="Notification received (not the event date)">Notified ${escapeHTML(formatDate(new Date(item.created_at),{month:"short",day:"numeric",year:"numeric"}))}</time></span>
     </button><button type="button" class="notification-dismiss" data-dismiss-notification="${escapeAttr(item.id)}" aria-label="Dismiss alert" title="Dismiss alert">×</button></div>`;
   }).join(""):'<div class="empty-state notification-empty"><strong>No alerts yet</strong><span>New assignments and whole-family events will appear here.</span></div>';
 
