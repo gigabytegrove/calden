@@ -764,6 +764,83 @@ jobs:
           request(f"/api/chores/{cid}","DELETE",token=admin,expected=204)
           PY
 
+      - name: Verify recurring shared chores, optional navigation and device ownership
+        run: |
+          python - <<'PY'
+          import datetime as dt
+          import json
+          import urllib.error
+          import urllib.request
+          import uuid
+
+          base="http://127.0.0.1:8787"
+          def request(path,method="GET",data=None,token=None,expect=200):
+              headers={"Content-Type":"application/json"}
+              if token: headers["Authorization"]="Bearer "+token
+              payload=None if data is None else json.dumps(data).encode()
+              req=urllib.request.Request(base+path,data=payload,headers=headers,method=method)
+              try:
+                  with urllib.request.urlopen(req) as response:
+                      assert response.status==expect,(path,response.status,expect)
+                      content=response.read()
+                      return json.loads(content) if content else {}
+              except urllib.error.HTTPError as e:
+                  if e.code==expect:return {}
+                  raise AssertionError(f"{method} {path}: {e.code} {e.read().decode()}") from e
+
+          admin=request("/api/login","POST",{"username":"testadmin","password":"test-password-123"})["token"]
+          member=request("/api/login","POST",{"username":"seconduser","password":"another-password-123"})["token"]
+          users=request("/api/users",token=admin)
+          primary=next(u["id"] for u in users if u["username"]=="testadmin")
+          secondary=next(u["id"] for u in users if u["username"]=="seconduser")
+          first=(dt.datetime.now(dt.timezone.utc)+dt.timedelta(days=2)).date()
+          until=(first+dt.timedelta(days=2)).isoformat()
+          created=request("/api/chores","POST",{
+              "title":"Shared repeating CI chore",
+              "notes":"Keep each member independent",
+              "due_date":first.isoformat(),
+              "assignee_ids":[primary,secondary],
+              "recurrence_rule":"daily",
+              "recurrence_until":until,
+          },admin,201)
+          cid=created["id"]
+          occurrences=[x for x in request("/api/chores",token=admin)["items"] if x["id"]==cid]
+          assert len(occurrences)==3,occurrences
+          assert all(len(o["assignees"])==2 for o in occurrences)
+          date=first.isoformat()
+          path=f"/api/chores/{cid}/status"
+          request(path,"PUT",{"status":"done","occurrence_date":date,"assignee_id":secondary},member)
+          row=next(x for x in request("/api/chores",token=admin)["items"] if x["id"]==cid and x["due_date"]==date)
+          assert row["status"]!="done",row
+          request(path,"PUT",{"status":"done","occurrence_date":date,"assignee_id":primary},member,403)
+          request(path,"PUT",{"status":"done","occurrence_date":date,"assignee_id":primary},admin)
+          rows=[x for x in request("/api/chores",token=admin)["items"] if x["id"]==cid]
+          assert next(x for x in rows if x["due_date"]==date)["status"]=="done",rows
+          assert next(x for x in rows if x["due_date"]!=date)["status"]=="pending",rows
+          request(f"/api/chores/{cid}","DELETE",token=admin,expect=204)
+
+          request("/api/settings/features","PUT",{"bills_enabled":False},member,403)
+          changed=request("/api/settings/features","PUT",{"bills_enabled":False,"agenda_enabled":False},admin)
+          assert changed["bills_enabled"] is False and changed["agenda_enabled"] is False,changed
+          assert request("/api/settings/general",token=member)["agenda_enabled"] is False
+          request("/api/settings/features","PUT",{"bills_enabled":True,"agenda_enabled":True},admin)
+
+          reg=request("/api/devices","POST",{
+              "installation_id":str(uuid.uuid4()),
+              "name":"CI Android handset",
+              "platform":"android",
+              "push_provider":"none",
+          },member)
+          assert reg["registered"] is True,reg
+          request("/api/devices/household",token=member,expect=403)
+          devices=request("/api/devices/household",token=admin)["items"]
+          device=next(d for d in devices if d["id"]==reg["id"])
+          assert device["user_id"]==secondary and device["name"]=="CI Android handset",device
+          assert "push_token" not in device and "installation_id" not in device,device
+          request("/api/devices/"+reg["id"],"DELETE",token=member,expect=204)
+          print("Shared recurring chores, feature switches, and household device privacy passed.")
+          PY
+
       - name: Verify private busy times and scheduling conflict permissions
         run: |
           python - <<'PY'
