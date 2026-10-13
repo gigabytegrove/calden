@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#f7f8fb">
-  <meta name="calden-version" content="1.4.1">
+  <meta name="calden-version" content="1.4.2">
   <link rel="icon" type="image/svg+xml" href="/assets/calden-icon.svg">
   
   <title>CalDen</title>
-  <link rel="stylesheet" href="/styles.css?v=1.4.1">
+  <link rel="stylesheet" href="/styles.css?v=1.4.2">
 </head>
 <body class="bg-slate-50 text-slate-900">
 <div id="auth" class="auth-shell">
@@ -575,6 +575,7 @@
           <label>Category (optional)<select name="category_id" id="category-select"><option value="">No category</option></select></label>
         </div>
         <div class="two"><label>Starts<input name="starts_at" type="datetime-local" required></label><label>Ends<input name="ends_at" type="datetime-local" required></label></div>
+        <p id="event-date-review" class="event-date-review" role="status"></p>
         <label class="toggle-row"><input name="all_day" type="checkbox"><span>All-day event</span></label>
 
         <section id="bill-event-details" class="bill-event-details hidden">
@@ -740,6 +741,6 @@
   </form>
 </dialog>
 
-<script src="/app.js?v=1.4.1" defer></script>
+<script src="/app.js?v=1.4.2" defer></script>
 </body>
 </html>
