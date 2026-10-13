@@ -49,6 +49,7 @@ type delivery struct {
     Token string
     Title,Message,Kind string
     EventID *uuid.UUID
+    CalendarID *uuid.UUID
     OccurrenceStart *time.Time
     Attempts int
 }
@@ -140,11 +141,11 @@ func (d *dispatcher) lease(ctx context.Context) (delivery,error){
        RETURNING p.notification_id,p.device_id,p.attempts
     )
     SELECT c.notification_id,c.device_id,n.user_id,d.push_token,n.title,n.message,n.kind,
-        n.event_id,n.occurrence_start,c.attempts
+        n.event_id,(SELECT e.calendar_id FROM events e WHERE e.id=n.event_id),n.occurrence_start,c.attempts
     FROM claimed c JOIN calden_devices d ON d.id=c.device_id
       JOIN notifications n ON n.id=c.notification_id`).Scan(
       &item.NoticeID,&item.DeviceID,&item.RecipientID,&item.Token,&item.Title,&item.Message,
-      &item.Kind,&item.EventID,&item.OccurrenceStart,&item.Attempts)
+      &item.Kind,&item.EventID,&item.CalendarID,&item.OccurrenceStart,&item.Attempts)
     if err!=nil {return item,err}
     if err=tx.Commit(ctx);err!=nil{return item,err}
     return item,nil
@@ -234,6 +235,7 @@ func (d *dispatcher) send(ctx context.Context,item delivery,token string) error{
         "title":item.Title,"message":item.Message,"kind":item.Kind,
     }
     if item.EventID!=nil {data["event_id"]=item.EventID.String()}
+    if item.CalendarID!=nil {data["calendar_id"]=item.CalendarID.String()}
     if item.OccurrenceStart!=nil{data["occurrence_start"]=item.OccurrenceStart.Format(time.RFC3339Nano)}
     body:=map[string]any{"message":map[string]any{
         "token":token,
