@@ -203,10 +203,10 @@ func (s *server) listNotifications(w http.ResponseWriter, r *http.Request) {
 	s.ensureBillReviewNotifications(r.Context(), a.ID, a.Role)
 	limit := 100
 	rows, err := s.db.Query(r.Context(), `SELECT n.id,n.event_id,n.kind,n.title,n.message,n.read_at,n.created_at,n.occurrence_start,
-		e.starts_at,e.ends_at,e.all_day,c.id,c.name,c.color
+		e.starts_at,e.ends_at,e.all_day,COALESCE(n.calendar_id,c.id),c.name,c.color
 		FROM notifications n
 		LEFT JOIN events e ON e.id=n.event_id
-		LEFT JOIN calendars c ON c.id=e.calendar_id
+		LEFT JOIN calendars c ON c.id=COALESCE(n.calendar_id,e.calendar_id)
 		WHERE n.user_id=$1 AND n.dismissed_at IS NULL
 		ORDER BY n.created_at DESC
 		LIMIT $2`, a.ID, limit)

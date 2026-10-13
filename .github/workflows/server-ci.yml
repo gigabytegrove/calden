@@ -72,11 +72,11 @@ jobs:
         run: |
           set -euo pipefail
           curl -fsSI http://127.0.0.1:8787/ | tr -d '\r' > /tmp/root-headers.txt
-          curl -fsSI http://127.0.0.1:8787/app.js?v=1.4.1 | tr -d '\r' > /tmp/app-headers.txt
+          curl -fsSI http://127.0.0.1:8787/app.js?v=1.4.2 | tr -d '\r' > /tmp/app-headers.txt
           grep -qi '^Cache-Control: .*no-store' /tmp/root-headers.txt
           grep -qi '^Cache-Control: .*no-store' /tmp/app-headers.txt
-          curl -fsS http://127.0.0.1:8787/ | grep -q '/app.js?v=1.4.1'
-          curl -fsS http://127.0.0.1:8787/ | grep -q '/styles.css?v=1.4.1'
+          curl -fsS http://127.0.0.1:8787/ | grep -q '/app.js?v=1.4.2'
+          curl -fsS http://127.0.0.1:8787/ | grep -q '/styles.css?v=1.4.2'
 
       - name: Set up browser test
         uses: actions/setup-node@v4
@@ -762,6 +762,53 @@ jobs:
           persisted=next(item for item in request("/api/chores",token=admin)["items"] if item["id"]==cid)
           assert persisted["status"]=="done", persisted
           request(f"/api/chores/{cid}","DELETE",token=admin,expected=204)
+          PY
+
+      - name: Verify January 2027 appointment date persists without switching to October 2026
+        run: |
+          python - <<'PY'
+          import json, urllib.request
+          base="http://127.0.0.1:8787"
+          def call(path,method="GET",body=None,token=None):
+              headers={"Content-Type":"application/json"}
+              if token: headers["Authorization"]="Bearer "+token
+              req=urllib.request.Request(base+path,method=method,
+                  data=None if body is None else json.dumps(body).encode(),
+                  headers=headers)
+              with urllib.request.urlopen(req) as r:
+                  content=r.read()
+                  return json.loads(content) if content else {}
+          token=call("/api/login","POST",{"username":"testadmin","password":"test-password-123"})["token"]
+          calendar=next(c for c in call("/api/calendars",token=token) if c["calendar_type"]=="standard")
+          title="Date regression: January 13 2027"
+          body={
+              "calendar_id":calendar["id"],"title":title,
+              "starts_at":"2027-01-13T15:00:00Z",
+              "ends_at":"2027-01-13T16:00:00Z",
+              "all_day":False,"assignee_ids":[],"reminders":[],
+          }
+          created=call("/api/events","POST",body,token)
+          assert created["verification"]=="confirmed",created
+          assert created["starts_at"]==body["starts_at"],created
+          assert created["ends_at"]==body["ends_at"],created
+          identifier=created["id"]
+          def calendar_row():
+              events=call("/api/events?from=2027-01-01T00:00:00Z&to=2027-02-01T00:00:00Z",token=token)
+              return next(e for e in events if e["id"]==identifier)
+          saved=calendar_row()
+          assert saved["starts_at"]==body["starts_at"],saved
+          assert saved["title"]==title,saved
+          assert saved["starts_at"].startswith("2027-01-13"),saved
+          assert "2026-10-13" not in saved["starts_at"],saved
+          body["starts_at"]="2027-01-14T15:00:00Z"
+          body["ends_at"]="2027-01-14T16:00:00Z"
+          updated=call("/api/events/"+identifier,"PUT",body,token)
+          assert updated["verification"]=="confirmed",updated
+          assert updated["starts_at"]==body["starts_at"],updated
+          assert updated["ends_at"]==body["ends_at"],updated
+          assert calendar_row()["starts_at"]==body["starts_at"]
+          call("/api/events/"+identifier,"DELETE",token=token)
+          print("January 2027 appointment creation, persistence and update verified.")
           PY
 
       - name: Verify recurring shared chores, optional navigation and device ownership
