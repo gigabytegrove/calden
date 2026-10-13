@@ -2276,7 +2276,7 @@ $("#event-form").addEventListener("submit",async e=>{
       }
     }
     const saved=await api(target,{method,body:JSON.stringify(body)});
-    if(method!=="DELETE" && state.editingScope!=="occurrence"){
+    if(method!=="DELETE"){
       if(saved?.verification!=="confirmed"){
         $("#event-error").textContent="The event was saved, but its stored date could not be verified. Refresh the calendar before attempting to save it again.";return;
       }
