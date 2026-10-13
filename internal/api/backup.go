@@ -19,7 +19,7 @@ func (s *server) backupStatus(w http.ResponseWriter, r *http.Request) {
 func (s *server) downloadBackup(w http.ResponseWriter, r *http.Request) {
 	path, filename, err := s.backup.CreateBundle(r.Context())
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Could not create CalDen backup: "+err.Error())
+		writeError(w, http.StatusInternalServerError, "Could not create Calden backup: "+err.Error())
 		return
 	}
 	s.audit(r, "create", "backup", nil, "Created system backup", map[string]any{"filename": filename})
@@ -37,7 +37,7 @@ func (s *server) stageRestore(w http.ResponseWriter, r *http.Request) {
 	}
 	file, header, err := r.FormFile("backup")
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "Choose a CalDen backup file")
+		writeError(w, http.StatusBadRequest, "Choose a Calden backup file")
 		return
 	}
 	defer file.Close()
@@ -48,15 +48,15 @@ func (s *server) stageRestore(w http.ResponseWriter, r *http.Request) {
 
 	manifest, err := s.backup.ValidateAndStage(file, maxRestoreUploadBytes)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "CalDen would not stage this restore: "+err.Error())
+		writeError(w, http.StatusBadRequest, "Calden would not stage this restore: "+err.Error())
 		return
 	}
-	s.audit(r, "stage_restore", "backup", nil, "Staged CalDen restore", map[string]any{
+	s.audit(r, "stage_restore", "backup", nil, "Staged Calden restore", map[string]any{
 		"backup_version": manifest.Version, "created_at": manifest.CreatedAt, "source_name": filepath.Base(header.Filename),
 	})
 	writeJSON(w, http.StatusAccepted, map[string]any{
 		"staged": true, "restart_required": true, "manifest": manifest,
-		"message": "Backup validated and staged. Restart CalDen to apply the restore.",
+		"message": "Backup validated and staged. Restart Calden to apply the restore.",
 	})
 }
 
@@ -105,10 +105,10 @@ func (s *server) deleteSavedBackup(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) restartSystem(w http.ResponseWriter, r *http.Request) {
-	s.audit(r, "restart", "system", nil, "Restarted CalDen", nil)
+	s.audit(r, "restart", "system", nil, "Restarted Calden", nil)
 	writeJSON(w, http.StatusAccepted, map[string]any{
 		"restarting": true,
-		"message": "CalDen is restarting.",
+		"message": "Calden is restarting.",
 	})
 	go func() {
 		time.Sleep(1200 * time.Millisecond)
