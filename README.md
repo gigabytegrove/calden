@@ -387,14 +387,14 @@ The Compose file maps that host port to CalDen's internal port `8787`.
 
 ## Development status
 
-CalDen server source version is 1.4.0. Backups remain recommended before each update.
+CalDen server source version is 1.4.1. Backups remain recommended before each update.
 
 The current version is intended for active testing and development. Database migrations are automatic, but backups are strongly recommended before updating between development builds.
 
 Current version:
 
 ```text
-1.4.0
+1.4.1
 ```
 
 ## Project layout
@@ -449,3 +449,7 @@ connection is not running.
 
 The Android 1.3.8 source also adds a **30-day calendar-only widget**, a native
 Tasks & Chores screen, and confirmation/error messaging for event saving.
+
+## Tasks & Chores and device inventory (1.4.1)
+
+Tasks & Chores supports recurring household work (daily, weekly, every two weeks, monthly or yearly), optional end dates, multiple assignees, and independent per-occurrence completion for each person. Existing chores migrate in place. Admins can hide Bills and Agenda in Settings → Household without deleting any data. Administrators can review registered devices and their owners under People; individual users still control their own devices from Settings → My devices. See [1.4.1 release notes](docs/releases/v1.4.1.md).
