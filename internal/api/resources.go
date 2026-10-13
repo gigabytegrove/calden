@@ -604,7 +604,7 @@ func (s *server) createEvent(w http.ResponseWriter, r *http.Request) {
 	s.audit(r, "create", "event", &id, "Created event "+cleanText(in.Title, 200), map[string]any{
 		"calendar_id": in.CalendarID, "category_id": in.CategoryID, "starts_at": in.StartsAt, "recurring": in.Recurrence != nil,
 	})
-	writeJSON(w, 201, map[string]any{"id": id})
+	writeJSON(w, 201, s.eventSaveResult(r,id))
 }
 
 func validColor(v string) bool {
