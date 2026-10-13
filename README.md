@@ -387,7 +387,7 @@ The Compose file maps that host port to CalDen's internal port `8787`.
 
 ## Development status
 
-CalDen server source version is 1.4.1. Backups remain recommended before each update.
+CalDen server source version is 1.4.3. Backups remain recommended before each update.
 
 The current version is intended for active testing and development. Database migrations are automatic, but backups are strongly recommended before updating between development builds.
 
@@ -453,3 +453,7 @@ Tasks & Chores screen, and confirmation/error messaging for event saving.
 ## Tasks & Chores and device inventory (1.4.1)
 
 Tasks & Chores supports recurring household work (daily, weekly, every two weeks, monthly or yearly), optional end dates, multiple assignees, and independent per-occurrence completion for each person. Existing chores migrate in place. Admins can hide Bills and Agenda in Settings → Household without deleting any data. Administrators can review registered devices and their owners under People; individual users still control their own devices from Settings → My devices. See [1.4.1 release notes](docs/releases/v1.4.1.md).
+
+## Appointment date reliability (1.4.3)
+
+Calden keeps the selected civil date intact when opening an event from a calendar date, confirms the PostgreSQL start and end timestamps after creation or updates (including recurring occurrence edits), and navigates to the saved date. The Notifications inbox explicitly identifies its timestamp as **Notified** rather than the appointment date. The January 13, 2027 test case is included in automated browser and API regression tests. See [1.4.3 release notes](docs/releases/v1.4.3.md).
