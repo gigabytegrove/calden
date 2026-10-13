@@ -89,6 +89,9 @@ jobs:
               grep -Fxq 'calden' "existing-release/$ARCH.contents"
               grep -Fxq 'web/index.html' "existing-release/$ARCH.contents"
             done
+            # A racing legacy publisher could leave a verified draft behind.
+            # Publish only after both runtime assets pass checksum verification.
+            gh release edit "$TAG" --draft=false --latest
             echo "Existing release $TAG has both complete, checksum-verified runtimes."
             exit 0
           fi
