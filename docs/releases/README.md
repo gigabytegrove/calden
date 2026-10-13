@@ -1,6 +1,20 @@
-# CalDen release notes
+# Calden release notes
 
-Current stable release: **1.2.2**.
+**Current server version: 1.4.4.** These notes explain what's changed in plain language. You can install server updates from **Calden → Settings → Updates**. Keep a backup of your family's calendar before updating.
+
+## Recent updates
+
+- [1.4.4](v1.4.4.md) — one consistent Calden name and easier instructions
+- [1.4.3](v1.4.3.md) — appointments stay on the date you choose
+- [1.4.2](v1.4.2.md) — clearer appointment dates and notification dates
+- [1.4.1](v1.4.1.md) — recurring chores for several people, optional sections, and devices
+- [1.4.0](v1.4.0.md) — appointment notifications, confirmations, and busy-time controls
+- [1.3.8](v1.3.8.md) — improvements to calendar and Android connections
+- [1.3.7](v1.3.7.md) — earlier changes and fixes
+
+**Android app updates are separate from server updates.** Only install a new Android APK after a build has been tested and published.
+
+## Earlier updates
 
 - [1.2.2](v1.2.2.md) — corrected Settings startup and updater cleanup
 - [1.2.1](v1.2.1.md) — Settings navigation, clearer allocation status and updater cleanup
