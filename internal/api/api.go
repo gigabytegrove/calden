@@ -259,7 +259,7 @@ func (s *server) setup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if count != 0 {
-		writeError(w, http.StatusConflict, "CalDen is already set up")
+		writeError(w, http.StatusConflict, "Calden is already set up")
 		return
 	}
 
@@ -387,7 +387,7 @@ func (s *server) setup(w http.ResponseWriter, r *http.Request) {
 
 	token, err := s.token(id, "admin")
 	if err != nil {
-		writeError(w, 500, "Setup finished, but CalDen could not sign you in")
+		writeError(w, 500, "Setup finished, but Calden could not sign you in")
 		return
 	}
 	writeJSON(w, 201, map[string]any{"token": token, "household_name": in.HouseholdName})
@@ -537,6 +537,6 @@ func (s *server) clientError(w http.ResponseWriter, r *http.Request) {
     writeError(w, http.StatusBadRequest, "Missing error message")
     return
   }
-  log.Printf("CalDen browser error (client version %s): %s",version,message)
+  log.Printf("Calden browser error (client version %s): %s",version,message)
   w.WriteHeader(http.StatusNoContent)
 }
