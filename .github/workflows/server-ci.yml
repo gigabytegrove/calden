@@ -83,6 +83,9 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Run date parsing regression tests
+        run: node --test tests/web-date.test.cjs
+
       - name: Install Chromium test runtime
         run: |
           npm install --no-save playwright@1.56.1
