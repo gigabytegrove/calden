@@ -3,6 +3,7 @@ package api
 import (
     "net/http"
     "strings"
+    "time"
     "github.com/gigabytegrove/calden/internal/secrets"
 
     "github.com/google/uuid"
@@ -118,4 +119,32 @@ func (s *server) pushDiagnostics(w http.ResponseWriter,r *http.Request) {
       if rows.Scan(&status,&count)==nil{counts[status]=count}}
     writeJSON(w,200,map[string]any{"configured":s.pushAccountFile!="" &&
         s.pushProjectID!="","deliveries":counts})
+}
+
+
+// Admin-only, read-only inventory of registered device installations.
+// Never expose push tokens or installation secrets in the result.
+func (s *server) listHouseholdDevices(w http.ResponseWriter,r *http.Request) {
+    rows,err:=s.db.Query(r.Context(),
+        "SELECT d.id,d.user_id,u.display_name,d.name,d.platform,d.enabled,d.created_at,d.last_seen_at "+
+        "FROM calden_devices d JOIN users u ON u.id=d.user_id "+
+        "WHERE d.revoked_at IS NULL ORDER BY u.display_name,d.last_seen_at DESC")
+    if err!=nil{writeError(w,500,"Could not load household devices");return}
+    defer rows.Close()
+    items:=[]map[string]any{}
+    for rows.Next(){
+        var id,userID uuid.UUID
+        var userName,name,platform string
+        var enabled bool
+        var created,seen time.Time
+        if err=rows.Scan(&id,&userID,&userName,&name,&platform,&enabled,&created,&seen);err!=nil{
+            writeError(w,500,"Could not read household devices");return
+        }
+        items=append(items,map[string]any{
+            "id":id,"user_id":userID,"user_name":userName,"name":name,
+            "platform":platform,"enabled":enabled,"created_at":created,"last_seen_at":seen,
+        })
+    }
+    if rows.Err()!=nil{writeError(w,500,"Could not finish loading household devices");return}
+    writeJSON(w,200,map[string]any{"items":items})
 }
