@@ -238,7 +238,7 @@ func sendMonita(cfg monitaSettings, channel, title, message string) error {
 	}
 	req.Header.Set("Content-Type", "application/json")
     if serviceMode { req.Header.Set("Authorization", "Bearer "+cfg.Token) }
-	req.Header.Set("User-Agent", "CalDen")
+	req.Header.Set("User-Agent", "Calden")
 	resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
 	if err != nil {
 		return err
