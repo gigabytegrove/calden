@@ -1,11 +1,11 @@
-# CalDen coordinated development: device notifications, confirmations, integrations
+# Calden coordinated development: device notifications, confirmations, integrations
 
 Status: DESIGN BASELINE (not implemented)
 Date: 2026-10-08
 
 ## Accepted baseline
 - Android 1.2.5 is the user-accepted baseline; preserve calendar display, widgets, avatar priority (photo always wins over initials), bill status conventions, and working login.
-- CalDen server/web is authoritative for events, membership, reminder preferences, and event confirmation.
+- Calden server/web is authoritative for events, membership, reminder preferences, and event confirmation.
 - Coordinate changes across gigabytegrove/calden and gigabytegrove/calden-android; Monita lives at gigabytegrove/monita (default branch master).
 - No feature removal or untested release claims.
 
