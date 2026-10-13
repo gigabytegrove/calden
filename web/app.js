@@ -2288,8 +2288,15 @@ $("#event-form").addEventListener("submit",async e=>{
     // A saved January appointment must immediately open January in Calendar.
     const savedDate=payload.all_day?calendarDate(String(fd.get("starts_at")).slice(0,10)):new Date(payload.starts_at);
     if(Number.isFinite(savedDate.getTime())){
-      state.anchorDate=startOfDay(savedDate);
-      navigate("calendar",false);
+      // Bill Pay is a separate workflow: saving a bill must not navigate
+      // away from the bill list, which would also hide the saved result.
+      if(billActive){
+        state.billMonth=new Date(savedDate.getFullYear(),savedDate.getMonth(),1);
+      }
+      if(state.currentPage!=="bills"){
+        state.anchorDate=startOfDay(savedDate);
+        navigate("calendar",false);
+      }
     }
     $("#event-dialog").close();state.editingEvent=null;state.editingScope="series";state.preserveRawRecurrence=false;
     state.calendars=await api("/api/calendars");
