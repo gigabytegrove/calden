@@ -10,7 +10,7 @@ import (
 func (s *server) updateCheck(w http.ResponseWriter, r *http.Request) {
 	result, err := s.updater.Check(r.Context())
 	if err != nil {
-		writeError(w, http.StatusBadGateway, "CalDen could not check for updates: "+err.Error())
+		writeError(w, http.StatusBadGateway, "Calden could not check for updates: "+err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
@@ -59,7 +59,7 @@ func (s *server) installUpdate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, err.Error())
 		return
 	}
-	s.audit(r, "install", "update", nil, "Started CalDen update "+strings.TrimSpace(in.Version), map[string]any{"version": strings.TrimSpace(in.Version)})
+	s.audit(r, "install", "update", nil, "Started Calden update "+strings.TrimSpace(in.Version), map[string]any{"version": strings.TrimSpace(in.Version)})
 	writeJSON(w, http.StatusAccepted, status)
 }
 
@@ -69,6 +69,6 @@ func (s *server) rollbackUpdate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, err.Error())
 		return
 	}
-	s.audit(r, "rollback", "update", nil, "Started CalDen rollback", map[string]any{"version": status.Version})
+	s.audit(r, "rollback", "update", nil, "Started Calden rollback", map[string]any{"version": status.Version})
 	writeJSON(w, http.StatusAccepted, status)
 }
