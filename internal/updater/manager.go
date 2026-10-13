@@ -261,9 +261,9 @@ func (m *Manager) Rollback() (Status, error) {
 	started := time.Now().UTC()
 	status := Status{
 		Ready: true, State: "restarting", Version: previous.Version,
-		Message: "Rolling back to the previous CalDen runtime", Step: "Restarting CalDen",
+		Message: "Rolling back to the previous Calden runtime", Step: "Restarting Calden",
 		Progress: 98, StartedAt: &started,
-		Activity: []Activity{{Timestamp: started, Message: "Rollback started"}, {Timestamp: time.Now().UTC(), Message: "Restarting CalDen"}},
+		Activity: []Activity{{Timestamp: started, Message: "Rollback started"}, {Timestamp: time.Now().UTC(), Message: "Restarting Calden"}},
 	}
 	if err := m.writeStatus(status); err != nil {
 		return Status{}, err
@@ -307,7 +307,7 @@ func (m *Manager) performInstall(version string, release releasePayload, started
 	m.progress("backup", "Creating safety backup", "Creating PostgreSQL safety backup", 8)
 	backupPath, err := m.createDatabaseBackup(version)
 	if err != nil {
-		m.fail(version, started, "CalDen would not install the update because a safety backup could not be created.", err)
+		m.fail(version, started, "Calden would not install the update because a safety backup could not be created.", err)
 		return
 	}
 	status, _ := m.readStatus()
@@ -357,12 +357,12 @@ func (m *Manager) performInstall(version string, release releasePayload, started
 	webDir := filepath.Join(stage, "web")
 	if err := os.Chmod(binary, 0755); err != nil {
 		_ = os.RemoveAll(stage)
-		m.fail(version, started, "The staged CalDen binary could not be prepared.", err)
+		m.fail(version, started, "The staged Calden binary could not be prepared.", err)
 		return
 	}
 	if info, err := os.Stat(webDir); err != nil || !info.IsDir() {
 		_ = os.RemoveAll(stage)
-		m.fail(version, started, "The release does not contain the CalDen web interface.", errors.New("web directory missing"))
+		m.fail(version, started, "The release does not contain the Calden web interface.", errors.New("web directory missing"))
 		return
 	}
 	if err := verifyRuntime(binary, version); err != nil {
@@ -388,7 +388,7 @@ func (m *Manager) performInstall(version string, release releasePayload, started
 		return
 	}
 
-	m.progress("restarting", "Restarting CalDen", "Restarting into the new runtime", 98)
+	m.progress("restarting", "Restarting Calden", "Restarting into the new runtime", 98)
 	time.Sleep(900 * time.Millisecond)
 	m.execRuntime(filepath.Join(target, "calden"), filepath.Join(target, "web"))
 }
@@ -418,7 +418,7 @@ func (m *Manager) execRuntime(binary, webDir string) {
 	args := append([]string{binary}, os.Args[1:]...)
 	if err := execFn(binary, args, env); err != nil {
 		started := time.Now().UTC()
-		m.fail("", started, "CalDen could not restart into the selected runtime.", err)
+		m.fail("", started, "Calden could not restart into the selected runtime.", err)
 	}
 }
 
@@ -465,7 +465,7 @@ func (m *Manager) fetchReleases(ctx context.Context) ([]releasePayload, error) {
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "CalDen/"+m.CurrentVersion)
+	req.Header.Set("User-Agent", "Calden/"+m.CurrentVersion)
 	resp, err := m.client().Do(req)
 	if err != nil {
 		return nil, err
@@ -488,7 +488,7 @@ func (m *Manager) releaseByVersion(ctx context.Context, version string) (*releas
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "CalDen/"+m.CurrentVersion)
+	req.Header.Set("User-Agent", "Calden/"+m.CurrentVersion)
 	resp, err := m.client().Do(req)
 	if err != nil {
 		return nil, err
@@ -717,7 +717,7 @@ func (m *Manager) downloadFile(url, path string, start, end int) error {
 	if err != nil {
 		return err
 	}
-	req.Header.Set("User-Agent", "CalDen/"+m.CurrentVersion)
+	req.Header.Set("User-Agent", "Calden/"+m.CurrentVersion)
 	resp, err := m.client().Do(req)
 	if err != nil {
 		return err
@@ -765,7 +765,7 @@ func (m *Manager) downloadText(url string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("User-Agent", "CalDen/"+m.CurrentVersion)
+	req.Header.Set("User-Agent", "Calden/"+m.CurrentVersion)
 	resp, err := m.client().Do(req)
 	if err != nil {
 		return "", err
@@ -961,10 +961,10 @@ func (m *Manager) finalizeRestart() {
 	status.Ready = true
 	status.State = "completed"
 	status.Step = "Update complete"
-	status.Message = "CalDen is running the selected version."
+	status.Message = "Calden is running the selected version."
 	status.Progress = 100
 	status.FinishedAt = &finished
-	status.Activity = append(status.Activity, Activity{Timestamp: finished, Message: "CalDen restarted successfully"})
+	status.Activity = append(status.Activity, Activity{Timestamp: finished, Message: "Calden restarted successfully"})
 	_ = m.writeStatus(status)
 }
 
