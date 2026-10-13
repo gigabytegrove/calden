@@ -789,3 +789,20 @@ dialog::backdrop{background:rgba(15,23,42,.58);backdrop-filter:blur(2px)}
 #chore-editor-panel{margin-top:18px;max-width:640px}
 .chore-empty{padding:30px;text-align:center}
 @media(max-width:650px){.chore-card{align-items:flex-start;flex-direction:column}.chore-summary-item{padding:10px}.chore-summary-item strong{font-size:1.25rem}}
+
+/* Household chores, independent completion and connected devices */
+.chore-assignees-field{border:1px solid #dce3ed;border-radius:12px;padding:13px}
+.chore-assignees-field legend{padding:0 8px;font-weight:750;color:#27354a}
+.chore-member-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin-top:12px}
+.chore-member-choice{display:flex;align-items:center;gap:9px;padding:10px;border:1px solid #d8e0eb;border-radius:10px;cursor:pointer;background:#f8fafc}
+.chore-member-choice:has(input:checked){background:#eff6ff;border-color:#6797d4}
+.chore-member-choice .avatar,.chore-assignee-progress .avatar{width:28px;height:28px;flex:none}
+.chore-member-choice input{flex:none;accent-color:#2563eb}
+.chore-assignee-list{display:flex;flex-wrap:wrap;gap:9px;margin:9px 0 4px}
+.chore-assignee-progress{display:flex;align-items:center;flex-wrap:wrap;gap:7px;padding:9px 11px;border-radius:10px;border:1px solid #dde5ef;background:#f8fafc}
+.chore-assignee-progress select{max-width:140px;background:#fff}
+.chore-repeat-tag{padding:4px 8px;border-radius:999px;background:#eaf1ff;color:#2155a3;font-weight:700;font-size:.76rem}
+.person-devices{margin-top:8px;padding-top:9px;border-top:1px solid #e8edf4;grid-column:1/-1}
+.person-devices summary{font-size:.8rem;font-weight:750;color:#3b526f;cursor:pointer}
+.person-device-row{padding:7px 0;font-size:.82rem;color:#5f6d80}
+@media(max-width:700px){.chore-card{flex-direction:column;align-items:stretch}.chore-actions{justify-content:flex-start}}
