@@ -1,10 +1,8 @@
 name: Publish CalDen Release
 
+# Kept as an on-demand legacy release builder only.
+# release-runtime.yml is the sole automatic publisher to avoid release races.
 on:
-  push:
-    branches: ["main"]
-    paths:
-      - "VERSION"
   workflow_dispatch:
 
 permissions:
