@@ -1785,7 +1785,7 @@ function openEvent(existing=null,dateHint=null,scope="series"){
   }
   updateBillEventUI();
   updateRepeatUI();
-  $("#event-error").textContent="";$("#event-dialog").showModal();
+  $("#event-error").textContent="";refreshEventDateReview();$("#event-dialog").showModal();
 }
 
 function humanSize(bytes){
@@ -2187,6 +2187,21 @@ $("#event-form").repeat_until.addEventListener("change",markRecurrenceEdited);
 $("#event-form").repeat_count.addEventListener("input",markRecurrenceEdited);
 $("#event-form").querySelectorAll('input[name="repeat_weekday"]').forEach(input=>input.addEventListener("change",markRecurrenceEdited));
 $("#event-form").starts_at.addEventListener("change",()=>{if($("#event-form").repeat_frequency.value==="weekly")updateRepeatUI()});
+
+function refreshEventDateReview(){
+  const form=$("#event-form"),display=$("#event-date-review");
+  if(!display)return;
+  const from=form.starts_at.value,to=form.ends_at.value;
+  if(!from||!to){display.textContent="Choose both the start and end date.";return}
+  const start=new Date(from),end=new Date(to);
+  if(!Number.isFinite(start.getTime())||!Number.isFinite(end.getTime())){display.textContent="Check the appointment date and time.";return}
+  const human=value=>value.toLocaleString(undefined,{weekday:"short",month:"long",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"});
+  display.textContent="Please verify: "+human(start)+" through "+human(end);
+}
+$("#event-form").starts_at.addEventListener("input",refreshEventDateReview);
+$("#event-form").ends_at.addEventListener("input",refreshEventDateReview);
+$("#event-form").ends_at.addEventListener("change",refreshEventDateReview);
+
 $("#delete-event").addEventListener("click",async()=>{
   if(!state.editingEvent)return;
   let scope=state.editingScope;
@@ -2220,7 +2235,11 @@ $("#event-form").addEventListener("submit",async e=>{
   const reminders=collectReminders();
   const billActive=isBillCalendar(fd.get("calendar_id"));
   const billRaw=String(fd.get("bill_amount")||"").trim();
-  const payload={title:fd.get("title"),calendar_id:fd.get("calendar_id"),category_id:fd.get("category_id")||null,starts_at:new Date(fd.get("starts_at")).toISOString(),ends_at:new Date(fd.get("ends_at")).toISOString(),all_day:form.all_day.checked,location:fd.get("location"),notes:fd.get("notes"),assignee_ids:fd.getAll("assignee"),request_confirmation:form.request_confirmation.checked,reminders,recurrence:recurrencePayload(form),bill_amount:billActive&&billRaw!==""?Number(billRaw):null,bill_amount_is_estimate:billActive&&form.bill_amount_is_estimate.checked,bill_payer_user_id:billActive&&form.bill_payer_user_id.value?form.bill_payer_user_id.value:null};
+  const startAt=new Date(fd.get("starts_at")),endAt=new Date(fd.get("ends_at"));
+  if(!Number.isFinite(startAt.getTime())||!Number.isFinite(endAt.getTime())||endAt<=startAt){
+    $("#event-error").textContent="Check the start and end date before saving.";return;
+  }
+  const payload={title:fd.get("title"),calendar_id:fd.get("calendar_id"),category_id:fd.get("category_id")||null,starts_at:startAt.toISOString(),ends_at:endAt.toISOString(),all_day:form.all_day.checked,location:fd.get("location"),notes:fd.get("notes"),assignee_ids:fd.getAll("assignee"),request_confirmation:form.request_confirmation.checked,reminders,recurrence:recurrencePayload(form),bill_amount:billActive&&billRaw!==""?Number(billRaw):null,bill_amount_is_estimate:billActive&&form.bill_amount_is_estimate.checked,bill_payer_user_id:billActive&&form.bill_payer_user_id.value?form.bill_payer_user_id.value:null};
   let target="/api/events",method="POST",body=payload;
   if(state.editingEvent){
     if(state.editingEvent.is_recurring&&state.editingScope==="occurrence"){
@@ -2248,7 +2267,16 @@ $("#event-form").addEventListener("submit",async e=>{
         if(!confirm(count+" scheduling conflict(s) were found. Private busy times do not show their details. Save this appointment anyway?"))return;
       }
     }
-    await api(target,{method,body:JSON.stringify(body)});
+    const saved=await api(target,{method,body:JSON.stringify(body)});
+    if(method!=="DELETE" && state.editingScope!=="occurrence"){
+      if(saved?.verification!=="confirmed"){
+        $("#event-error").textContent="The event was saved, but its stored date could not be verified. Refresh the calendar before attempting to save it again.";return;
+      }
+      const storedStart=Date.parse(saved.starts_at),storedEnd=Date.parse(saved.ends_at);
+      if(storedStart!==startAt.getTime()||storedEnd!==endAt.getTime()){
+        $("#event-error").textContent="WARNING: Event was saved with a different date than entered. Please review the event in Calendar; do not submit it twice.";return;
+      }
+    }
     $("#event-dialog").close();state.editingEvent=null;state.editingScope="series";state.preserveRawRecurrence=false;
     state.calendars=await api("/api/calendars");
     await Promise.all([loadEvents(),loadNotifications(false)]);
