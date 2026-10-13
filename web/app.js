@@ -2286,7 +2286,7 @@ $("#event-form").addEventListener("submit",async e=>{
       }
     }
     // A saved January appointment must immediately open January in Calendar.
-    const savedDate=payload.all_day?calendarDate(payload.starts_at):new Date(payload.starts_at);
+    const savedDate=payload.all_day?calendarDate(String(fd.get("starts_at")).slice(0,10)):new Date(payload.starts_at);
     if(Number.isFinite(savedDate.getTime())){
       state.anchorDate=startOfDay(savedDate);
       navigate("calendar",false);
