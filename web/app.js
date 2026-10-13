@@ -191,6 +191,16 @@ function calendarDate(value){
   if(!match)return new Date(value);
   return new Date(Number(match[1]),Number(match[2])-1,Number(match[3]));
 }
+function eventStartFromHint(dateHint=null){
+  const start=dateHint
+    ?(typeof dateHint==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(dateHint)
+      ?calendarDate(dateHint):new Date(dateHint))
+    :new Date(Date.now()+3600000);
+  if(!Number.isFinite(start.getTime()))throw new Error("Invalid selected appointment date");
+  if(!dateHint)start.setMinutes(0,0,0);else start.setSeconds(0,0);
+  if(dateHint&&start.getHours()===0&&start.getMinutes()===0)start.setHours(9);
+  return start;
+}
 function eventStartDate(event){return event?.all_day?calendarDate(event.starts_at):new Date(event?.starts_at)}
 function eventEndDate(event){return event?.all_day?calendarDate(event.ends_at):new Date(event?.ends_at)}
 function clamp(n,min,max){return Math.min(max,Math.max(min,n))}
@@ -1770,12 +1780,7 @@ function openEvent(existing=null,dateHint=null,scope="series"){
     [...form.querySelectorAll('input[name="assignee"]')].forEach(i=>i.checked=sourceAssignees.some(a=>a.id===i.value));
   }else{
     $("#repeat-editor").classList.remove("hidden");$("#series-scope-note").classList.add("hidden");$("#advanced-recurrence-note")?.classList.add("hidden");
-    const start=dateHint
-      ? (typeof dateHint==="string" && /^\d{4}-\d{2}-\d{2}$/.test(dateHint)
-          ? calendarDate(dateHint) : new Date(dateHint))
-      : new Date(Date.now()+3600000);
-    if(!dateHint)start.setMinutes(0,0,0);else start.setSeconds(0,0);
-    if(dateHint&&start.getHours()===0&&start.getMinutes()===0)start.setHours(9);
+    const start=eventStartFromHint(dateHint);
     const end=new Date(start.getTime()+state.defaultDuration*60000);
     form.starts_at.value=localInput(start);form.ends_at.value=localInput(end);
     const editable=state.calendars.filter(cal=>cal.can_edit);
@@ -2279,6 +2284,12 @@ $("#event-form").addEventListener("submit",async e=>{
       if(storedStart!==startAt.getTime()||storedEnd!==endAt.getTime()){
         $("#event-error").textContent="WARNING: Event was saved with a different date than entered. Please review the event in Calendar; do not submit it twice.";return;
       }
+    }
+    // A saved January appointment must immediately open January in Calendar.
+    const savedDate=payload.all_day?calendarDate(payload.starts_at):new Date(payload.starts_at);
+    if(Number.isFinite(savedDate.getTime())){
+      state.anchorDate=startOfDay(savedDate);
+      navigate("calendar",false);
     }
     $("#event-dialog").close();state.editingEvent=null;state.editingScope="series";state.preserveRawRecurrence=false;
     state.calendars=await api("/api/calendars");
