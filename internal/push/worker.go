@@ -141,7 +141,7 @@ func (d *dispatcher) lease(ctx context.Context) (delivery,error){
        RETURNING p.notification_id,p.device_id,p.attempts
     )
     SELECT c.notification_id,c.device_id,n.user_id,d.push_token,n.title,n.message,n.kind,
-        n.event_id,(SELECT e.calendar_id FROM events e WHERE e.id=n.event_id),n.occurrence_start,c.attempts
+        n.event_id,COALESCE(n.calendar_id,(SELECT e.calendar_id FROM events e WHERE e.id=n.event_id)),n.occurrence_start,c.attempts
     FROM claimed c JOIN calden_devices d ON d.id=c.device_id
       JOIN notifications n ON n.id=c.notification_id`).Scan(
       &item.NoticeID,&item.DeviceID,&item.RecipientID,&item.Token,&item.Title,&item.Message,
