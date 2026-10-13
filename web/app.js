@@ -191,6 +191,16 @@ function calendarDate(value){
   if(!match)return new Date(value);
   return new Date(Number(match[1]),Number(match[2])-1,Number(match[3]));
 }
+function eventStartFromHint(dateHint=null){
+  const start=dateHint
+    ?(typeof dateHint==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(dateHint)
+      ?calendarDate(dateHint):new Date(dateHint))
+    :new Date(Date.now()+3600000);
+  if(!Number.isFinite(start.getTime()))throw new Error("Invalid selected appointment date");
+  if(!dateHint)start.setMinutes(0,0,0);else start.setSeconds(0,0);
+  if(dateHint&&start.getHours()===0&&start.getMinutes()===0)start.setHours(9);
+  return start;
+}
 function eventStartDate(event){return event?.all_day?calendarDate(event.starts_at):new Date(event?.starts_at)}
 function eventEndDate(event){return event?.all_day?calendarDate(event.ends_at):new Date(event?.ends_at)}
 function clamp(n,min,max){return Math.min(max,Math.max(min,n))}
@@ -1128,7 +1138,7 @@ function renderNotificationInbox(){
     const billReview=item.kind==="bill_review";
     const startValue=billReview&&item.occurrence_start?item.occurrence_start:item.starts_at;
     const start=startValue?(item.all_day?calendarDate(startValue):new Date(startValue)):null;
-    const when=start?(item.all_day?formatDate(start,{weekday:"short",month:"short",day:"numeric"}):formatDate(start,{weekday:"short",month:"short",day:"numeric"})+" · "+formatTime(start)):"Event updated";
+    const when=start?(item.all_day?formatDate(start,{weekday:"short",month:"short",day:"numeric",year:"numeric"}):formatDate(start,{weekday:"short",month:"short",day:"numeric",year:"numeric"})+" · "+formatTime(start)):"Event date unavailable";
     const family=item.kind==="event_family";
     const color=safeColor(item.calendar_color||"#64748b");
     const iconClass=billReview?"bill":family?"family":"assigned";
@@ -1141,7 +1151,7 @@ function renderNotificationInbox(){
         <strong>${escapeHTML(item.title)}</strong>
         <small>${escapeHTML(item.message)} ${escapeHTML(when)}</small>
       </span>
-      <span class="notification-inbox-side"><i style="--cal:${color}"></i><time>${escapeHTML(formatDate(new Date(item.created_at),{month:"short",day:"numeric"}))}</time></span>
+      <span class="notification-inbox-side"><i style="--cal:${color}"></i><time title="Notification received (not the event date)">Notified ${escapeHTML(formatDate(new Date(item.created_at),{month:"short",day:"numeric",year:"numeric"}))}</time></span>
     </button><button type="button" class="notification-dismiss" data-dismiss-notification="${escapeAttr(item.id)}" aria-label="Dismiss alert" title="Dismiss alert">×</button></div>`;
   }).join(""):'<div class="empty-state notification-empty"><strong>No alerts yet</strong><span>New assignments and whole-family events will appear here.</span></div>';
 
@@ -1770,12 +1780,7 @@ function openEvent(existing=null,dateHint=null,scope="series"){
     [...form.querySelectorAll('input[name="assignee"]')].forEach(i=>i.checked=sourceAssignees.some(a=>a.id===i.value));
   }else{
     $("#repeat-editor").classList.remove("hidden");$("#series-scope-note").classList.add("hidden");$("#advanced-recurrence-note")?.classList.add("hidden");
-    const start=dateHint
-      ? (typeof dateHint==="string" && /^\d{4}-\d{2}-\d{2}$/.test(dateHint)
-          ? calendarDate(dateHint) : new Date(dateHint))
-      : new Date(Date.now()+3600000);
-    if(!dateHint)start.setMinutes(0,0,0);else start.setSeconds(0,0);
-    if(dateHint&&start.getHours()===0&&start.getMinutes()===0)start.setHours(9);
+    const start=eventStartFromHint(dateHint);
     const end=new Date(start.getTime()+state.defaultDuration*60000);
     form.starts_at.value=localInput(start);form.ends_at.value=localInput(end);
     const editable=state.calendars.filter(cal=>cal.can_edit);
@@ -2271,7 +2276,7 @@ $("#event-form").addEventListener("submit",async e=>{
       }
     }
     const saved=await api(target,{method,body:JSON.stringify(body)});
-    if(method!=="DELETE" && state.editingScope!=="occurrence"){
+    if(method!=="DELETE"){
       if(saved?.verification!=="confirmed"){
         $("#event-error").textContent="The event was saved, but its stored date could not be verified. Refresh the calendar before attempting to save it again.";return;
       }
@@ -2279,6 +2284,12 @@ $("#event-form").addEventListener("submit",async e=>{
       if(storedStart!==startAt.getTime()||storedEnd!==endAt.getTime()){
         $("#event-error").textContent="WARNING: Event was saved with a different date than entered. Please review the event in Calendar; do not submit it twice.";return;
       }
+    }
+    // A saved January appointment must immediately open January in Calendar.
+    const savedDate=payload.all_day?calendarDate(String(fd.get("starts_at")).slice(0,10)):new Date(payload.starts_at);
+    if(Number.isFinite(savedDate.getTime())){
+      state.anchorDate=startOfDay(savedDate);
+      navigate("calendar",false);
     }
     $("#event-dialog").close();state.editingEvent=null;state.editingScope="series";state.preserveRawRecurrence=false;
     state.calendars=await api("/api/calendars");
