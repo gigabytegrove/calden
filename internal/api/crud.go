@@ -267,7 +267,7 @@ func (s *server) updateEvent(w http.ResponseWriter, r *http.Request) {
 	s.audit(r, "update", "event", &id, "Updated event "+cleanText(in.Title, 200), map[string]any{
 		"calendar_id": in.CalendarID, "category_id": in.CategoryID, "starts_at": in.StartsAt, "recurring": in.Recurrence != nil,
 	})
-	writeJSON(w, 200, map[string]any{"id": id})
+	writeJSON(w, 200, s.eventSaveResult(r,id))
 }
 
 func (s *server) deleteEvent(w http.ResponseWriter, r *http.Request) {
@@ -429,4 +429,15 @@ func (s *server) deleteCalendar(w http.ResponseWriter, r *http.Request) {
 		"forced":      events > 0,
 	})
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *server) eventSaveResult(r *http.Request,id uuid.UUID) map[string]any {
+    out:=map[string]any{"id":id,"verification":"unavailable"}
+    var starts,ends time.Time
+    if err:=s.db.QueryRow(r.Context(),"SELECT starts_at,ends_at FROM events WHERE id=$1",id).Scan(&starts,&ends);err==nil{
+        out["starts_at"]=starts.UTC().Format(time.RFC3339Nano)
+        out["ends_at"]=ends.UTC().Format(time.RFC3339Nano)
+        out["verification"]="confirmed"
+    }
+    return out
 }

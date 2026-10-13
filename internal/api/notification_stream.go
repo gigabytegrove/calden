@@ -72,7 +72,7 @@ func (s *server) streamNotifications(w http.ResponseWriter, r *http.Request) {
         if authErr != nil || !active { return }
 
         ctx, cancel = context.WithTimeout(r.Context(), 5*time.Second)
-        rows, err := s.db.Query(ctx, `SELECT id,event_id,kind,title,message,occurrence_start,created_at
+        rows, err := s.db.Query(ctx, `SELECT id,event_id,calendar_id,kind,title,message,occurrence_start,created_at
             FROM notifications
             WHERE user_id=$1 AND dismissed_at IS NULL AND read_at IS NULL AND created_at >= $2
             ORDER BY created_at ASC, id ASC LIMIT 200`, person, cursor)
@@ -80,6 +80,7 @@ func (s *server) streamNotifications(w http.ResponseWriter, r *http.Request) {
         type notice struct {
             ID uuid.UUID `json:"id"`
             EventID *uuid.UUID `json:"event_id"`
+            CalendarID *uuid.UUID `json:"calendar_id"`
             Kind string `json:"kind"`
             Title string `json:"title"`
             Message string `json:"message"`
@@ -89,7 +90,7 @@ func (s *server) streamNotifications(w http.ResponseWriter, r *http.Request) {
         outgoing := make([]notice, 0)
         for rows.Next() {
             var n notice
-            if rows.Scan(&n.ID,&n.EventID,&n.Kind,&n.Title,&n.Message,&n.OccurrenceStart,&n.CreatedAt) != nil { break }
+            if rows.Scan(&n.ID,&n.EventID,&n.CalendarID,&n.Kind,&n.Title,&n.Message,&n.OccurrenceStart,&n.CreatedAt) != nil { break }
             if _, found := seen[n.ID]; !found {
                 outgoing = append(outgoing, n)
                 seen[n.ID] = struct{}{}
