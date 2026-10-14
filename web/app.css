@@ -793,11 +793,16 @@ dialog::backdrop{background:rgba(15,23,42,.58);backdrop-filter:blur(2px)}
 /* Household chores, independent completion and connected devices */
 .chore-assignees-field{border:1px solid #dce3ed;border-radius:12px;padding:13px}
 .chore-assignees-field legend{padding:0 8px;font-weight:750;color:#27354a}
-.chore-member-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin-top:12px}
-.chore-member-choice{display:flex;align-items:center;gap:9px;padding:10px;border:1px solid #d8e0eb;border-radius:10px;cursor:pointer;background:#f8fafc}
+.chore-member-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,185px),1fr));gap:8px;margin-top:12px;min-width:0}
+.chore-member-choice{display:grid;grid-template-columns:18px 28px minmax(0,1fr);align-items:center;justify-content:start;gap:9px;min-width:0;min-height:56px;margin:0;padding:10px;border:1px solid #d8e0eb;border-radius:10px;cursor:pointer;background:#f8fafc}
 .chore-member-choice:has(input:checked){background:#eff6ff;border-color:#6797d4}
 .chore-member-choice .avatar,.chore-assignee-progress .avatar{width:28px;height:28px;flex:none}
-.chore-member-choice input{flex:none;accent-color:#2563eb}
+.chore-member-choice .avatar{display:grid;place-items:center;min-width:0;overflow:hidden}
+.chore-member-choice .avatar img{display:block;width:100%;height:100%;object-fit:cover;border-radius:50%}
+.chore-member-choice input[type="checkbox"]{display:block;position:static;width:18px;height:18px;min-width:18px;min-height:18px;max-width:18px;max-height:18px;margin:0;padding:0;border-radius:4px;box-shadow:none;accent-color:#2563eb;justify-self:center;align-self:center;cursor:pointer}
+.chore-member-choice>span{display:block;min-width:0;max-width:100%;overflow-wrap:anywhere;line-height:1.35}
+.chore-member-choice:focus-within{outline:2px solid #2563eb;outline-offset:2px}
+@media(max-width:460px){.chore-member-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,155px),1fr))}.chore-member-choice{gap:7px;padding:9px}}
 .chore-assignee-list{display:flex;flex-wrap:wrap;gap:9px;margin:9px 0 4px}
 .chore-assignee-progress{display:flex;align-items:center;flex-wrap:wrap;gap:7px;padding:9px 11px;border-radius:10px;border:1px solid #dde5ef;background:#f8fafc}
 .chore-assignee-progress select{max-width:140px;background:#fff}
