@@ -453,6 +453,24 @@ jobs:
             await page.locator('#bill-payment-settles').check();
             await page.locator('#bill-payment-save').click();
             await page.locator('#bill-payment-history').getByText('$80.11', { exact: true }).waitFor({ state: 'visible' });
+            const paymentActions = page.locator('#bill-payment-history .bill-payment-history-row').last().locator('.bill-payment-history-actions');
+            const paymentButtons = paymentActions.locator('button.button');
+            if (await paymentButtons.count() !== 2) throw new Error('Payment Edit and Delete must have button styling.');
+            for (const button of await paymentButtons.all()) {
+              const result = await button.evaluate(el => {
+                const rect=el.getBoundingClientRect(),style=getComputedStyle(el);
+                return { width:rect.width,height:rect.height,border:style.borderStyle,background:style.backgroundColor };
+              });
+              if (result.height < 32 || result.border === 'none' || result.background === 'rgba(0, 0, 0, 0)') {
+                throw new Error('Payment action is not a visible button: '+JSON.stringify(result));
+              }
+            }
+            if (await paymentActions.locator('button.button.danger').count() !== 1) throw new Error('Payment Delete is missing danger styling.');
+            const actionBoxes=await paymentButtons.evaluateAll(els=>els.map(el=>({left:el.getBoundingClientRect().left,right:el.getBoundingClientRect().right,top:el.getBoundingClientRect().top,bottom:el.getBoundingClientRect().bottom})));
+            if (actionBoxes.length>1 && Math.abs(actionBoxes[0].top-actionBoxes[1].top)<2 && actionBoxes[1].left-actionBoxes[0].right<6) throw new Error('Payment action buttons touch or overlap.');
+            const backupStyle = await page.locator('#saved-backups .backup-delete').count();
+            // Backups may be empty in this fresh household; markup is audited separately.
+
 
             // Payment history needs recognizable, separated buttons on desktop
             // and mobile. Neither the actions nor the modal may overflow.
