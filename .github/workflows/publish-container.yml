@@ -1,4 +1,4 @@
-name: Publish CalDen Container
+name: Publish Calden Container
 
 on:
   push:
@@ -49,7 +49,7 @@ jobs:
       - name: Resolve dependencies
         run: go mod tidy
 
-      - name: Compile CalDen before container build
+      - name: Compile Calden before container build
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -78,7 +78,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and publish CalDen
+      - name: Build and publish Calden
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -91,7 +91,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           labels: |
-            org.opencontainers.image.title=CalDen
+            org.opencontainers.image.title=Calden
             org.opencontainers.image.description=A family calendar and scheduling system you control.
             org.opencontainers.image.source=https://github.com/gigabytegrove/calden
             org.opencontainers.image.revision=${{ github.sha }}
