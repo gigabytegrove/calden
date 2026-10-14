@@ -368,7 +368,7 @@ function readCalDenRoute(){
   const date=day&&/^\d{4}-\d{2}-\d{2}$/.test(day)?calendarDate(day):occurrence&&!Number.isNaN(occurrence.getTime())?occurrence:null;
   const monthValue=params.get("month");
   const month=monthValue&&/^\d{4}-\d{2}$/.test(monthValue)?calendarDate(monthValue+"-01"):null;
-  const tab=page==="settings"&&["general","calendar","account","integrations","updates","backups"].includes(parts[1])?parts[1]:settingsAliases.has(parts[0])?parts[0]:null;
+  const tab=page==="settings"&&["general","calendar","bills","agenda","chores","account","integrations","updates","backups","devices"].includes(parts[1])?parts[1]:settingsAliases.has(parts[0])?parts[0]:null;
   const days=Number(params.get("days"));
   return {page,detail,id:detail?parts[1]:null,kind:parts[0],at,date,month,tab,days};
 }
@@ -1451,7 +1451,9 @@ async function loadRegisteredDevices(){
   }catch(err){status.textContent="Could not load registered devices: "+err.message}
 }
 function activateSettingsTab(tab,writeURL=false){
-  if(["general","integrations","updates","backups"].includes(tab)&&state.me?.role!=="admin")tab="calendar";
+  const available=new Set(["general","calendar","bills","agenda","chores","integrations","updates","backups","devices","account"]);
+  if(!available.has(tab))tab="calendar";
+  if(["general","bills","agenda","chores","integrations","updates","backups"].includes(tab)&&state.me?.role!=="admin")tab="calendar";
   state.settingsTab=tab;
   if(writeURL&&state.currentPage==="settings")history.pushState({calden:true},"",caldenPageURL("settings"));
   $$(".settings-nav-item").forEach(button=>button.classList.toggle("active",button.dataset.settingsTab===tab));
@@ -3008,17 +3010,30 @@ $("#save-chores-enabled").addEventListener("click",async()=>{
     renderChores();
   }catch(err){$("#settings-chores-status").textContent=err.message;$("#settings-chores-enabled").checked=!!state.settings.chores_enabled}
 });
-$("#save-feature-visibility").addEventListener("click",async()=>{
-  const changes={bills_enabled:$("#settings-bills-enabled").checked,agenda_enabled:$("#settings-agenda-enabled").checked};
-  const status=$("#settings-feature-status");
+// Bills and Agenda are independent household features. Submit just the
+// setting being edited; never overwrite the other section's saved choice.
+async function saveHouseholdFeature(setting,inputId,statusId,title){
+  if(state.me?.role!=="admin")return;
+  const input=$(inputId),status=$(statusId);
+  const enabled=input.checked;
+  input.disabled=true;
   status.textContent="Saving…";
   try{
-    state.settings=await api("/api/settings/features",{method:"PUT",body:JSON.stringify(changes)});
+    state.settings=await api("/api/settings/features",{method:"PUT",body:JSON.stringify({[setting]:enabled})});
     renderBillNavigation();
-    if((state.currentPage==="bills"&&!state.settings.bills_enabled)||(state.currentPage==="agenda"&&!state.settings.agenda_enabled))navigate("calendar");
-    status.textContent="Household visibility updated. Your data is unchanged.";
-  }catch(err){status.textContent=err.message;renderSettings()}
-});
+    status.textContent=title+(enabled?" is shown. ":" is hidden. ")+"Your saved data is unchanged.";
+    // The other feature remains as it was saved on the server.
+    $("#settings-bills-enabled").checked=state.settings.bills_enabled!==false;
+    $("#settings-agenda-enabled").checked=state.settings.agenda_enabled!==false;
+  }catch(err){
+    status.textContent="Couldn't save "+title+": "+err.message;
+    input.checked=setting==="bills_enabled"?state.settings?.bills_enabled!==false:state.settings?.agenda_enabled!==false;
+  }finally{input.disabled=false}
+}
+$("#save-bills-enabled").addEventListener("click",()=>saveHouseholdFeature(
+  "bills_enabled","#settings-bills-enabled","#settings-bills-status","Bill Pay"));
+$("#save-agenda-enabled").addEventListener("click",()=>saveHouseholdFeature(
+  "agenda_enabled","#settings-agenda-enabled","#settings-agenda-status","Agenda"));
 
 resetPersonForm();
 resetCalendarForm();
