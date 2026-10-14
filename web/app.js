@@ -738,7 +738,11 @@ function renderBillPaymentModal(){
       <div><strong>${money(payment.amount_paid)}</strong><span>${escapeHTML(person)}</span></div>
       <div><span>Paid ${escapeHTML(paidOn)}</span><small>${escapeHTML(cleared)}</small></div>
       <span class="bill-status-pill ${payment.cleared_on?"cleared":payment.settles_bill?"paid":"partial"}">${payment.cleared_on?"Cleared":payment.settles_bill?"Final":"Partial"}</span>
-      <div class="bill-payment-history-actions">${!payment.cleared_on?`<button type="button" class="text-button clear-bill-payment" data-payment-id="${payment.id}">Mark cleared</button>`:""}<button type="button" class="text-button edit-bill-payment" data-payment-id="${payment.id}">Edit</button><button type="button" class="text-button danger-text delete-bill-payment" data-payment-id="${payment.id}">Delete</button></div>
+      <div class="bill-payment-history-actions" role="group" aria-label="Actions for payment of ${escapeAttr(money(payment.amount_paid))}">
+        ${!payment.cleared_on?`<button type="button" class="button secondary compact clear-bill-payment" data-payment-id="${escapeAttr(payment.id)}" aria-label="Mark payment of ${escapeAttr(money(payment.amount_paid))} cleared">Mark cleared</button>`:""}
+        <button type="button" class="button secondary compact edit-bill-payment" data-payment-id="${escapeAttr(payment.id)}" aria-label="Edit payment of ${escapeAttr(money(payment.amount_paid))}">Edit</button>
+        <button type="button" class="button danger compact delete-bill-payment" data-payment-id="${escapeAttr(payment.id)}" aria-label="Delete payment of ${escapeAttr(money(payment.amount_paid))}">Delete</button>
+      </div>
     </article>`;
   }).join(""):status==="no_balance"
     ?'<div class="bill-no-balance-state"><strong>No balance this month</strong><span>No payment was required for this occurrence.</span></div>'
@@ -1846,7 +1850,7 @@ function renderBackupStatus(status){
   const backups=status.backups||[];
   $("#saved-backups").innerHTML=backups.length?backups.map(b=>`<article class="saved-backup">
     <div><strong>${escapeHTML(b.name)}</strong><span>${humanSize(b.size)} · ${escapeHTML(formatDate(new Date(b.created_at),{month:"short",day:"numeric",year:"numeric"}))} at ${escapeHTML(formatTime(new Date(b.created_at)))}</span></div>
-    <div class="saved-backup-actions"><button class="button secondary compact backup-download" data-name="${escapeAttr(b.name)}" type="button">Download</button><button class="text-button backup-delete" data-name="${escapeAttr(b.name)}" type="button">Delete</button></div>
+    <div class="saved-backup-actions"><button class="button secondary compact backup-download" data-name="${escapeAttr(b.name)}" type="button">Download</button><button class="button danger compact backup-delete" data-name="${escapeAttr(b.name)}" type="button" aria-label="Delete backup ${escapeAttr(b.name)}">Delete</button></div>
   </article>`).join(""):'<div class="empty-state"><strong>No saved backups yet</strong><span>Create a backup or install an update to create safety copies.</span></div>';
   $("#saved-backups").querySelectorAll(".backup-download").forEach(b=>b.addEventListener("click",async()=>{
     try{await authenticatedDownload("/api/system/backups/"+encodeURIComponent(b.dataset.name),b.dataset.name)}
