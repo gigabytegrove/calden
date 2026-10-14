@@ -72,11 +72,11 @@ jobs:
         run: |
           set -euo pipefail
           curl -fsSI http://127.0.0.1:8787/ | tr -d '\r' > /tmp/root-headers.txt
-          curl -fsSI http://127.0.0.1:8787/app.js?v=1.4.4 | tr -d '\r' > /tmp/app-headers.txt
+          curl -fsSI http://127.0.0.1:8787/app.js?v=1.4.5 | tr -d '\r' > /tmp/app-headers.txt
           grep -qi '^Cache-Control: .*no-store' /tmp/root-headers.txt
           grep -qi '^Cache-Control: .*no-store' /tmp/app-headers.txt
-          curl -fsS http://127.0.0.1:8787/ | grep -q '/app.js?v=1.4.4'
-          curl -fsS http://127.0.0.1:8787/ | grep -q '/styles.css?v=1.4.4'
+          curl -fsS http://127.0.0.1:8787/ | grep -q '/app.js?v=1.4.5'
+          curl -fsS http://127.0.0.1:8787/ | grep -q '/styles.css?v=1.4.5'
 
       - name: Set up browser test
         uses: actions/setup-node@v4
@@ -533,6 +533,46 @@ jobs:
             await page.locator('#settings-scroll-now').uncheck();
             await page.locator('#display-settings-form button[type="submit"]').click();
             await page.locator('#display-settings-status').getByText('Display settings saved.').waitFor({ state: 'visible' });
+            // Bills, Agenda and Tasks & Chores must each have a dedicated
+            // settings section. Saving one must never overwrite another.
+            if (await page.locator('#general-settings-form #settings-bills-enabled').count()) {
+              throw new Error('Bill Pay control is still buried in Household settings.');
+            }
+            await page.locator('.settings-nav-item[data-settings-tab="bills"]').click();
+            await page.locator('[data-settings-pane="bills"]').waitFor({ state: 'visible' });
+            if (!page.url().endsWith('/settings/bills')) throw new Error('Bills settings URL missing.');
+            await page.locator('#settings-bills-enabled').uncheck();
+            await page.locator('#save-bills-enabled').click();
+            await page.locator('#settings-bills-status').getByText('Bill Pay is hidden. Your saved data is unchanged.').waitFor({ state: 'visible' });
+            if (!(await page.locator('#settings-agenda-enabled').isChecked())) {
+              throw new Error('Saving Bills silently changed the Agenda setting.');
+            }
+            await page.locator('.settings-nav-item[data-settings-tab="agenda"]').click();
+            await page.locator('[data-settings-pane="agenda"]').waitFor({ state: 'visible' });
+            if (!page.url().endsWith('/settings/agenda')) throw new Error('Agenda settings URL missing.');
+            await page.locator('#settings-agenda-enabled').uncheck();
+            await page.locator('#save-agenda-enabled').click();
+            await page.locator('#settings-agenda-status').getByText('Agenda is hidden. Your saved data is unchanged.').waitFor({ state: 'visible' });
+            if (await page.locator('#settings-bills-enabled').isChecked()) {
+              throw new Error('Saving Agenda silently re-enabled Bills.');
+            }
+            await page.locator('#settings-agenda-enabled').check();
+            await page.locator('#save-agenda-enabled').click();
+            await page.locator('#settings-agenda-status').getByText('Agenda is shown. Your saved data is unchanged.').waitFor({ state: 'visible' });
+            await page.locator('.settings-nav-item[data-settings-tab="bills"]').click();
+            await page.locator('#settings-bills-enabled').check();
+            await page.locator('#save-bills-enabled').click();
+            await page.locator('#settings-bills-status').getByText('Bill Pay is shown. Your saved data is unchanged.').waitFor({ state: 'visible' });
+            await page.locator('.settings-nav-item[data-settings-tab="chores"]').click();
+            await page.locator('[data-settings-pane="chores"]').waitFor({ state: 'visible' });
+            if (!page.url().endsWith('/settings/chores')) throw new Error('Chores settings URL missing.');
+            if (await page.locator('#settings-chores-enabled').isChecked()) throw new Error('Chores should start disabled.');
+            await page.locator('#settings-chores-enabled').check();
+            await page.locator('#save-chores-enabled').click();
+            await page.locator('#settings-chores-status').getByText('Tasks & Chores enabled.').waitFor({ state: 'visible' });
+            await page.locator('#settings-chores-enabled').uncheck();
+            await page.locator('#save-chores-enabled').click();
+            await page.locator('#settings-chores-status').getByText('Tasks & Chores disabled. Existing tasks remain saved.').waitFor({ state: 'visible' });
             await page.locator('.settings-nav-item[data-settings-tab="account"]').click();
             await page.locator('[data-settings-pane="account"]').waitFor({ state: 'visible' });
             await page.locator('#settings-account-name').waitFor({ state: 'visible' });
