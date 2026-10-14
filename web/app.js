@@ -2912,7 +2912,7 @@ function renderChores(){
   const tasksEnabled=!!state.settings?.tasks_enabled;
   const choresEnabled=!!state.settings?.chores_enabled;
   const enabled=tasksEnabled||choresEnabled;
-  $(".chore-nav").forEach(el=>el.classList.toggle("hidden",!enabled));
+  $(".chore-nav").forEach(el=>{el.classList.toggle("hidden",!enabled);el.textContent=tasksEnabled&&choresEnabled?"Tasks & Chores":tasksEnabled?"Tasks":"Chores"});
   $(".chore-manager").forEach(el=>el.classList.toggle("hidden",!["admin","planner"].includes(state.me?.role)));
   $("#chore-page-title").textContent=tasksEnabled&&choresEnabled?"Tasks & Chores":tasksEnabled?"Tasks":"Chores";
   $("#chore-add").textContent=tasksEnabled&&choresEnabled?"+ Add task or chore":tasksEnabled?"+ Add task":"+ Add chore";
@@ -2920,9 +2920,9 @@ function renderChores(){
   kindField.querySelectorAll("option").forEach(option=>{option.disabled=option.value==="task"?!tasksEnabled:!choresEnabled});
   if(kindField.selectedOptions[0]?.disabled){kindField.value=tasksEnabled?"task":"chore"}
   if(!enabled){$("#chore-list").innerHTML="";return;}
-  const all=state.chores||[],filter=$("#chore-filter").value,mine=state.me?.id;
+  const all=(state.chores||[]).filter(t=>t.kind==="task"?tasksEnabled:choresEnabled),filter=$("#chore-filter").value,mine=state.me?.id;
   const manage=["admin","planner"].includes(state.me?.role);
-  const shown=all.filter(t=>(t.kind==="task"?tasksEnabled:choresEnabled)&&(filter==="mine"?(t.assignee_ids||[t.assigned_to]).includes(mine):filter==="open"?t.status!=="done":filter==="done"?t.status==="done":true))
+  const shown=all.filter(t=>filter==="mine"?(t.assignee_ids||[t.assigned_to]).includes(mine):filter==="open"?t.status!=="done":filter==="done"?t.status==="done":true)
     .sort((a,b)=>a.due_date.localeCompare(b.due_date)||a.title.localeCompare(b.title));
   const done=all.filter(t=>t.status==="done").length;
   $("#chore-summary").innerHTML=`<div class="chore-summary-item"><strong>${all.length-done}</strong><span>To do</span></div><div class="chore-summary-item"><strong>${done}</strong><span>Finished</span></div><div class="chore-summary-item"><strong>${all.length}</strong><span>Occurrences</span></div>`;
@@ -2971,7 +2971,8 @@ function openChoreEditor(chore=null){
   updateChoreRepeat();
   const assigned=new Set(chore?.assignee_ids||[chore?.assigned_to||state.me?.id]);
   $("#chore-assignees").innerHTML=state.users.filter(u=>u.active!==false).map(u=>`<label class="chore-member-choice"><input type="checkbox" name="assignee_id" value="${escapeAttr(u.id)}" ${assigned.has(u.id)?"checked":""}><i class="avatar">${avatarMarkup(u)}</i><span>${escapeHTML(u.display_name)}</span></label>`).join("");
-  $("#chore-editor-heading").textContent=chore?"Edit "+(chore.kind==="task"?"task":"chore"):"Add task or chore";
+  $("#chore-editor-heading").textContent=chore?"Edit "+(chore.kind==="task"?"task":"chore"):state.settings?.tasks_enabled&&state.settings?.chores_enabled?"Add task or chore":state.settings?.tasks_enabled?"Add task":"Add chore";
+  $("#chore-form button[type=submit]").textContent="Save "+(field("kind").value==="task"?"task":"chore");
   $("#chore-form-status").textContent="";
   $("#chore-editor-panel").classList.remove("hidden");
   field("title").focus();
@@ -2981,6 +2982,9 @@ $("#chore-cancel").addEventListener("click",()=>$("#chore-editor-panel").classLi
 $("#chore-refresh").addEventListener("click",loadChores);
 $("#chore-filter").addEventListener("change",renderChores);
 $("#chore-form").elements.namedItem("recurrence_rule").addEventListener("change",updateChoreRepeat);
+$("#chore-kind").addEventListener("change",()=>{
+  $("#chore-form button[type=submit]").textContent="Save "+($("#chore-kind").value==="task"?"task":"chore");
+});
 $("#chore-form").addEventListener("submit",async event=>{
   event.preventDefault();
   const form=event.currentTarget,field=name=>form.elements.namedItem(name),id=field("id").value;
