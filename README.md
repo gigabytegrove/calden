@@ -469,3 +469,7 @@ This update gives Calden consistent spelling throughout the website and clearer 
 ## Calden 1.4.5 — Optional Features
 
 Household administrators can open **Settings → Optional Features** to independently turn Bills, Agenda, Tasks and Chores on or off for everyone. Calden saves each switch automatically and never deletes the feature's existing data when it is disabled. [Read the 1.4.5 release notes](docs/releases/v1.4.5.md).
+
+## Calden 1.4.6
+
+Fixes the Tasks and Chores navigation icon disappearing when household feature switches change. The labels still reflect what your family has enabled; your saved information is unaffected. [Read the 1.4.6 notes](docs/releases/v1.4.6.md).
