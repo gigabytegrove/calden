@@ -1,4 +1,4 @@
-name: Publish CalDen Release
+name: Publish Calden Release
 
 # Kept as an on-demand legacy release builder only.
 # release-runtime.yml is the sole automatic publisher to avoid release races.
@@ -75,16 +75,16 @@ jobs:
             NOTES_FILE="docs/releases/v$VERSION.md"
           fi
           if [ ! -f "$NOTES_FILE" ]; then
-            printf '# CalDen %s\n\nRolling CalDen development release.\n' "$VERSION" > /tmp/release-notes.md
+            printf '# Calden %s\n\nRolling Calden development release.\n' "$VERSION" > /tmp/release-notes.md
             NOTES_FILE=/tmp/release-notes.md
           fi
 
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release edit "$TAG" --title "CalDen $VERSION" --notes-file "$NOTES_FILE"
+            gh release edit "$TAG" --title "Calden $VERSION" --notes-file "$NOTES_FILE"
           else
             EXTRA=()
             if [ "$PRERELEASE" = "true" ]; then EXTRA+=(--prerelease); fi
-            gh release create "$TAG" --target "${GITHUB_SHA}" --title "CalDen $VERSION" --notes-file "$NOTES_FILE" "${EXTRA[@]}"
+            gh release create "$TAG" --target "${GITHUB_SHA}" --title "Calden $VERSION" --notes-file "$NOTES_FILE" "${EXTRA[@]}"
           fi
 
           gh release upload "$TAG"             dist/calden-linux-amd64.tar.gz             dist/calden-linux-arm64.tar.gz             dist/SHA256SUMS             --clobber
