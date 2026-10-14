@@ -477,3 +477,7 @@ Fixes the Tasks and Chores navigation icon disappearing when household feature s
 ## Calden 1.4.7 — Clearer buttons and payment history
 
 Bill payment records now show properly spaced **Mark cleared**, **Edit**, and **Delete** buttons instead of crowded text links. The payment history displays cleanly on narrow screens, and deleting a saved backup now uses a clearly marked button too. No data or payment behavior has changed. [Read the family-friendly release notes](docs/releases/v1.4.7.md).
+
+## Calden 1.4.7
+
+Payment history and saved backup actions now use clearly separated buttons. Destructive Delete actions are visibly distinguished, including on phones. [Release notes](docs/releases/v1.4.7.md).
