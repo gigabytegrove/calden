@@ -387,14 +387,14 @@ The Compose file maps that host port to Calden's internal port `8787`.
 
 ## Development status
 
-Calden's latest stable server release is **1.4.4**. You can install updates from the built-in updater. Back up your family calendar before installing an update.
+Calden's latest stable server release is **1.4.5**. You can install updates from the built-in updater. Back up your family calendar before installing an update.
 
 This release improves wording and setup guidance without changing appointments, bills, or household settings. Server upgrades run database migrations when necessary; version 1.4.4 does not add a database migration.
 
 Current stable version:
 
 ```text
-1.4.4
+1.4.5
 ```
 
 ## Project layout
@@ -465,3 +465,7 @@ New to Calden? See the [simple family quick-start guide](docs/FAMILY_QUICK_START
 ## Calden 1.4.4
 
 This update gives Calden consistent spelling throughout the website and clearer first-time instructions. Your calendars and appointments are not changed. See the [1.4.4 release notes](docs/releases/v1.4.4.md) and the [family quick-start guide](docs/FAMILY_QUICK_START.md).
+
+## Calden 1.4.5 — Separate settings for household features
+
+**Bills**, **Agenda**, and **Tasks & Chores** each have their own section in Settings. You no longer have to hunt for their switches in Household settings. Turning a feature off only hides it—it doesn't delete appointments, bills or tasks. See the [1.4.5 release notes](docs/releases/v1.4.5.md).
