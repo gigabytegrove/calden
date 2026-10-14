@@ -4,20 +4,20 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#f7f8fb">
-  <meta name="calden-version" content="1.4.3">
+  <meta name="calden-version" content="1.4.4">
   <link rel="icon" type="image/svg+xml" href="/assets/calden-icon.svg">
   
-  <title>CalDen</title>
-  <link rel="stylesheet" href="/styles.css?v=1.4.3">
+  <title>Calden</title>
+  <link rel="stylesheet" href="/styles.css?v=1.4.4">
 </head>
 <body class="bg-slate-50 text-slate-900">
 <div id="auth" class="auth-shell">
   <main id="auth-card" class="auth-card shadow-xl shadow-slate-900/5">
     <div class="auth-brand-panel">
-      <div class="calden-brand-lockup"><img class="calden-official-mark" src="/assets/calden-logo.svg" alt="CalDen"></div>
-      <div class="auth-brand-fallback"><strong>CalDen</strong><span>Your family calendar.</span></div>
+      <div class="calden-brand-lockup"><img class="calden-official-mark" src="/assets/calden-logo.svg" alt="Calden"></div>
+      <div class="auth-brand-fallback"><strong>Calden</strong><span>Your family calendar.</span></div>
     </div>
-    <div id="boot-status" class="boot-status" role="status">Starting CalDen…</div>
+    <div id="boot-status" class="boot-status" role="status">Starting Calden…</div>
 
     <form id="setup-form" class="setup-wizard hidden" novalidate>
       <div class="setup-progress" aria-label="Setup progress">
@@ -25,15 +25,15 @@
         <span class="setup-dot" data-dot="2"></span><span class="setup-dot" data-dot="3"></span>
       </div>
       <section class="setup-step" data-step="0">
-        <p class="eyebrow">Welcome to CalDen</p><h1>Set up your family calendar</h1>
-        <p class="setup-copy">A few quick choices and CalDen will be ready to use.</p>
+        <p class="eyebrow">Welcome to Calden</p><h1>Set up your family calendar</h1>
+        <p class="setup-copy">A few quick choices and Calden will be ready to use.</p>
         <label>What should we call your family calendar?<input name="household_name" maxlength="100" placeholder="The Smith Family" required></label>
         <input name="timezone" type="hidden">
         <div class="setup-info"><strong>Your time zone</strong><span id="setup-timezone">Detecting…</span></div>
       </section>
       <section class="setup-step hidden" data-step="1">
         <p class="eyebrow">Your account</p><h1>Create the administrator</h1>
-        <p class="setup-copy">This is the first CalDen account. You can add everyone else after setup.</p>
+        <p class="setup-copy">This is the first Calden account. You can add everyone else after setup.</p>
         <label>Your name<input name="display_name" autocomplete="name" maxlength="100" required></label>
         <label>Username<input name="username" autocomplete="username" minlength="3" maxlength="50" required></label>
         <label>Password<input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
@@ -52,8 +52,8 @@
         </div>
       </section>
       <section class="setup-step hidden" data-step="3">
-        <p class="eyebrow">Ready to go</p><h1>Finish setting up CalDen</h1>
-        <p class="setup-copy">CalDen will create your family space, administrator, and starter calendars now.</p>
+        <p class="eyebrow">Ready to go</p><h1>Finish setting up Calden</h1>
+        <p class="setup-copy">Calden will create your family space, administrator, and starter calendars now.</p>
         <div class="setup-summary">
           <div><span>Family calendar</span><strong id="summary-household"></strong></div>
           <div><span>Administrator</span><strong id="summary-admin"></strong></div>
@@ -81,7 +81,7 @@
 <div id="app" class="app-shell hidden">
   <aside class="sidebar bg-slate-950 text-slate-100 shadow-xl shadow-slate-950/10" id="sidebar">
     <div class="sidebar-brand">
-      <div class="sidebar-logo-surface"><img class="calden-official-mark" src="/assets/calden-logo.svg" alt="CalDen"></div>
+      <div class="sidebar-logo-surface"><img class="calden-official-mark" src="/assets/calden-logo.svg" alt="Calden"></div>
     </div>
     <nav class="primary-nav" aria-label="Main navigation">
       <a class="nav-item active" data-page="calendar" href="/calendar">Calendar</a>
@@ -134,7 +134,7 @@
 
     <section id="page-bills" class="app-page hidden">
       <div class="page-header">
-        <div><p class="eyebrow">Household bills</p><h2>Bill Pay</h2><p class="muted">See what is due this month, who is handling it, what has been paid, and who actually paid it. CalDen tracks household bill status without becoming a banking app.</p></div>
+        <div><p class="eyebrow">Household bills</p><h2>Bill Pay</h2><p class="muted">See what is due this month, who is handling it, what has been paid, and who actually paid it. Calden tracks household bill status without becoming a banking app.</p></div>
         <button id="add-bill" class="button" type="button">+ Add bill</button>
       </div>
       <div class="bill-month-toolbar">
@@ -234,7 +234,7 @@
           <label>Color<input name="color" type="color" value="#2f6fed" required></label>
           <label>Description<textarea name="description" rows="3" maxlength="500" placeholder="Optional"></textarea></label>
           <section id="calendar-interop" class="interop-box hidden">
-            <div><h3>iCalendar</h3><p class="muted">Move this calendar between CalDen and other calendar software using standard .ics files.</p></div>
+            <div><h3>iCalendar</h3><p class="muted">Move this calendar between Calden and other calendar software using standard .ics files.</p></div>
             <div class="interop-actions">
               <button id="export-calendar-ics" class="button secondary" type="button">Export .ics</button>
               <label class="file-button">Choose .ics<input id="import-calendar-file" type="file" accept=".ics,text/calendar"></label>
@@ -282,7 +282,7 @@
 
       <section class="panel notification-inbox">
         <div class="notification-schedule-head">
-          <div><h3>Recent alerts</h3><p class="muted">Assignment and whole-family alerts created when events are added in CalDen.</p></div>
+          <div><h3>Recent alerts</h3><p class="muted">Assignment and whole-family alerts created when events are added in Calden.</p></div>
           <div class="notification-inbox-actions"><span id="notification-unread-count"></span><button id="mark-notifications-read" type="button" class="button secondary compact">Mark all read</button></div>
         </div>
         <div id="notification-inbox-list" class="notification-inbox-list"></div>
@@ -310,7 +310,7 @@
     </section>
 
     <section id="page-settings" class="app-page hidden">
-      <div class="page-header"><div><p class="eyebrow">CalDen preferences</p><h2>Settings</h2><p class="muted">Control the household, your calendar workspace, and your account from one place.</p></div></div>
+      <div class="page-header"><div><p class="eyebrow">Calden preferences</p><h2>Settings</h2><p class="muted">Control the household, your calendar workspace, and your account from one place.</p></div></div>
       <div class="settings-workspace">
         <nav class="settings-nav" aria-label="Settings sections">
           <button type="button" class="settings-nav-item active admin-settings" data-settings-tab="general"><strong>Household</strong><span>Name, time zone, week layout</span></button>
@@ -332,13 +332,13 @@
           </section>
           <section class="settings-pane hidden admin-settings" data-settings-pane="backups">
       <div class="page-header">
-        <div><p class="eyebrow">Data protection</p><h2>Backups & Restore</h2><p class="muted">Create complete CalDen backups, keep server-side safety copies, and restore a validated backup without rebuilding the installation.</p></div>
+        <div><p class="eyebrow">Data protection</p><h2>Backups & Restore</h2><p class="muted">Create complete Calden backups, keep server-side safety copies, and restore a validated backup without rebuilding the installation.</p></div>
         <button id="create-backup" class="button" type="button">Create & download backup</button>
       </div>
       <div class="backup-layout">
         <section class="panel stack">
-          <div><h3>Restore CalDen</h3><p class="muted">A restore is validated and staged first. CalDen creates another database safety backup before it applies the restore on restart.</p></div>
-          <label>CalDen backup file<input id="restore-file" type="file" accept=".tar.gz,.tgz,application/gzip"></label>
+          <div><h3>Restore Calden</h3><p class="muted">A restore is validated and staged first. Calden creates another database safety backup before it applies the restore on restart.</p></div>
+          <label>Calden backup file<input id="restore-file" type="file" accept=".tar.gz,.tgz,application/gzip"></label>
           <div class="form-actions">
             <button id="stage-restore" class="button secondary" type="button">Validate & stage restore</button>
             <button id="cancel-restore" class="button secondary hidden" type="button">Cancel staged restore</button>
@@ -349,7 +349,7 @@
           <div id="restore-last-result" class="restore-result hidden"></div>
         </section>
         <section class="panel">
-          <div class="backup-heading"><div><h3>Saved safety backups</h3><p class="muted">Backups retained on the CalDen data volume, including automatic pre-update and pre-restore dumps.</p></div><button id="refresh-backups" class="button secondary compact" type="button">Refresh</button></div>
+          <div class="backup-heading"><div><h3>Saved safety backups</h3><p class="muted">Backups retained on the Calden data volume, including automatic pre-update and pre-restore dumps.</p></div><button id="refresh-backups" class="button secondary compact" type="button">Refresh</button></div>
           <div id="saved-backups" class="saved-backup-list"></div>
         </section>
       </div>
@@ -371,13 +371,13 @@
           <label class="toggle-row"><input id="update-auto-check" type="checkbox" checked><span>Automatically check when Updates is opened</span></label>
           <button id="save-update-prefs" type="button" class="button">Save update preferences</button>
           <p id="update-pref-status" class="status-line"></p>
-          <div class="safety-note"><strong>Update safety</strong><span>CalDen creates a PostgreSQL safety dump before installing, verifies SHA-256 checksums, verifies the new binary, and retains rollback metadata.</span></div>
+          <div class="safety-note"><strong>Update safety</strong><span>Calden creates a PostgreSQL safety dump before installing, verifies SHA-256 checksums, verifies the new binary, and retains rollback metadata.</span></div>
         </aside>
       </div>
           </section>
           <section class="settings-pane hidden admin-settings" data-settings-pane="integrations">
       <div class="page-header">
-        <div><p class="eyebrow">Connected services</p><h2>Integrations</h2><p class="muted">Move existing schedules into CalDen and connect the services your household already uses.</p></div>
+        <div><p class="eyebrow">Connected services</p><h2>Integrations</h2><p class="muted">Move existing schedules into Calden and connect the services your household already uses.</p></div>
       </div>
       <div class="integration-stack">
         <section class="panel integration-card google-migration-card">
@@ -385,14 +385,14 @@
             <div class="integration-icon google-icon">G</div>
             <div class="integration-card-copy">
               <div class="integration-title-row"><h3>Google Calendar</h3><span class="integration-badge">Migration</span></div>
-              <p>Bring your existing Google Calendar setup into CalDen without creating duplicate calendars or duplicate events. Google Takeout can carry older copies of the same event UID in more than one source file after an event has moved; CalDen treats those as one logical event, previews calendar matches, and lets you approve where every calendar goes.</p>
+              <p>Bring your existing Google Calendar setup into Calden without creating duplicate calendars or duplicate events. Google Takeout can carry older copies of the same event UID in more than one source file after an event has moved; Calden treats those as one logical event, previews calendar matches, and lets you approve where every calendar goes.</p>
             </div>
           </div>
           <div class="google-import-grid">
             <div class="migration-steps" aria-label="Google Calendar migration steps">
               <article class="migration-step"><span>1</span><div><strong>Export from Google Calendar</strong><p>In Google Calendar, open Settings, choose <b>Import &amp; export</b>, then choose <b>Export</b>. Google downloads one ZIP containing your calendars.</p></div></article>
-              <article class="migration-step"><span>2</span><div><strong>Review before importing</strong><p>Drop the export below and CalDen will compare calendars, detect repeated Google event UIDs across the export, and keep only the newest copy. Nothing is created during this step.</p></div></article>
-              <article class="migration-step"><span>3</span><div><strong>Choose where each one belongs</strong><p>Accept a suggested match, choose another existing CalDen calendar, skip it, or explicitly create a new calendar. Then import.</p></div></article>
+              <article class="migration-step"><span>2</span><div><strong>Review before importing</strong><p>Drop the export below and Calden will compare calendars, detect repeated Google event UIDs across the export, and keep only the newest copy. Nothing is created during this step.</p></div></article>
+              <article class="migration-step"><span>3</span><div><strong>Choose where each one belongs</strong><p>Accept a suggested match, choose another existing Calden calendar, skip it, or explicitly create a new calendar. Then import.</p></div></article>
             </div>
             <div class="google-import-action">
               <label id="google-import-drop" class="import-dropzone">
@@ -409,19 +409,19 @@
               <p id="google-import-status" class="status-line"></p>
               <div id="google-import-mapping" class="google-import-mapping hidden"></div>
               <div id="google-import-results" class="google-import-results hidden"></div>
-              <p class="import-privacy-note">Nothing is created until you review the mapping and start the import. The export stays on your CalDen server. If an older CalDen import already created duplicate database rows, use the repair tool below instead of deleting calendars or importing everything again.</p>
+              <p class="import-privacy-note">Nothing is created until you review the mapping and start the import. The export stays on your Calden server. If an older Calden import already created duplicate database rows, use the repair tool below instead of deleting calendars or importing everything again.</p>
             </div>
           </div>
           <section id="google-duplicate-repair" class="google-repair-panel">
             <div class="google-repair-head">
-              <div><p class="eyebrow">Existing CalDen data</p><h4>Repair duplicate Google events</h4><p>Scan the events already stored in CalDen. This does not delete calendars and does not re-import your calendar. Your original Google export is used only to identify which existing CalDen copy is the current one.</p></div>
-              <button id="scan-google-duplicates" type="button" class="button secondary">Scan CalDen</button>
+              <div><p class="eyebrow">Existing Calden data</p><h4>Repair duplicate Google events</h4><p>Scan the events already stored in Calden. This does not delete calendars and does not re-import your calendar. Your original Google export is used only to identify which existing Calden copy is the current one.</p></div>
+              <button id="scan-google-duplicates" type="button" class="button secondary">Scan Calden</button>
             </div>
             <div id="google-duplicate-summary" class="google-duplicate-summary hidden"></div>
             <div id="google-repair-workflow" class="google-repair-workflow hidden">
               <label>Original Google Calendar export
                 <input id="google-repair-export" type="file" accept=".zip,.ics,application/zip,text/calendar">
-                <span class="field-help">Use the same export the events came from. CalDen reads it as a reference only; it will not import events from this action.</span>
+                <span class="field-help">Use the same export the events came from. Calden reads it as a reference only; it will not import events from this action.</span>
               </label>
               <div class="form-actions">
                 <button id="preview-google-repair" type="button" class="button secondary">Preview repair</button>
@@ -466,7 +466,7 @@
           </section>
           <section class="settings-pane admin-settings" data-settings-pane="general">
             <form id="general-settings-form" class="panel stack">
-              <div><p class="eyebrow">Household</p><h3>Household settings</h3><p class="muted">These choices affect how CalDen lays out dates for everyone.</p></div>
+              <div><p class="eyebrow">Household</p><h3>Household settings</h3><p class="muted">These choices affect how Calden lays out dates for everyone.</p></div>
               <label>Family calendar name<input name="household_name" maxlength="100" required></label>
               <label>Time zone<input name="timezone" required placeholder="America/New_York"></label>
               <div class="two">
@@ -508,7 +508,7 @@
 
           <section class="settings-pane hidden" data-settings-pane="account">
             <article class="panel stack">
-              <div><p class="eyebrow">Your account</p><h3>Profile</h3><p class="muted">Your image is shown on events assigned to you and anywhere CalDen identifies you.</p></div>
+              <div><p class="eyebrow">Your account</p><h3>Profile</h3><p class="muted">Your image is shown on events assigned to you and anywhere Calden identifies you.</p></div>
               <div class="account-avatar-settings">
                 <div id="settings-avatar-preview" class="avatar-preview xlarge"><span>?</span></div>
                 <div class="stack compact-stack">
@@ -590,7 +590,7 @@
         </section>
 
         <section id="repeat-editor" class="repeat-editor">
-          <div><h3>Repeat</h3><p class="muted">Make this a repeating event without creating each date manually.</p><p id="advanced-recurrence-note" class="series-scope-note hidden">This repeat pattern was imported from another calendar and may use advanced rules. CalDen will preserve it unless you change the repeat controls below.</p></div>
+          <div><h3>Repeat</h3><p class="muted">Make this a repeating event without creating each date manually.</p><p id="advanced-recurrence-note" class="series-scope-note hidden">This repeat pattern was imported from another calendar and may use advanced rules. Calden will preserve it unless you change the repeat controls below.</p></div>
           <label>Repeats
             <select name="repeat_frequency">
               <option value="">Does not repeat</option>
@@ -741,6 +741,6 @@
   </form>
 </dialog>
 
-<script src="/app.js?v=1.4.3" defer></script>
+<script src="/app.js?v=1.4.4" defer></script>
 </body>
 </html>

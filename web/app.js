@@ -10,8 +10,8 @@ function reportCalDenClientError(reason){
   }).catch(()=>{});
 }
 let caldenBooting=true;
-window.addEventListener("error",event=>{console.error("CalDen runtime error:",event.error||event.message);reportCalDenClientError(event.error||event.message);if(caldenBooting)showBootFailure(event.error||event.message)});
-window.addEventListener("unhandledrejection",event=>{console.error("CalDen unhandled promise rejection:",event.reason);reportCalDenClientError(event.reason);if(caldenBooting)showBootFailure(event.reason)});
+window.addEventListener("error",event=>{console.error("Calden runtime error:",event.error||event.message);reportCalDenClientError(event.error||event.message);if(caldenBooting)showBootFailure(event.error||event.message)});
+window.addEventListener("unhandledrejection",event=>{console.error("Calden unhandled promise rejection:",event.reason);reportCalDenClientError(event.reason);if(caldenBooting)showBootFailure(event.reason)});
 
 
 const $=s=>document.querySelector(s);
@@ -211,10 +211,10 @@ function showBootFailure(reason){
   const el=$("#boot-status");if(!el)return;
   el.classList.remove("hidden");el.classList.add("boot-error");
   const explanation=reason?.message||String(reason||"Unknown startup error");
-  el.textContent="CalDen could not finish loading: "+explanation+". Try Reload. If this continues, check the CalDen container logs.";
+  el.textContent="Calden could not finish loading: "+explanation+". Try Reload. If this continues, check the Calden container logs.";
   const retry=document.createElement("button");
   retry.type="button";retry.className="button secondary";
-  retry.textContent="Reload CalDen";
+  retry.textContent="Reload Calden";
   retry.addEventListener("click",()=>location.reload());
   el.append(" ",retry);
 }
@@ -262,7 +262,7 @@ async function boot(){
     if(location.pathname==="/")history.replaceState({calden:true},"",caldenPageURL("calendar"));
     startCalDenVersionWatch();
   }catch(err){
-    console.error("CalDen startup failed",err);reportCalDenClientError(err);
+    console.error("Calden startup failed",err);reportCalDenClientError(err);
     if(err.status===401||err.status===403){
       setToken("");showAuth("login");
     }else{
@@ -337,7 +337,7 @@ async function checkCalDenClientVersion(){
     const next=new URL(location.href);
     next.searchParams.set("_calden_version",info.version);
     location.replace(next.pathname+next.search+next.hash);
-  }catch(error){console.warn("CalDen version check unavailable",error)}
+  }catch(error){console.warn("Calden version check unavailable",error)}
 }
 function startCalDenVersionWatch(){
   if(caldenVersionWatch!==null)return;
@@ -424,7 +424,7 @@ function navigate(page,load=true,writeURL=true){
   $$(".app-page").forEach(el=>el.classList.toggle("hidden",el.id!==`page-${page}`));
   $$("[data-page]").forEach(el=>el.classList.toggle("active",el.dataset.page===page));
   const titles={calendar:"Calendar",bills:"Bill Pay",agenda:"Agenda",chores:"Tasks & Chores",people:"People",calendars:"Calendars",categories:"Categories",notifications:"Notifications",integrations:"Integrations",updates:"Updates",backups:"Backups & Restore",activity:"Activity",settings:"Settings"};
-  $("#page-title").textContent=titles[page]||"CalDen";
+  $("#page-title").textContent=titles[page]||"Calden";
   $("#new-event").classList.toggle("hidden",!["calendar","agenda"].includes(page));
   $("#sidebar").classList.remove("open");
   if(!load)return;
@@ -1193,7 +1193,7 @@ async function loadNotifications(announce=true){
       const billReview=item.kind==="bill_review";
       const body=billReview?item.message+" "+item.title:(family?"For everyone: ":"Assigned to you: ")+item.title;
       const title=billReview?"Bill follow-up":family?"New family event":"New event assignment";
-      try{new Notification("CalDen · "+title,{body,tag:"calden-"+item.id})}catch{}
+      try{new Notification("Calden · "+title,{body,tag:"calden-"+item.id})}catch{}
     });
   }
   state.notificationKnown=new Set(state.notifications.map(item=>item.id));
@@ -1443,7 +1443,7 @@ async function loadRegisteredDevices(){
   try{
     const result=await api("/api/devices");
     const items=result.items||[];
-    status.textContent=items.length?`${items.length} registered device${items.length===1?"":"s"}`:"No registered devices yet. Sign in from CalDen Android to register a phone.";
+    status.textContent=items.length?`${items.length} registered device${items.length===1?"":"s"}`:"No registered devices yet. Sign in from Calden Android to register a phone.";
     list.innerHTML=items.map(device=>`<article class="panel"><div class="form-actions">
       <div class="grow"><strong>${escapeHTML(device.name)}</strong><p class="muted">${escapeHTML(device.platform)} · Last seen ${escapeHTML(device.last_seen_at?new Date(device.last_seen_at).toLocaleString():"Unknown")}</p></div>
       <button type="button" class="button secondary compact" data-revoke-device="${escapeAttr(device.id)}">Revoke</button>
@@ -1830,7 +1830,7 @@ function renderBackupStatus(status){
   $("#cancel-restore").classList.toggle("hidden",!status.pending);
   $("#restart-for-restore").classList.toggle("hidden",!status.pending);
   if(status.pending){
-    $("#restore-status").textContent="A validated restore is staged and ready. Restart CalDen to apply it.";
+    $("#restore-status").textContent="A validated restore is staged and ready. Restart Calden to apply it.";
   }else if(!$("#restore-status").textContent.includes("staged")){
     $("#restore-status").textContent="No restore is currently staged.";
   }
@@ -1867,7 +1867,7 @@ function activityVerb(item){
   return labels[item.action]||item.action.replaceAll("_"," ");
 }
 function activityEntityLabel(type){
-  return ({event:"event",calendar:"calendar",category:"category",user:"person",settings:"household settings",integration:"integration",update:"CalDen"})[type]||type;
+  return ({event:"event",calendar:"calendar",category:"category",user:"person",settings:"household settings",integration:"integration",update:"Calden"})[type]||type;
 }
 async function loadActivity(){
   if(state.me.role!=="admin")return;
@@ -1875,7 +1875,7 @@ async function loadActivity(){
   const filter=$("#activity-filter").value;
   try{
     const items=await api("/api/activity?limit=250"+(filter?"&entity_type="+encodeURIComponent(filter):""));
-    host.innerHTML=items.length?items.map(activityRow).join(""):'<div class="empty-state"><strong>No activity yet</strong><span>Changes made in CalDen will appear here.</span></div>';
+    host.innerHTML=items.length?items.map(activityRow).join(""):'<div class="empty-state"><strong>No activity yet</strong><span>Changes made in Calden will appear here.</span></div>';
   }catch(err){
     host.innerHTML=`<div class="empty-state"><strong>Could not load activity</strong><span>${escapeHTML(err.message)}</span></div>`;
   }
@@ -1940,7 +1940,7 @@ function googleMappingOptions(item){
   const suggested=item.suggested_calendar_id||"";
   const options=[
     `<option value="__skip__" ${!suggested?"selected":""}>Skip this Google calendar</option>`,
-    `<option value="__create__">Create a new CalDen calendar</option>`
+    `<option value="__create__">Create a new Calden calendar</option>`
   ];
   state.calendars.forEach(cal=>{
     const selected=cal.id===suggested?"selected":"";
@@ -2028,10 +2028,10 @@ function renderUpdater(info){
   $("#update-progress-label").textContent=`${Number(status.progress)||0}%`;
   $("#update-state").className=`update-state state-${status.state||"idle"}`;
   if(active)$("#update-state").textContent=status.message||status.step||"Installing update…";
-  else if(status.state==="completed")$("#update-state").textContent="Update completed successfully. CalDen "+(info.current_version||"")+" is installed.";
+  else if(status.state==="completed")$("#update-state").textContent="Update completed successfully. Calden "+(info.current_version||"")+" is installed.";
   else if(status.state==="failed")$("#update-state").textContent="Update failed: "+(status.message||"Review the activity details below.");
-  else if(info.available)$("#update-state").textContent=`CalDen ${latest.version} is available.`;
-  else $("#update-state").textContent="CalDen is up to date for this channel.";
+  else if(info.available)$("#update-state").textContent=`Calden ${latest.version} is available.`;
+  else $("#update-state").textContent="Calden is up to date for this channel.";
   $("#apply-update").classList.toggle("hidden",!info.available||active);
   $("#apply-update").dataset.version=latest?.version||"";
   $("#rollback-update").classList.toggle("hidden",!status.rollback_ready||active);
@@ -2638,7 +2638,7 @@ $("#review-google-calendar")?.addEventListener("click",async()=>{
   const file=state.googleImportFile||googleImportInput?.files?.[0];
   const status=$("#google-import-status"),button=$("#review-google-calendar"),results=$("#google-import-results");
   if(!file){status.textContent="Choose your Google Calendar export first.";return}
-  button.disabled=true;button.textContent="Reviewing…";status.textContent="Comparing Google calendars with the calendars already in CalDen…";
+  button.disabled=true;button.textContent="Reviewing…";status.textContent="Comparing Google calendars with the calendars already in Calden…";
   results.classList.add("hidden");results.innerHTML="";
   try{
     const form=new FormData();form.append("archive",file,file.name);
@@ -2659,8 +2659,8 @@ function renderGoogleDuplicateSummary(body){
   const groups=Number(body?.duplicate_groups)||0,copies=Number(body?.extra_copies)||0;
   host.classList.remove("hidden");
   host.innerHTML=groups
-    ?`<div><strong>${groups}</strong><span>duplicate UID group${groups===1?"":"s"}</span></div><div><strong>${copies}</strong><span>redundant CalDen event cop${copies===1?"y":"ies"}</span></div><div><strong>${Number(body?.export_needed)||0}</strong><span>need export ownership check</span></div>`
-    :'<div class="google-repair-clean"><strong>No duplicate imported UIDs found.</strong><span>CalDen did not find multiple stored events sharing the same imported Google UID.</span></div>';
+    ?`<div><strong>${groups}</strong><span>duplicate UID group${groups===1?"":"s"}</span></div><div><strong>${copies}</strong><span>redundant Calden event cop${copies===1?"y":"ies"}</span></div><div><strong>${Number(body?.export_needed)||0}</strong><span>need export ownership check</span></div>`
+    :'<div class="google-repair-clean"><strong>No duplicate imported UIDs found.</strong><span>Calden did not find multiple stored events sharing the same imported Google UID.</span></div>';
   workflow.classList.toggle("hidden",groups===0);
   examples.innerHTML=(body?.examples||[]).map(item=>`<div class="google-duplicate-example"><strong>${escapeHTML(item.title||"Untitled event")}</strong><span>${Number(item.copies)||0} copies · ${escapeHTML((item.calendars||[]).join(" / "))}</span></div>`).join("");
 }
@@ -2672,25 +2672,25 @@ async function scanGoogleDuplicateData(){
     const body=await api("/api/integrations/google/duplicates");
     state.googleRepairPreview=null;
     renderGoogleDuplicateSummary(body);
-    status.textContent=Number(body.duplicate_groups)?"Duplicates found in CalDen. Choose the original Google export to determine the correct surviving copy.":"No duplicate imported Google UIDs were found.";
+    status.textContent=Number(body.duplicate_groups)?"Duplicates found in Calden. Choose the original Google export to determine the correct surviving copy.":"No duplicate imported Google UIDs were found.";
     $("#google-repair-confirm-wrap").classList.add("hidden");
     $("#repair-google-duplicates").disabled=true;
   }catch(err){status.textContent=err.message}
-  finally{button.disabled=false;button.textContent="Scan CalDen"}
+  finally{button.disabled=false;button.textContent="Scan Calden"}
 }
 
 async function previewGoogleDuplicateRepair(){
   const file=state.googleRepairFile||$("#google-repair-export")?.files?.[0]||state.googleImportFile;
   const status=$("#google-repair-status"),button=$("#preview-google-repair");
   if(!file){status.textContent="Choose the original Google Calendar export first.";return}
-  button.disabled=true;button.textContent="Checking…";status.textContent="Comparing the existing CalDen duplicates with the original Google export…";
+  button.disabled=true;button.textContent="Checking…";status.textContent="Comparing the existing Calden duplicates with the original Google export…";
   try{
     const form=new FormData();form.append("archive",file,file.name);
     const res=await fetch("/api/integrations/google/duplicates/preview",{method:"POST",headers:{Authorization:"Bearer "+state.token},body:form});
     const body=await res.json().catch(()=>null);if(!res.ok)throw new Error(body?.error||"Could not preview duplicate repair");
     state.googleRepairPreview=body;renderGoogleDuplicateSummary(body);
     const repairable=Number(body.export_repairable_groups)||0;
-    if(!repairable){status.textContent="CalDen could not safely identify a canonical copy for the remaining duplicates. Nothing has been changed.";return}
+    if(!repairable){status.textContent="Calden could not safely identify a canonical copy for the remaining duplicates. Nothing has been changed.";return}
     const phrase=`REPAIR ${repairable}`;
     $("#google-repair-phrase").textContent=phrase;
     $("#google-repair-confirmation").value="";
@@ -2715,7 +2715,7 @@ async function repairGoogleDuplicateData(){
     await reloadSharedData();renderCalendar();renderAgenda();renderBills();
     renderGoogleDuplicateSummary(result);
     $("#google-repair-confirm-wrap").classList.add("hidden");
-    status.textContent=`Removed ${Number(result.removed_copies)||0} redundant CalDen event cop${Number(result.removed_copies)===1?"y":"ies"}. Calendars and nonduplicate events were left in place.`;
+    status.textContent=`Removed ${Number(result.removed_copies)||0} redundant Calden event cop${Number(result.removed_copies)===1?"y":"ies"}. Calendars and nonduplicate events were left in place.`;
   }catch(err){status.textContent=err.message}
   finally{button.textContent="Repair duplicates"}
 }
@@ -2848,8 +2848,8 @@ $("#create-backup").addEventListener("click",async()=>{
 });
 $("#refresh-backups").addEventListener("click",loadBackups);
 $("#stage-restore").addEventListener("click",async()=>{
-  const input=$("#restore-file"),file=input.files?.[0];if(!file){$("#restore-status").textContent="Choose a CalDen backup file first.";return}
-  if(!confirm("Validate and stage this backup for restore? Nothing will be changed until CalDen restarts."))return;
+  const input=$("#restore-file"),file=input.files?.[0];if(!file){$("#restore-status").textContent="Choose a Calden backup file first.";return}
+  if(!confirm("Validate and stage this backup for restore? Nothing will be changed until Calden restarts."))return;
   const button=$("#stage-restore");button.disabled=true;button.textContent="Validating…";$("#restore-status").textContent="Uploading and validating backup…";
   try{
     const form=new FormData();form.append("backup",file,file.name);
@@ -2864,8 +2864,8 @@ $("#cancel-restore").addEventListener("click",async()=>{
   catch(err){$("#restore-status").textContent=err.message}
 });
 $("#restart-for-restore").addEventListener("click",async()=>{
-  if(!confirm("Restart CalDen now and apply the staged restore? A pre-restore safety backup will be created automatically."))return;
-  $("#restore-status").textContent="Restarting CalDen to apply restore…";
+  if(!confirm("Restart Calden now and apply the staged restore? A pre-restore safety backup will be created automatically."))return;
+  $("#restore-status").textContent="Restarting Calden to apply restore…";
   try{
     await api("/api/system/restart",{method:"POST",body:"{}"});
     let attempts=0;
@@ -2875,7 +2875,7 @@ $("#restart-for-restore").addEventListener("click",async()=>{
         const res=await fetch("/api/health",{cache:"no-store"});
         if(res.ok){location.reload();return}
       }catch{}
-      if(attempts<90)setTimeout(wait,1500);else $("#restore-status").textContent="CalDen has not returned yet. Check container logs.";
+      if(attempts<90)setTimeout(wait,1500);else $("#restore-status").textContent="Calden has not returned yet. Check container logs.";
     };
     setTimeout(wait,1800);
   }catch(err){$("#restore-status").textContent=err.message}
@@ -2895,12 +2895,12 @@ $("#save-update-prefs").addEventListener("click",async()=>{
 });
 $("#apply-update").addEventListener("click",async()=>{
   const version=$("#apply-update").dataset.version;if(!version)return;
-  if(!confirm(`Install CalDen ${version}? CalDen will create a database safety backup and restart itself.`))return;
+  if(!confirm(`Install Calden ${version}? Calden will create a database safety backup and restart itself.`))return;
   try{const status=await api("/api/system/update/install",{method:"POST",body:JSON.stringify({version})});state.updateInfo.status=status;renderUpdater(state.updateInfo);startUpdatePolling()}
   catch(err){$("#update-state").textContent=err.message}
 });
 $("#rollback-update").addEventListener("click",async()=>{
-  if(!confirm("Roll back to the previous CalDen runtime? CalDen will restart."))return;
+  if(!confirm("Roll back to the previous Calden runtime? Calden will restart."))return;
   try{const status=await api("/api/system/update/rollback",{method:"POST",body:"{}"});state.updateInfo.status=status;renderUpdater(state.updateInfo);startUpdatePolling()}
   catch(err){$("#update-state").textContent=err.message}
 });
@@ -3023,4 +3023,4 @@ $("#save-feature-visibility").addEventListener("click",async()=>{
 resetPersonForm();
 resetCalendarForm();
 resetCategoryForm();
-boot().catch(err=>{console.error("CalDen failed before authentication",err);showBootFailure(err);caldenBooting=false});
+boot().catch(err=>{console.error("Calden failed before authentication",err);showBootFailure(err);caldenBooting=false});

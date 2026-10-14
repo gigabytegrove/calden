@@ -1,4 +1,4 @@
-name: Publish CalDen Runtime Release
+name: Publish Calden Runtime Release
 
 on:
   push:
@@ -97,6 +97,6 @@ jobs:
           fi
           gh release create "$TAG" dist/calden-linux-amd64.tar.gz dist/calden-linux-arm64.tar.gz dist/SHA256SUMS \
             --target "$GITHUB_SHA" \
-            --title "CalDen $VERSION" \
+            --title "Calden $VERSION" \
             --notes-file "docs/releases/v$VERSION.md" \
             --latest
