@@ -387,14 +387,14 @@ The Compose file maps that host port to Calden's internal port `8787`.
 
 ## Development status
 
-Calden server source version is 1.4.3. Backups remain recommended before each update.
+Calden's latest stable server release is **1.4.4**. You can install updates from the built-in updater. Back up your family calendar before installing an update.
 
-The current version is intended for active testing and development. Database migrations are automatic, but backups are strongly recommended before updating between development builds.
+This release improves wording and setup guidance without changing appointments, bills, or household settings. Server upgrades run database migrations when necessary; version 1.4.4 does not add a database migration.
 
-Current version:
+Current stable version:
 
 ```text
-1.4.1
+1.4.4
 ```
 
 ## Project layout
@@ -461,3 +461,7 @@ Calden keeps the selected civil date intact when opening an event from a calenda
 ## Getting started as a family
 
 New to Calden? See the [simple family quick-start guide](docs/FAMILY_QUICK_START.md). It explains setup, appointments, calendars, permissions, notifications and updates without technical jargon.
+
+## Calden 1.4.4
+
+This update gives Calden consistent spelling throughout the website and clearer first-time instructions. Your calendars and appointments are not changed. See the [1.4.4 release notes](docs/releases/v1.4.4.md) and the [family quick-start guide](docs/FAMILY_QUICK_START.md).
