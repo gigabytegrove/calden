@@ -13,6 +13,7 @@ import (
 // Every member has independent progress for every occurrence; a series remains
 // one editable chore. The legacy single-assignee fields remain API-compatible.
 type choreInput struct {
+    Kind string `json:"kind"`
     Title string `json:"title"`
     Notes string `json:"notes"`
     DueDate string `json:"due_date"`
@@ -28,7 +29,7 @@ type choreStatusInput struct {
 }
 type choreSeries struct {
     ID, Primary, Creator uuid.UUID
-    Title, Notes, Name, Initials, Status, Rule string
+    Title, Notes, Name, Initials, Status, Rule, Kind string
     Avatar *string
     Start time.Time
     Until *time.Time
@@ -92,11 +93,24 @@ func (s *server) choresEnabled(r *http.Request) (bool,error) {
     err:=s.db.QueryRow(r.Context(),"SELECT COALESCE((SELECT value='true' FROM app_settings WHERE key='chores_enabled'),false)").Scan(&enabled)
     return enabled,err
 }
+// Tasks and chores are separate household features despite the shared API.
+func (s *server) enabledWorkKinds(r *http.Request) (tasks,chores bool,err error) {
+    err=s.db.QueryRow(r.Context(),
+        "SELECT COALESCE((SELECT value='true' FROM app_settings WHERE key='tasks_enabled'),false),COALESCE((SELECT value='true' FROM app_settings WHERE key='chores_enabled'),false)").Scan(&tasks,&chores)
+    return
+}
 func (s *server) requireChores(w http.ResponseWriter,r *http.Request) bool {
-    enabled,err:=s.choresEnabled(r)
-    if err!=nil {writeError(w,500,"Could not load chores settings");return false}
-    if !enabled {writeError(w,403,"Tasks & Chores is disabled by your household administrator");return false}
+    tasks,chores,err:=s.enabledWorkKinds(r)
+    if err!=nil {writeError(w,500,"Could not load optional feature settings");return false}
+    if !tasks&&!chores {writeError(w,403,"Tasks and Chores are turned off by your household administrator");return false}
     return true
+}
+func (s *server) requireWorkKind(w http.ResponseWriter,r *http.Request,kind string) bool {
+    tasks,chores,err:=s.enabledWorkKinds(r)
+    if err!=nil {writeError(w,500,"Could not load optional feature settings");return false}
+    if (kind=="task"&&tasks)||(kind=="chore"&&chores){return true}
+    writeError(w,403,"This household feature is turned off by your administrator")
+    return false
 }
 func (s *server) saveChoresEnabled(w http.ResponseWriter,r *http.Request) {
     var input struct {Enabled *bool `json:"enabled"`}
@@ -109,6 +123,8 @@ func (s *server) saveChoresEnabled(w http.ResponseWriter,r *http.Request) {
 }
 
 func validateChore(input choreInput) (choreInput,[]uuid.UUID,time.Time,*time.Time,string) {
+    if input.Kind=="" {input.Kind="chore"} // older Android builds create chores
+    if input.Kind!="task"&&input.Kind!="chore" {return input,nil,time.Time{},nil,"Choose Task or Chore"}
     input.Title=cleanText(strings.TrimSpace(input.Title),200)
     input.Notes=cleanText(strings.TrimSpace(input.Notes),4000)
     if input.Title=="" {return input,nil,time.Time{},nil,"Enter a task or chore name"}
@@ -139,12 +155,14 @@ func validateChore(input choreInput) (choreInput,[]uuid.UUID,time.Time,*time.Tim
 
 func (s *server) listChores(w http.ResponseWriter,r *http.Request) {
     if !s.requireChores(w,r){return}
-    rows,err:=s.db.Query(r.Context(),"SELECT ch.id,ch.title,ch.notes,ch.due_date,ch.assigned_to,u.display_name,u.initials,u.avatar_url,ch.created_by,ch.status,ch.recurrence_rule,ch.recurrence_until,ch.created_at,ch.updated_at FROM chores ch JOIN users u ON u.id=ch.assigned_to ORDER BY ch.due_date,ch.created_at DESC")
+    tasksOn,choresOn,settingsErr:=s.enabledWorkKinds(r)
+    if settingsErr!=nil{writeError(w,500,"Could not load optional feature settings");return}
+    rows,err:=s.db.Query(r.Context(),"SELECT ch.id,ch.title,ch.notes,ch.due_date,ch.assigned_to,u.display_name,u.initials,u.avatar_url,ch.created_by,ch.status,ch.recurrence_rule,ch.recurrence_until,ch.created_at,ch.updated_at,ch.kind FROM chores ch JOIN users u ON u.id=ch.assigned_to WHERE (ch.kind='task' AND $1) OR (ch.kind='chore' AND $2) ORDER BY ch.due_date,ch.created_at DESC",tasksOn,choresOn)
     if err!=nil {writeError(w,500,"Could not load tasks and chores");return}
     series:=[]choreSeries{}
     for rows.Next(){
         var ch choreSeries
-        if err=rows.Scan(&ch.ID,&ch.Title,&ch.Notes,&ch.Start,&ch.Primary,&ch.Name,&ch.Initials,&ch.Avatar,&ch.Creator,&ch.Status,&ch.Rule,&ch.Until,&ch.Created,&ch.Updated);err!=nil{break}
+        if err=rows.Scan(&ch.ID,&ch.Title,&ch.Notes,&ch.Start,&ch.Primary,&ch.Name,&ch.Initials,&ch.Avatar,&ch.Creator,&ch.Status,&ch.Rule,&ch.Until,&ch.Created,&ch.Updated,&ch.Kind);err!=nil{break}
         series=append(series,ch)
     }
     if err==nil {err=rows.Err()}
@@ -214,7 +232,7 @@ func (s *server) listChores(w http.ResponseWriter,r *http.Request) {
             var finished any
             if status=="done"{finished=completedAt}
             out=append(out,map[string]any{
-                "id":ch.ID,"title":ch.Title,"notes":ch.Notes,
+                "id":ch.ID,"kind":ch.Kind,"title":ch.Title,"notes":ch.Notes,
                 "due_date":date,"occurrence_date":date,
                 "series_due_date":ch.Start.Format("2006-01-02"),
                 "assigned_to":ch.Primary,"assignee_name":ch.Name,"assignee_initials":ch.Initials,
@@ -236,6 +254,7 @@ func (s *server) createChore(w http.ResponseWriter,r *http.Request) {
     if decode(r,&input)!=nil{writeError(w,400,"Check the task details");return}
     input,people,_,until,msg:=validateChore(input)
     if msg!=""{writeError(w,400,msg);return}
+    if !s.requireWorkKind(w,r,input.Kind){return}
     tx,err:=s.db.Begin(r.Context())
     if err!=nil{writeError(w,500,"Could not create chore");return}
     defer tx.Rollback(r.Context())
@@ -243,7 +262,7 @@ func (s *server) createChore(w http.ResponseWriter,r *http.Request) {
     err=tx.QueryRow(r.Context(),"SELECT COUNT(*) FROM users WHERE id=ANY($1::uuid[]) AND active=true",people).Scan(&active)
     if err!=nil||active!=len(people){writeError(w,400,"Choose active household members");return}
     var id uuid.UUID
-    err=tx.QueryRow(r.Context(),"INSERT INTO chores(title,notes,due_date,assigned_to,created_by,recurrence_rule,recurrence_until) VALUES($1,$2,$3::date,$4,$5,$6,$7) RETURNING id",input.Title,input.Notes,input.DueDate,people[0],currentActor(r).ID,input.RecurrenceRule,until).Scan(&id)
+    err=tx.QueryRow(r.Context(),"INSERT INTO chores(title,notes,due_date,assigned_to,created_by,recurrence_rule,recurrence_until,kind) VALUES($1,$2,$3::date,$4,$5,$6,$7,$8) RETURNING id",input.Title,input.Notes,input.DueDate,people[0],currentActor(r).ID,input.RecurrenceRule,until,input.Kind).Scan(&id)
     if err!=nil{writeError(w,500,"Could not create chore");return}
     for _,person:=range people{
         _,err=tx.Exec(r.Context(),"INSERT INTO chore_assignees(chore_id,user_id) VALUES($1,$2)",id,person)
@@ -260,15 +279,21 @@ func (s *server) updateChore(w http.ResponseWriter,r *http.Request) {
     id,err:=uuid.Parse(r.PathValue("id"));if err!=nil{writeError(w,400,"Invalid chore");return}
     var input choreInput
     if decode(r,&input)!=nil{writeError(w,400,"Check the task details");return}
+    var existingKind string
+    if err=s.db.QueryRow(r.Context(),"SELECT kind FROM chores WHERE id=$1",id).Scan(&existingKind);errors.Is(err,pgx.ErrNoRows){writeError(w,404,"Task or chore not found");return}
+    if err!=nil{writeError(w,500,"Could not load task or chore");return}
+    if !s.requireWorkKind(w,r,existingKind){return}
+    if input.Kind=="" {input.Kind=existingKind} // keep older client updates compatible
     input,people,_,until,msg:=validateChore(input)
     if msg!=""{writeError(w,400,msg);return}
+    if !s.requireWorkKind(w,r,input.Kind){return}
     tx,err:=s.db.Begin(r.Context());if err!=nil{writeError(w,500,"Could not edit chore");return}
     defer tx.Rollback(r.Context())
     var active int
     err=tx.QueryRow(r.Context(),"SELECT COUNT(*) FROM users WHERE id=ANY($1::uuid[]) AND active=true",people).Scan(&active)
     if err!=nil||active!=len(people){writeError(w,400,"Choose active household members");return}
     var changed bool
-    err=tx.QueryRow(r.Context(),"UPDATE chores SET title=$2,notes=$3,due_date=$4::date,assigned_to=$5,recurrence_rule=$6,recurrence_until=$7,updated_at=now(),status=CASE WHEN due_date IS DISTINCT FROM $4::date OR recurrence_rule IS DISTINCT FROM $6 OR assigned_to IS DISTINCT FROM $5 THEN 'pending' ELSE status END,completed_at=CASE WHEN due_date IS DISTINCT FROM $4::date OR recurrence_rule IS DISTINCT FROM $6 OR assigned_to IS DISTINCT FROM $5 THEN NULL ELSE completed_at END,completed_by=CASE WHEN due_date IS DISTINCT FROM $4::date OR recurrence_rule IS DISTINCT FROM $6 OR assigned_to IS DISTINCT FROM $5 THEN NULL ELSE completed_by END WHERE id=$1 RETURNING true",id,input.Title,input.Notes,input.DueDate,people[0],input.RecurrenceRule,until).Scan(&changed)
+    err=tx.QueryRow(r.Context(),"UPDATE chores SET title=$2,notes=$3,due_date=$4::date,assigned_to=$5,recurrence_rule=$6,recurrence_until=$7,kind=$8,updated_at=now(),status=CASE WHEN due_date IS DISTINCT FROM $4::date OR recurrence_rule IS DISTINCT FROM $6 OR assigned_to IS DISTINCT FROM $5 THEN 'pending' ELSE status END,completed_at=CASE WHEN due_date IS DISTINCT FROM $4::date OR recurrence_rule IS DISTINCT FROM $6 OR assigned_to IS DISTINCT FROM $5 THEN NULL ELSE completed_at END,completed_by=CASE WHEN due_date IS DISTINCT FROM $4::date OR recurrence_rule IS DISTINCT FROM $6 OR assigned_to IS DISTINCT FROM $5 THEN NULL ELSE completed_by END WHERE id=$1 RETURNING true",id,input.Title,input.Notes,input.DueDate,people[0],input.RecurrenceRule,until,input.Kind).Scan(&changed)
     if errors.Is(err,pgx.ErrNoRows){writeError(w,404,"Chore not found");return}
     if err!=nil{writeError(w,500,"Could not update chore");return}
     // Keeping unchanged assignments preserves their occurrence history.
@@ -301,9 +326,11 @@ func (s *server) changeChoreStatus(w http.ResponseWriter,r *http.Request) {
     var until *time.Time
     var rule string
     var primary uuid.UUID
-    err=s.db.QueryRow(r.Context(),"SELECT due_date,recurrence_rule,recurrence_until,assigned_to FROM chores WHERE id=$1",id).Scan(&start,&rule,&until,&primary)
+    var kind string
+    err=s.db.QueryRow(r.Context(),"SELECT due_date,recurrence_rule,recurrence_until,assigned_to,kind FROM chores WHERE id=$1",id).Scan(&start,&rule,&until,&primary,&kind)
     if errors.Is(err,pgx.ErrNoRows){writeError(w,404,"Chore not found");return}
     if err!=nil{writeError(w,500,"Could not find chore");return}
+    if !s.requireWorkKind(w,r,kind){return}
     if input.AssigneeID=="" && canManageChores(actor.Role){target=primary}
     date:=start.Format("2006-01-02")
     if input.OccurrenceDate!=""{date=input.OccurrenceDate}
@@ -325,6 +352,11 @@ func (s *server) deleteChore(w http.ResponseWriter,r *http.Request) {
     if !s.requireChores(w,r){return}
     if !canManageChores(currentActor(r).Role){writeError(w,403,"Only administrators and planners can delete chores");return}
     id,err:=uuid.Parse(r.PathValue("id"));if err!=nil{writeError(w,400,"Invalid chore");return}
+    var kind string
+    err=s.db.QueryRow(r.Context(),"SELECT kind FROM chores WHERE id=$1",id).Scan(&kind)
+    if errors.Is(err,pgx.ErrNoRows){writeError(w,404,"Task or chore not found");return}
+    if err!=nil{writeError(w,500,"Could not load task or chore");return}
+    if !s.requireWorkKind(w,r,kind){return}
     tag,err:=s.db.Exec(r.Context(),"DELETE FROM chores WHERE id=$1",id)
     if err!=nil{writeError(w,500,"Could not delete chore");return}
     if tag.RowsAffected()==0{writeError(w,404,"Chore not found");return}
