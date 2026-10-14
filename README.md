@@ -465,3 +465,7 @@ New to Calden? See the [simple family quick-start guide](docs/FAMILY_QUICK_START
 ## Calden 1.4.4
 
 This update gives Calden consistent spelling throughout the website and clearer first-time instructions. Your calendars and appointments are not changed. See the [1.4.4 release notes](docs/releases/v1.4.4.md) and the [family quick-start guide](docs/FAMILY_QUICK_START.md).
+
+## Calden 1.4.5 — Optional Features
+
+Household administrators can open **Settings → Optional Features** to independently turn Bills, Agenda, Tasks and Chores on or off for everyone. Calden saves each switch automatically and never deletes the feature's existing data when it is disabled. [Read the 1.4.5 release notes](docs/releases/v1.4.5.md).
