@@ -12,6 +12,7 @@ type generalSettingsPayload struct {
 	WeekStart     string `json:"week_start"`
 	DefaultView   int    `json:"default_view"`
 	ChoresEnabled bool `json:"chores_enabled"`
+    TasksEnabled bool `json:"tasks_enabled"`
     BillsEnabled bool `json:"bills_enabled"`
     AgendaEnabled bool `json:"agenda_enabled"`
 }
@@ -24,7 +25,7 @@ func (s *server) generalSettings(w http.ResponseWriter, r *http.Request) {
 		WeekStart:     "sunday",
 		DefaultView:   7,
 	}
-	rows, err := s.db.Query(r.Context(), `SELECT key,value FROM app_settings WHERE key IN ('household_name','timezone','week_start','default_view','chores_enabled','bills_enabled','agenda_enabled')`)
+	rows, err := s.db.Query(r.Context(), `SELECT key,value FROM app_settings WHERE key IN ('household_name','timezone','week_start','default_view','chores_enabled','tasks_enabled','bills_enabled','agenda_enabled')`)
 	if err != nil {
 		writeError(w, 500, "Could not load family settings")
 		return
@@ -38,6 +39,8 @@ func (s *server) generalSettings(w http.ResponseWriter, r *http.Request) {
 		switch key {
 		case "chores_enabled":
             out.ChoresEnabled = value == "true"
+        case "tasks_enabled":
+            out.TasksEnabled = value == "true"
         case "bills_enabled":
             out.BillsEnabled = value != "false"
         case "agenda_enabled":
@@ -125,6 +128,7 @@ func (s *server) saveGeneralSettings(w http.ResponseWriter, r *http.Request) {
 	enabled, err := s.choresEnabled(r)
     if err != nil {writeError(w, 500, "Could not load Tasks & Chores setting");return}
     in.ChoresEnabled = enabled
+    _ = s.db.QueryRow(r.Context(), "SELECT COALESCE((SELECT value='true' FROM app_settings WHERE key='tasks_enabled'),false)").Scan(&in.TasksEnabled)
     in.BillsEnabled = true
     in.AgendaEnabled = true
     _ = s.db.QueryRow(r.Context(), "SELECT COALESCE((SELECT value='true' FROM app_settings WHERE key='bills_enabled'),true),COALESCE((SELECT value='true' FROM app_settings WHERE key='agenda_enabled'),true)").Scan(&in.BillsEnabled,&in.AgendaEnabled)
@@ -160,15 +164,18 @@ func (s *server) saveFeatureVisibility(w http.ResponseWriter, r *http.Request) {
     var in struct {
         BillsEnabled *bool `json:"bills_enabled"`
         AgendaEnabled *bool `json:"agenda_enabled"`
+        TasksEnabled *bool `json:"tasks_enabled"`
+        ChoresEnabled *bool `json:"chores_enabled"`
     }
-    if decode(r,&in)!=nil || (in.BillsEnabled==nil && in.AgendaEnabled==nil) {
-        writeError(w,400,"Choose Bills or Agenda visibility");return
+    if decode(r,&in)!=nil || (in.BillsEnabled==nil && in.AgendaEnabled==nil && in.TasksEnabled==nil && in.ChoresEnabled==nil) {
+        writeError(w,400,"Choose an optional feature");return
     }
     tx,err:=s.db.Begin(r.Context())
     if err!=nil{writeError(w,500,"Could not save household features");return}
     defer tx.Rollback(r.Context())
     for _,change:=range []struct{Key string; Enabled *bool}{
         {"bills_enabled",in.BillsEnabled},{"agenda_enabled",in.AgendaEnabled},
+        {"tasks_enabled",in.TasksEnabled},{"chores_enabled",in.ChoresEnabled},
     } {
         if change.Enabled==nil{continue}
         value:="false";if *change.Enabled{value="true"}
@@ -177,6 +184,6 @@ func (s *server) saveFeatureVisibility(w http.ResponseWriter, r *http.Request) {
             change.Key,value);err!=nil{writeError(w,500,"Could not update household features");return}
     }
     if err=tx.Commit(r.Context());err!=nil{writeError(w,500,"Could not save household features");return}
-    s.audit(r,"update","settings",nil,"Changed household feature visibility",nil)
+    s.audit(r,"update","settings",nil,"Updated optional household features",nil)
     s.generalSettings(w,r)
 }
