@@ -2912,8 +2912,8 @@ function renderChores(){
   const tasksEnabled=!!state.settings?.tasks_enabled;
   const choresEnabled=!!state.settings?.chores_enabled;
   const enabled=tasksEnabled||choresEnabled;
-  $(".chore-nav").forEach(el=>{el.classList.toggle("hidden",!enabled);el.textContent=tasksEnabled&&choresEnabled?"Tasks & Chores":tasksEnabled?"Tasks":"Chores"});
-  $(".chore-manager").forEach(el=>el.classList.toggle("hidden",!["admin","planner"].includes(state.me?.role)));
+  document.querySelectorAll(".chore-nav").forEach(el=>{el.classList.toggle("hidden",!enabled);el.textContent=tasksEnabled&&choresEnabled?"Tasks & Chores":tasksEnabled?"Tasks":"Chores"});
+  document.querySelectorAll(".chore-manager").forEach(el=>el.classList.toggle("hidden",!["admin","planner"].includes(state.me?.role)));
   $("#chore-page-title").textContent=tasksEnabled&&choresEnabled?"Tasks & Chores":tasksEnabled?"Tasks":"Chores";
   $("#chore-add").textContent=tasksEnabled&&choresEnabled?"+ Add task or chore":tasksEnabled?"+ Add task":"+ Add chore";
   const kindField=$("#chore-kind"),selected=kindField.value;
