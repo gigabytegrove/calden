@@ -315,9 +315,6 @@
         <nav class="settings-nav" aria-label="Settings sections">
           <button type="button" class="settings-nav-item active admin-settings" data-settings-tab="general"><strong>Household</strong><span>Name, time zone, week layout</span></button>
           <button type="button" class="settings-nav-item" data-settings-tab="calendar"><strong>Calendar & display</strong><span>Defaults and this browser</span></button>
-          <button type="button" class="settings-nav-item admin-settings" data-settings-tab="bills"><strong>Bills</strong><span>Show or hide bill tracking</span></button>
-          <button type="button" class="settings-nav-item admin-settings" data-settings-tab="agenda"><strong>Agenda</strong><span>Show or hide the event list</span></button>
-          <button type="button" class="settings-nav-item admin-settings" data-settings-tab="chores"><strong>Tasks &amp; Chores</strong><span>Manage household tasks</span></button>
           <button type="button" class="settings-nav-item admin-settings" data-settings-tab="integrations"><strong>Integrations</strong><span>Connected services</span></button>
           <button type="button" class="settings-nav-item admin-settings" data-settings-tab="updates"><strong>Updates</strong><span>Versions and maintenance</span></button>
           <button type="button" class="settings-nav-item admin-settings" data-settings-tab="backups"><strong>Backups & Restore</strong><span>Backup and recovery</span></button>
@@ -478,37 +475,20 @@
               </div>
               <div class="form-actions"><span class="grow"></span><button type="submit" class="button">Save household settings</button></div>
               <p id="general-settings-status" class="status-line"></p>
+              <div class="chore-feature-settings">
+                <h3>Optional household sections</h3>
+                <p class="muted">Hide sections without removing calendars, bills, events or tasks.</p>
+                <label class="toggle-row"><input id="settings-bills-enabled" type="checkbox"><span>Show Bills</span></label>
+                <label class="toggle-row"><input id="settings-agenda-enabled" type="checkbox"><span>Show Agenda</span></label>
+                <button type="button" id="save-feature-visibility" class="button secondary">Save visibility</button>
+                <p id="settings-feature-status" class="status-line"></p>
+                <h3>Tasks &amp; Chores</h3>
+                <p class="muted">Enable household chores and deadlines. Disabling hides the section without deleting tasks.</p>
+                <label class="toggle-row"><input id="settings-chores-enabled" type="checkbox"><span>Enable Tasks &amp; Chores</span></label>
+                <button type="button" id="save-chores-enabled" class="button secondary">Save chores setting</button>
+                <p id="settings-chores-status" class="status-line"></p>
+              </div>
             </form>
-          </section>
-
-          <section class="settings-pane hidden admin-settings" data-settings-pane="bills">
-            <div class="page-header"><div><p class="eyebrow">Household features</p><h2>Bills</h2><p class="muted">Choose whether Bill Pay appears in Calden. Bills and payment history stay saved either way.</p></div></div>
-            <section class="panel stack">
-              <label class="toggle-row"><input id="settings-bills-enabled" type="checkbox"><span>Show Bill Pay</span></label>
-              <p class="muted">When turned off, Bill Pay disappears from the main menu. You can turn it back on here at any time. No bills are deleted.</p>
-              <div class="form-actions"><button type="button" id="save-bills-enabled" class="button">Save Bills setting</button></div>
-              <p id="settings-bills-status" class="status-line" role="status" aria-live="polite"></p>
-            </section>
-          </section>
-
-          <section class="settings-pane hidden admin-settings" data-settings-pane="agenda">
-            <div class="page-header"><div><p class="eyebrow">Household features</p><h2>Agenda</h2><p class="muted">Choose whether the household sees an upcoming-event list alongside the calendar.</p></div></div>
-            <section class="panel stack">
-              <label class="toggle-row"><input id="settings-agenda-enabled" type="checkbox"><span>Show Agenda</span></label>
-              <p class="muted">Turning this off hides the Agenda menu. Appointments remain on their calendars and no events are removed.</p>
-              <div class="form-actions"><button type="button" id="save-agenda-enabled" class="button">Save Agenda setting</button></div>
-              <p id="settings-agenda-status" class="status-line" role="status" aria-live="polite"></p>
-            </section>
-          </section>
-
-          <section class="settings-pane hidden admin-settings" data-settings-pane="chores">
-            <div class="page-header"><div><p class="eyebrow">Household features</p><h2>Tasks &amp; Chores</h2><p class="muted">Choose whether your family uses Tasks &amp; Chores.</p></div></div>
-            <section class="panel stack">
-              <label class="toggle-row"><input id="settings-chores-enabled" type="checkbox"><span>Enable Tasks &amp; Chores</span></label>
-              <p class="muted">Turning this off hides the Tasks &amp; Chores menu, but your existing tasks, assignments and completed work stay saved.</p>
-              <div class="form-actions"><button type="button" id="save-chores-enabled" class="button">Save Tasks &amp; Chores setting</button></div>
-              <p id="settings-chores-status" class="status-line" role="status" aria-live="polite"></p>
-            </section>
           </section>
 
           <section class="settings-pane hidden" data-settings-pane="calendar">
