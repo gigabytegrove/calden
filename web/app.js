@@ -2912,7 +2912,13 @@ function renderChores(){
   const tasksEnabled=!!state.settings?.tasks_enabled;
   const choresEnabled=!!state.settings?.chores_enabled;
   const enabled=tasksEnabled||choresEnabled;
-  document.querySelectorAll(".chore-nav").forEach(el=>{el.classList.toggle("hidden",!enabled);el.textContent=tasksEnabled&&choresEnabled?"Tasks & Chores":tasksEnabled?"Tasks":"Chores"});
+  document.querySelectorAll(".chore-nav").forEach(el=>{
+    el.classList.toggle("hidden",!enabled);
+    // Preserve the SVG added by decorateNavigation. textContent on the link
+    // would remove the icon whenever feature visibility changes.
+    const label=el.querySelector(".nav-label");
+    if(label)label.textContent=tasksEnabled&&choresEnabled?"Tasks & Chores":tasksEnabled?"Tasks":"Chores";
+  });
   document.querySelectorAll(".chore-manager").forEach(el=>el.classList.toggle("hidden",!["admin","planner"].includes(state.me?.role)));
   $("#chore-page-title").textContent=tasksEnabled&&choresEnabled?"Tasks & Chores":tasksEnabled?"Tasks":"Chores";
   $("#chore-add").textContent=tasksEnabled&&choresEnabled?"+ Add task or chore":tasksEnabled?"+ Add task":"+ Add chore";
