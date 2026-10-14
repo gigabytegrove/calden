@@ -387,14 +387,14 @@ The Compose file maps that host port to Calden's internal port `8787`.
 
 ## Development status
 
-Calden's latest stable server release is **1.4.6**. You can install updates from the built-in updater. Back up your family calendar before installing an update.
+Calden's latest stable server release is **1.4.7**. You can install updates from the built-in updater. Back up your family calendar before installing an update.
 
 This release improves wording and setup guidance without changing appointments, bills, or household settings. Server upgrades run database migrations when necessary; version 1.4.4 does not add a database migration.
 
 Current stable version:
 
 ```text
-1.4.6
+1.4.7
 ```
 
 ## Project layout
@@ -473,3 +473,7 @@ Household administrators can open **Settings → Optional Features** to independ
 ## Calden 1.4.6
 
 Fixes the Tasks and Chores navigation icon disappearing when household feature switches change. The labels still reflect what your family has enabled; your saved information is unaffected. [Read the 1.4.6 notes](docs/releases/v1.4.6.md).
+
+## Calden 1.4.7 — Clearer buttons and payment history
+
+Bill payment records now show properly spaced **Mark cleared**, **Edit**, and **Delete** buttons instead of crowded text links. The payment history displays cleanly on narrow screens, and deleting a saved backup now uses a clearly marked button too. No data or payment behavior has changed. [Read the family-friendly release notes](docs/releases/v1.4.7.md).

@@ -72,11 +72,11 @@ jobs:
         run: |
           set -euo pipefail
           curl -fsSI http://127.0.0.1:8787/ | tr -d '\r' > /tmp/root-headers.txt
-          curl -fsSI http://127.0.0.1:8787/app.js?v=1.4.6 | tr -d '\r' > /tmp/app-headers.txt
+          curl -fsSI http://127.0.0.1:8787/app.js?v=1.4.7 | tr -d '\r' > /tmp/app-headers.txt
           grep -qi '^Cache-Control: .*no-store' /tmp/root-headers.txt
           grep -qi '^Cache-Control: .*no-store' /tmp/app-headers.txt
-          curl -fsS http://127.0.0.1:8787/ | grep -q '/app.js?v=1.4.6'
-          curl -fsS http://127.0.0.1:8787/ | grep -q '/styles.css?v=1.4.6'
+          curl -fsS http://127.0.0.1:8787/ | grep -q '/app.js?v=1.4.7'
+          curl -fsS http://127.0.0.1:8787/ | grep -q '/styles.css?v=1.4.7'
 
       - name: Set up browser test
         uses: actions/setup-node@v4
@@ -453,6 +453,57 @@ jobs:
             await page.locator('#bill-payment-settles').check();
             await page.locator('#bill-payment-save').click();
             await page.locator('#bill-payment-history').getByText('$80.11', { exact: true }).waitFor({ state: 'visible' });
+
+            // Payment history needs recognizable, separated buttons on desktop
+            // and mobile. Neither the actions nor the modal may overflow.
+            for (const viewportWidth of [1440, 768, 360]) {
+              await page.setViewportSize({ width: viewportWidth, height: 900 });
+              const paymentLayout = await page.locator('#bill-payment-dialog').evaluate(dialog => {
+                const history = dialog.querySelector('#bill-payment-history');
+                const rows = [...history.querySelectorAll('.bill-payment-history-row')];
+                const modal = dialog.getBoundingClientRect();
+                const defects = [];
+                if (dialog.scrollWidth > dialog.clientWidth + 2) defects.push('dialog overflows horizontally');
+                if (rows.length !== 2) defects.push('expected two payment history rows');
+                for (const row of rows) {
+                  const buttons = [...row.querySelectorAll('.bill-payment-history-actions button')];
+                  if (!buttons.some(b => b.classList.contains('edit-bill-payment')) ||
+                      !buttons.some(b => b.classList.contains('delete-bill-payment'))) {
+                    defects.push('missing payment actions');
+                  }
+                  const group = row.querySelector('.bill-payment-history-actions');
+                  if (getComputedStyle(group).gap === '0px') defects.push('no gap between action buttons');
+                  const rowBounds = row.getBoundingClientRect();
+                  let previous = null;
+                  for (const button of buttons) {
+                    const bounds = button.getBoundingClientRect();
+                    const style = getComputedStyle(button);
+                    if (!button.classList.contains('button')) defects.push('unstyled action button');
+                    if (Number.parseFloat(style.borderTopWidth) < 1) defects.push('missing button outline');
+                    if (!button.getAttribute('aria-label')) defects.push('missing accessible button name');
+                    if (bounds.height < 34) defects.push('button too small');
+                    if (bounds.left < rowBounds.left - 2 || bounds.right > rowBounds.right + 2) defects.push('action escapes payment row');
+                    if (bounds.left < modal.left - 2 || bounds.right > modal.right + 2) defects.push('action escapes dialog');
+                    if (previous && bounds.top < previous.bottom - 1 && bounds.left < previous.right + 6) {
+                      defects.push('adjacent action buttons overlap or have no spacing');
+                    }
+                    previous = bounds;
+                  }
+                  const destructive = row.querySelector('.delete-bill-payment');
+                  if (!destructive.classList.contains('danger') ||
+                      getComputedStyle(destructive).color === getComputedStyle(row).color) {
+                    defects.push('Delete button not visibly destructive');
+                  }
+                }
+                const firstRow = rows[0];
+                if (firstRow && firstRow.querySelectorAll('.clear-bill-payment').length !== 1) {
+                  defects.push('uncleared payment missing Mark cleared button');
+                }
+                return defects;
+              });
+              if (paymentLayout.length) throw new Error('Payment controls at '+viewportWidth+'px: '+paymentLayout.join('; '));
+            }
+            await page.setViewportSize({ width: 1440, height: 1000 });
             await page.locator('#bill-payment-cancel').click();
             await page.locator('#bill-payment-dialog').waitFor({ state: 'hidden' });
             billRow = page.locator('#bill-list .bill-row').filter({ hasText: 'Electric CI Bill' });
