@@ -556,8 +556,29 @@ jobs:
             await page.locator('#settings-tasks-enabled').check();
             await page.locator('#settings-feature-status').getByText('Tasks enabled for everyone.',{exact:false}).waitFor({state:'visible'});
             if ((await page.locator('#settings-chores-enabled').isChecked())!==choresInitiallyEnabled) throw new Error('Enabling Tasks changed Chores.');
+            const workNav=page.locator('.primary-nav .chore-nav');
+            if (await workNav.locator('.nav-icon svg').count()!==1) {
+              throw new Error('Tasks and Chores icon was removed by renderChores.');
+            }
+            const expectedWorkLabel=choresInitiallyEnabled?'Tasks & Chores':'Tasks';
+            if ((await workNav.locator('.nav-label').innerText())!==expectedWorkLabel) {
+              throw new Error('Tasks and Chores navigation label is wrong.');
+            }
             await page.locator('#settings-tasks-enabled').uncheck();
             await page.locator('#settings-feature-status').getByText('Tasks disabled for everyone.',{exact:false}).waitFor({state:'visible'});
+            if(await workNav.locator('.nav-icon svg').count()!==1) {
+              throw new Error('Disabling Tasks erased the navigation icon.');
+            }
+            if (!choresInitiallyEnabled) {
+              await page.locator('#settings-chores-enabled').check();
+              await page.locator('#settings-feature-status').getByText('Chores enabled for everyone.',{exact:false}).waitFor({state:'visible'});
+              if (await workNav.locator('.nav-icon svg').count()!==1 ||
+                  (await workNav.locator('.nav-label').innerText())!=='Chores') {
+                throw new Error('Enabling Chores erased the icon or changed the label incorrectly.');
+              }
+              await page.locator('#settings-chores-enabled').uncheck();
+              await page.locator('#settings-feature-status').getByText('Chores disabled for everyone.',{exact:false}).waitFor({state:'visible'});
+            }
             await page.locator('.settings-nav-item[data-settings-tab="general"]').click();
             await page.locator('[data-settings-pane="general"]').waitFor({state:'visible'});
             await page.locator('.settings-nav-item[data-settings-tab="account"]').click();
