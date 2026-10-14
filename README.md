@@ -457,3 +457,7 @@ Tasks & Chores supports recurring household work (daily, weekly, every two weeks
 ## Appointment date reliability (1.4.3)
 
 Calden keeps the selected civil date intact when opening an event from a calendar date, confirms the PostgreSQL start and end timestamps after creation or updates (including recurring occurrence edits), and navigates to the saved date. The Notifications inbox explicitly identifies its timestamp as **Notified** rather than the appointment date. The January 13, 2027 test case is included in automated browser and API regression tests. See [1.4.3 release notes](docs/releases/v1.4.3.md).
+
+## Getting started as a family
+
+New to Calden? See the [simple family quick-start guide](docs/FAMILY_QUICK_START.md). It explains setup, appointments, calendars, permissions, notifications and updates without technical jargon.
