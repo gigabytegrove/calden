@@ -10,8 +10,8 @@ function reportCalDenClientError(reason){
   }).catch(()=>{});
 }
 let caldenBooting=true;
-window.addEventListener("error",event=>{console.error("Calden runtime error:",event.error||event.message);reportCaldenClientError(event.error||event.message);if(caldenBooting)showBootFailure(event.error||event.message)});
-window.addEventListener("unhandledrejection",event=>{console.error("Calden unhandled promise rejection:",event.reason);reportCaldenClientError(event.reason);if(caldenBooting)showBootFailure(event.reason)});
+window.addEventListener("error",event=>{console.error("Calden runtime error:",event.error||event.message);reportCalDenClientError(event.error||event.message);if(caldenBooting)showBootFailure(event.error||event.message)});
+window.addEventListener("unhandledrejection",event=>{console.error("Calden unhandled promise rejection:",event.reason);reportCalDenClientError(event.reason);if(caldenBooting)showBootFailure(event.reason)});
 
 
 const $=s=>document.querySelector(s);
@@ -262,7 +262,7 @@ async function boot(){
     if(location.pathname==="/")history.replaceState({calden:true},"",caldenPageURL("calendar"));
     startCalDenVersionWatch();
   }catch(err){
-    console.error("Calden startup failed",err);reportCaldenClientError(err);
+    console.error("Calden startup failed",err);reportCalDenClientError(err);
     if(err.status===401||err.status===403){
       setToken("");showAuth("login");
     }else{
