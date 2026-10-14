@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#f7f8fb">
-  <meta name="calden-version" content="1.4.4">
+  <meta name="calden-version" content="1.4.5">
   <link rel="icon" type="image/svg+xml" href="/assets/calden-icon.svg">
   
   <title>Calden</title>
-  <link rel="stylesheet" href="/styles.css?v=1.4.4">
+  <link rel="stylesheet" href="/styles.css?v=1.4.5">
 </head>
 <body class="bg-slate-50 text-slate-900">
 <div id="auth" class="auth-shell">
@@ -164,7 +164,7 @@
     </section>
 
     <section id="page-chores" class="app-page hidden">
-      <div class="page-header"><div><p class="eyebrow">Household responsibilities</p><h2>Tasks &amp; Chores</h2>
+      <div class="page-header"><div><p class="eyebrow">Household responsibilities</p><h2 id="chore-page-title">Tasks &amp; Chores</h2>
       <p class="muted">Know what's due, who is responsible, and what's completed.</p></div>
       <button id="chore-add" class="button chore-manager" type="button">+ Add chore</button></div>
       <div id="chore-summary" class="chore-summary"></div>
@@ -178,6 +178,7 @@
         <h3 id="chore-editor-heading">Add chore</h3>
         <form id="chore-form" class="stack">
           <input type="hidden" name="id">
+          <label>Type<select name="kind" id="chore-kind"><option value="task">Task</option><option value="chore">Chore</option></select></label>
           <label>Task or chore<input name="title" maxlength="200" required placeholder="Take out the trash"></label>
           <label>Details<textarea name="notes" maxlength="4000" rows="3"></textarea></label>
           <div class="two"><label>First due date<input name="due_date" type="date" required></label>
@@ -315,6 +316,7 @@
         <nav class="settings-nav" aria-label="Settings sections">
           <button type="button" class="settings-nav-item active admin-settings" data-settings-tab="general"><strong>Household</strong><span>Name, time zone, week layout</span></button>
           <button type="button" class="settings-nav-item" data-settings-tab="calendar"><strong>Calendar & display</strong><span>Defaults and this browser</span></button>
+          <button type="button" class="settings-nav-item admin-settings" data-settings-tab="optional-features"><strong>Optional Features</strong><span>Turn household features on or off</span></button>
           <button type="button" class="settings-nav-item admin-settings" data-settings-tab="integrations"><strong>Integrations</strong><span>Connected services</span></button>
           <button type="button" class="settings-nav-item admin-settings" data-settings-tab="updates"><strong>Updates</strong><span>Versions and maintenance</span></button>
           <button type="button" class="settings-nav-item admin-settings" data-settings-tab="backups"><strong>Backups & Restore</strong><span>Backup and recovery</span></button>
@@ -475,20 +477,21 @@
               </div>
               <div class="form-actions"><span class="grow"></span><button type="submit" class="button">Save household settings</button></div>
               <p id="general-settings-status" class="status-line"></p>
-              <div class="chore-feature-settings">
-                <h3>Optional household sections</h3>
-                <p class="muted">Hide sections without removing calendars, bills, events or tasks.</p>
-                <label class="toggle-row"><input id="settings-bills-enabled" type="checkbox"><span>Show Bills</span></label>
-                <label class="toggle-row"><input id="settings-agenda-enabled" type="checkbox"><span>Show Agenda</span></label>
-                <button type="button" id="save-feature-visibility" class="button secondary">Save visibility</button>
-                <p id="settings-feature-status" class="status-line"></p>
-                <h3>Tasks &amp; Chores</h3>
-                <p class="muted">Enable household chores and deadlines. Disabling hides the section without deleting tasks.</p>
-                <label class="toggle-row"><input id="settings-chores-enabled" type="checkbox"><span>Enable Tasks &amp; Chores</span></label>
-                <button type="button" id="save-chores-enabled" class="button secondary">Save chores setting</button>
-                <p id="settings-chores-status" class="status-line"></p>
-              </div>
             </form>
+          </section>
+          <section class="settings-pane hidden admin-settings" data-settings-pane="optional-features">
+            <div class="page-header"><div><p class="eyebrow">Household-wide settings</p><h2>Optional Features</h2><p class="muted">Choose which features your family can use. Changes are saved automatically for everyone.</p></div></div>
+            <section class="panel stack" aria-label="Optional household features">
+              <label class="toggle-row"><input id="settings-bills-enabled" type="checkbox"><span>Enable Bills</span></label>
+              <p class="muted">Show or hide Bill Pay without deleting bills or payment records.</p>
+              <label class="toggle-row"><input id="settings-agenda-enabled" type="checkbox"><span>Enable Agenda</span></label>
+              <p class="muted">Show or hide the list of upcoming events. Calendar appointments are unchanged.</p>
+              <label class="toggle-row"><input id="settings-tasks-enabled" type="checkbox"><span>Enable Tasks</span></label>
+              <p class="muted">Allow household tasks and their assigned progress.</p>
+              <label class="toggle-row"><input id="settings-chores-enabled" type="checkbox"><span>Enable Chores</span></label>
+              <p class="muted">Allow chores, including repeating chores. Existing chores remain saved when hidden.</p>
+              <p id="settings-feature-status" class="status-line" role="status" aria-live="polite">Each switch affects the whole household.</p>
+            </section>
           </section>
 
           <section class="settings-pane hidden" data-settings-pane="calendar">
@@ -741,6 +744,6 @@
   </form>
 </dialog>
 
-<script src="/app.js?v=1.4.4" defer></script>
+<script src="/app.js?v=1.4.5" defer></script>
 </body>
 </html>
