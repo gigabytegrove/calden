@@ -551,10 +551,11 @@ jobs:
             for (const label of ['Enable Bills','Enable Agenda','Enable Tasks','Enable Chores']) {
               await page.locator('[data-settings-pane="optional-features"]').getByText(label,{exact:true}).waitFor({state:'visible'});
             }
+            const choresInitiallyEnabled=await page.locator('#settings-chores-enabled').isChecked();
             if (await page.locator('#settings-tasks-enabled').isChecked()) throw new Error('Tasks should start off.');
             await page.locator('#settings-tasks-enabled').check();
             await page.locator('#settings-feature-status').getByText('Tasks enabled for everyone.',{exact:false}).waitFor({state:'visible'});
-            if (!(await page.locator('#settings-chores-enabled').isChecked())) throw new Error('Enabling Tasks changed Chores.');
+            if ((await page.locator('#settings-chores-enabled').isChecked())!==choresInitiallyEnabled) throw new Error('Enabling Tasks changed Chores.');
             await page.locator('#settings-tasks-enabled').uncheck();
             await page.locator('#settings-feature-status').getByText('Tasks disabled for everyone.',{exact:false}).waitFor({state:'visible'});
             await page.locator('.settings-nav-item[data-settings-tab="general"]').click();
