@@ -72,11 +72,11 @@ jobs:
         run: |
           set -euo pipefail
           curl -fsSI http://127.0.0.1:8787/ | tr -d '\r' > /tmp/root-headers.txt
-          curl -fsSI http://127.0.0.1:8787/app.js?v=1.4.4 | tr -d '\r' > /tmp/app-headers.txt
+          curl -fsSI http://127.0.0.1:8787/app.js?v=1.4.5 | tr -d '\r' > /tmp/app-headers.txt
           grep -qi '^Cache-Control: .*no-store' /tmp/root-headers.txt
           grep -qi '^Cache-Control: .*no-store' /tmp/app-headers.txt
-          curl -fsS http://127.0.0.1:8787/ | grep -q '/app.js?v=1.4.4'
-          curl -fsS http://127.0.0.1:8787/ | grep -q '/styles.css?v=1.4.4'
+          curl -fsS http://127.0.0.1:8787/ | grep -q '/app.js?v=1.4.5'
+          curl -fsS http://127.0.0.1:8787/ | grep -q '/styles.css?v=1.4.5'
 
       - name: Set up browser test
         uses: actions/setup-node@v4
@@ -533,6 +533,33 @@ jobs:
             await page.locator('#settings-scroll-now').uncheck();
             await page.locator('#display-settings-form button[type="submit"]').click();
             await page.locator('#display-settings-status').getByText('Display settings saved.').waitFor({ state: 'visible' });
+            // All four features belong under one Optional Features tab,
+            // and each checkbox changes only its own household setting.
+            if (await page.locator('#general-settings-form #settings-chores-enabled').count()) {
+              throw new Error('Optional features were placed back inside Household.');
+            }
+            for (const tab of ['bills','agenda','chores','tasks']) {
+              if (await page.locator('.settings-nav-item[data-settings-tab="'+tab+'"]').count()) {
+                throw new Error('Optional feature incorrectly has its own Settings tab: '+tab);
+              }
+            }
+            await page.locator('.settings-nav-item[data-settings-tab="optional-features"]').click();
+            await page.locator('[data-settings-pane="optional-features"]').waitFor({ state:'visible' });
+            if (!page.url().endsWith('/settings/optional-features')) {
+              throw new Error('Optional Features settings route is wrong.');
+            }
+            for (const label of ['Enable Bills','Enable Agenda','Enable Tasks','Enable Chores']) {
+              await page.locator('[data-settings-pane="optional-features"]').getByText(label,{exact:true}).waitFor({state:'visible'});
+            }
+            const choresInitiallyEnabled=await page.locator('#settings-chores-enabled').isChecked();
+            if (await page.locator('#settings-tasks-enabled').isChecked()) throw new Error('Tasks should start off.');
+            await page.locator('#settings-tasks-enabled').check();
+            await page.locator('#settings-feature-status').getByText('Tasks enabled for everyone.',{exact:false}).waitFor({state:'visible'});
+            if ((await page.locator('#settings-chores-enabled').isChecked())!==choresInitiallyEnabled) throw new Error('Enabling Tasks changed Chores.');
+            await page.locator('#settings-tasks-enabled').uncheck();
+            await page.locator('#settings-feature-status').getByText('Tasks disabled for everyone.',{exact:false}).waitFor({state:'visible'});
+            await page.locator('.settings-nav-item[data-settings-tab="general"]').click();
+            await page.locator('[data-settings-pane="general"]').waitFor({state:'visible'});
             await page.locator('.settings-nav-item[data-settings-tab="account"]').click();
             await page.locator('[data-settings-pane="account"]').waitFor({ state: 'visible' });
             await page.locator('#settings-account-name').waitFor({ state: 'visible' });
@@ -867,6 +894,34 @@ jobs:
           rows=[x for x in request("/api/chores",token=admin)["items"] if x["id"]==cid]
           assert next(x for x in rows if x["due_date"]==date)["status"]=="done",rows
           assert next(x for x in rows if x["due_date"]!=date)["status"]=="pending",rows
+          # Independent global switches must not erase or expose disabled work.
+          current=request("/api/settings/general",token=admin)
+          assert current["tasks_enabled"] is False and current["chores_enabled"] is True,current
+          switched=request("/api/settings/features","PUT",{"tasks_enabled":True},admin)
+          assert switched["tasks_enabled"] is True and switched["chores_enabled"] is True,switched
+          task_payload={
+              "kind":"task","title":"One-off CI task","due_date":first.isoformat(),
+              "assignee_ids":[primary],"recurrence_rule":"none",
+          }
+          task=request("/api/chores","POST",task_payload,admin,201)["id"]
+          assert any(x["id"]==task and x["kind"]=="task" for x in request("/api/chores",token=admin)["items"])
+          switched=request("/api/settings/features","PUT",{"chores_enabled":False},admin)
+          assert switched["tasks_enabled"] is True and switched["chores_enabled"] is False,switched
+          all_items=request("/api/chores",token=admin)["items"]
+          assert all(x["kind"]=="task" for x in all_items),all_items
+          request(f"/api/chores/{cid}/status","PUT",{"status":"done","occurrence_date":first.isoformat()},admin,403)
+          request(f"/api/chores/{cid}","DELETE",token=admin,expect=403)
+          request("/api/chores","POST",{
+              "kind":"chore","title":"Blocked chore","due_date":first.isoformat(),
+              "assignee_ids":[primary],"recurrence_rule":"none",
+          },admin,403)
+          switched=request("/api/settings/features","PUT",{"chores_enabled":True,"tasks_enabled":False},admin)
+          assert switched["chores_enabled"] is True and switched["tasks_enabled"] is False,switched
+          assert any(x["id"]==cid and x["kind"]=="chore" for x in request("/api/chores",token=admin)["items"])
+          request(f"/api/chores/{task}","DELETE",token=admin,expect=403)
+          switched=request("/api/settings/features","PUT",{"tasks_enabled":True},admin)
+          request(f"/api/chores/{task}","DELETE",token=admin,expect=204)
+          request("/api/settings/features","PUT",{"tasks_enabled":False},admin)
           request(f"/api/chores/{cid}","DELETE",token=admin,expect=204)
 
           request("/api/settings/features","PUT",{"bills_enabled":False},member,403)
