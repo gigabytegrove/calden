@@ -808,3 +808,107 @@ dialog::backdrop{background:rgba(15,23,42,.58);backdrop-filter:blur(2px)}
 @media(max-width:700px){.chore-card{flex-direction:column;align-items:stretch}.chore-actions{justify-content:flex-start}}
 
 .event-date-review{background:#eff6ff;border:1px solid #b4cff0;border-radius:10px;color:#234d80;padding:10px 12px;font-weight:650;line-height:1.5}
+
+/* 1.4.7 — Consistent payment and management action affordances.
+   Preserve the payment details as separate columns and give each action a
+   real, keyboard-focusable button with its own hit area. */
+.bill-payment-history-row{
+  grid-template-columns:minmax(115px,1fr) minmax(155px,1.2fr) auto;
+  align-items:start;
+  column-gap:16px;
+  row-gap:12px;
+  padding:16px;
+}
+.bill-payment-history-row>div:first-child,
+.bill-payment-history-row>div:nth-child(2){
+  display:grid;
+  gap:5px;
+  min-width:0;
+  overflow-wrap:anywhere;
+}
+.bill-payment-history-row>div:first-child strong{
+  font-size:.91rem;
+  line-height:1.25;
+}
+.bill-payment-history-row>div:first-child span,
+.bill-payment-history-row>div:nth-child(2) span,
+.bill-payment-history-row>div:nth-child(2) small{
+  font-size:.76rem;
+  line-height:1.45;
+}
+.bill-payment-history-row>.bill-status-pill{
+  justify-self:end;
+  align-self:start;
+  font-size:.7rem;
+  line-height:1.2;
+  white-space:nowrap;
+}
+.bill-payment-history-row>.bill-payment-history-actions{
+  display:flex!important;
+  grid-column:1/-1;
+  grid-row:auto;
+  justify-content:flex-end;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:9px;
+  min-width:0;
+  padding-top:12px;
+  border-top:1px solid #e2e8f0;
+}
+.bill-payment-history-actions .button,
+.saved-backup-actions .button{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  min-height:38px;
+  padding:8px 12px;
+  font-size:.78rem;
+  line-height:1.25;
+  white-space:nowrap;
+}
+.bill-payment-history-actions .button.danger,
+.saved-backup-actions .button.danger{
+  border-color:#fecaca;
+  background:#fff5f5;
+  color:#b91c1c;
+}
+.bill-payment-history-actions .button.danger:hover,
+.saved-backup-actions .button.danger:hover{
+  background:#fee2e2;
+}
+.bill-payment-history-actions .button:focus-visible,
+.saved-backup-actions .button:focus-visible{
+  outline:3px solid #2563eb;
+  outline-offset:2px;
+}
+.saved-backup-actions{flex-wrap:wrap;justify-content:flex-end;}
+@media (max-width:600px){
+  .bill-payment-history-row{
+    grid-template-columns:minmax(0,1fr) auto;
+    gap:10px 12px;
+    padding:13px;
+  }
+  .bill-payment-history-row>div:nth-child(2){
+    grid-column:1/-1;
+    grid-row:2;
+  }
+  .bill-payment-history-row>.bill-status-pill{
+    grid-column:2;
+    grid-row:1;
+  }
+  .bill-payment-history-row>.bill-payment-history-actions{
+    grid-column:1/-1;
+    grid-row:3;
+    justify-content:stretch;
+    gap:8px;
+  }
+  .bill-payment-history-actions .button{
+    flex:1 1 auto;
+    min-width:0;
+    padding:9px 10px;
+  }
+  .saved-backup-actions .button{
+    flex:1 1 auto;
+  }
+}
