@@ -12,6 +12,10 @@ A calendar has its own color. A person has their own identity. The two never com
 
 Calden 1.2.0 is the first stable release. Development continues on the existing web application, with compatible in-place updates.
 
+## Product direction
+
+The approved product scope, implementation priorities, and compatibility boundaries are documented in [Product Direction](docs/PRODUCT-DIRECTION.md). Proposed capabilities are not represented as released until implemented and tested.
+
 ## What Calden does
 
 Calden gives a household one shared place to manage schedules without forcing every calendar to be shared with everybody.
