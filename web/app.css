@@ -971,3 +971,38 @@ body.calden-family-simple .family-widget-list li{padding:15px;font-size:1.02rem}
 @media(max-width:950px){.family-shopping-layout{grid-template-columns:1fr}.family-widgets{grid-template-columns:1fr}}
 @media(max-width:650px){.family-page .page-header{align-items:flex-start;flex-direction:column}.family-item-form,.family-pref-grid,.family-choice-grid{grid-template-columns:1fr}.family-shopping-row{grid-template-columns:auto minmax(0,1fr)}.family-shopping-actions{grid-column:2;justify-content:flex-start}.family-shopping-main .panel{padding:14px}}
 @media(prefers-reduced-motion:reduce){.family-page *{scroll-behavior:auto!important;transition:none!important}}
+
+/* Family routines — same Calden cards and accessible form controls. */
+.routine-toolbar{display:flex;align-items:end;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.routine-toolbar label{display:grid;gap:5px;font-size:.84rem;font-weight:650;color:#43506a}
+.routine-toolbar input[type=date]{min-width:175px}
+.routine-toolbar .muted{margin-left:auto;font-size:.86rem;font-weight:650}
+.routine-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
+.routine-card{min-width:0;display:grid;gap:12px}
+.routine-card .eyebrow{margin:0 0 7px}
+.routine-card h3{margin:0 0 6px;font-size:1.08rem}
+.routine-card .form-actions{flex-wrap:wrap;gap:7px}
+.routine-step-list{display:grid;gap:7px}
+.routine-step{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid #e3e8f0;background:#f9fafc;border-radius:9px;cursor:pointer}
+.routine-step input{width:20px;height:20px;flex-shrink:0;margin:0;accent-color:#2563eb}
+.routine-step span{font-weight:600;overflow-wrap:anywhere}
+.routine-step.is-completed{background:#eff9f2;border-color:#bee6c8}
+.routine-step.is-completed span{text-decoration:line-through;color:#637e6b}
+.routine-meter{height:8px;background:#e8edf6;border-radius:10px;overflow:hidden}
+.routine-meter span{display:block;height:100%;background:#2563eb;border-radius:10px;transition:width .18s ease}
+.routine-days{border:1px solid #e1e6ef;border-radius:9px;padding:13px}
+.routine-days legend{font-size:.86rem;font-weight:700;padding:0 7px}
+.routine-weekdays{display:flex;flex-wrap:wrap;gap:9px}
+.routine-weekdays label{display:flex;align-items:center;gap:5px;padding:7px 9px;border:1px solid #e1e6ef;border-radius:8px;font-size:.85rem;font-weight:650}
+.routine-weekdays input{width:auto;margin:0}
+.routine-edit-steps{display:grid;gap:8px}
+.routine-edit-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;align-items:center;gap:7px}
+.routine-edit-row input{min-width:0}
+body.calden-family-dark .routine-card{background:#1d2738;color:#f1f5f9;border-color:#364258}
+body.calden-family-dark .routine-toolbar,body.calden-family-dark .routine-step{background:#263347;border-color:#38475c;color:#f1f5f9}
+body.calden-family-dark .routine-step.is-completed{background:#203d34}
+body.calden-family-dark .routine-weekdays label{border-color:#596477}
+body.calden-family-dark .routine-card .muted{color:#bac5d6}
+@media(max-width:930px){.routine-cards{grid-template-columns:1fr}}
+@media(max-width:550px){.routine-toolbar{align-items:stretch}.routine-toolbar .muted{margin-left:0}.routine-edit-row{grid-template-columns:minmax(0,1fr) auto auto auto}.routine-edit-row .button{padding:7px 9px}}
+@media(prefers-reduced-motion:reduce){.routine-meter span{transition:none}}

@@ -15,7 +15,7 @@ type dashboardPreferences struct {
 }
 
 var dashboardWidgets = map[string]bool{
-    "calendar": true, "notifications": true, "shopping": true, "tasks": true,
+    "calendar": true, "notifications": true, "shopping": true, "routines": true, "tasks": true,
     "chores": true, "bills": true, "agenda": true,
 }
 
