@@ -32,7 +32,7 @@ Supported units are each, pack, box, bag, lb, oz, kg, g, L and mL.
 ## Verification before a production release
 
 1. Build and test Go with `go test ./...`.
-2. Run `npm ci && npm run build:css && npm run test:web` on the full checkout.
+2. Run `npm install --no-audit --no-fund && npm run build:css && npm run test:web` on the full checkout.
 3. Apply both additive migrations to a **restored copy** of a production database and test upgrade + rollback using existing Calden backup tooling.
 4. Exercise every route and permission boundary with admin, member, restricted, private-list owner and unauthorised reader; test list hiding, unarchiving and concurrent edits.
 5. Test browser accessibility, narrow screens, appearance choices, cross-device dashboard persistence and all existing calendar/bill/notification screens.
