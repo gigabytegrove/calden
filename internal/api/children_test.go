@@ -23,7 +23,7 @@ func TestChildProfileValidation(t *testing.T){
   t.Run(tc.name,func(t *testing.T){
    got,ok:=normalizeChildProfile(tc.in)
    if ok!=tc.valid{t.Fatalf("valid=%v wanted=%v",ok,tc.valid)}
-   if tc.name=="default"&&(got.DisplayMode!="simple"||len(got.AllowedModules)!=4){
+   if tc.name=="default"&&(got.DisplayMode!="simple"||len(got.AllowedModules)!=5){
     t.Fatalf("unsafe defaults: %+v",got)
    }
   })
@@ -35,10 +35,16 @@ func TestChildRouteDefaultDeny(t *testing.T){
   {"GET","/api/me/dashboard","base"},
   {"PUT","/api/me/dashboard","base"},
   {"GET","/api/users","base"},
+  {"GET","/api/notifications","notifications"},
+  {"GET","/api/notifications/stream","notifications"},
+  {"GET","/api/notifications/push-config","notifications"},
+  {"PUT","/api/notifications/read-all","notifications"},
+  {"PUT","/api/notifications/123/read","notifications"},
+  {"DELETE","/api/notifications/123","notifications"},
   {"GET","/api/events","calendar"},
   {"GET","/api/calendars","calendar"},
-  {"GET","/api/chores","chores"},
-  {"PUT","/api/chores/123/status","chores"},
+  {"GET","/api/chores","work"},
+  {"PUT","/api/chores/123/status","work"},
   {"GET","/api/routines","routines"},
   {"PUT","/api/routines/123/steps/456/status","routines"},
   {"GET","/api/rewards/overview","rewards"},
@@ -74,11 +80,22 @@ func TestChildPermissionsAndDashboard(t *testing.T){
  if !childModuleAllowed(mods,"base"){t.Fatal("base denied")}
  if childDashboardAllowed("bills",mods){t.Fatal("child can view bill widget")}
  if childDashboardAllowed("shopping",mods){t.Fatal("child can view disabled shopping")}
+ if childDashboardAllowed("notifications",mods){t.Fatal("child can view disabled notifications")}
  a:=actor{IsChild:true,ChildLayout:"simple",ChildModules:mods}
  in:=dashboardPreferences{Appearance:"dark",Layout:"standard",Widgets:[]string{"calendar","bills","shopping","rewards"}}
  out:=sanitizeChildDashboard(in,a)
  if out.Layout!="simple"{t.Fatalf("guardian layout bypassed: %s",out.Layout)}
  if len(out.Widgets)!=2||out.Widgets[0]!="calendar"||out.Widgets[1]!="rewards"{
   t.Fatalf("disallowed widgets leaked: %#v",out.Widgets)
+ }
+}
+
+func TestChildTaskOnlyGrant(t *testing.T){
+ if !childModuleAllowed([]string{"tasks"},"work"){t.Fatal("tasks-only child cannot enter work module")}
+ if !childModuleAllowed([]string{"chores"},"work"){t.Fatal("chores-only child cannot enter work module")}
+ if childModuleAllowed([]string{"shopping"},"work"){t.Fatal("unrelated module grants work")}
+ if childModuleAllowed([]string{"tasks"},"chores"){t.Fatal("tasks-only child gained chores")}
+ if childWorkModule("task")!="tasks"||childWorkModule("chore")!="chores"{
+  t.Fatal("incorrect server-side kind mapping")
  }
 }

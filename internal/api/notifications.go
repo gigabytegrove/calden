@@ -205,7 +205,7 @@ func (s *server) ensureBillReviewNotifications(ctx context.Context, userID uuid.
 
 func (s *server) listNotifications(w http.ResponseWriter, r *http.Request) {
 	a := currentActor(r)
-	s.ensureBillReviewNotifications(r.Context(), a.ID, a.Role)
+	if !a.IsChild{s.ensureBillReviewNotifications(r.Context(), a.ID, a.Role)}
 	limit := 100
 	rows, err := s.db.Query(r.Context(), `SELECT n.id,n.event_id,n.kind,n.title,n.message,n.read_at,n.created_at,n.occurrence_start,
 		e.starts_at,e.ends_at,e.all_day,COALESCE(n.calendar_id,c.id),c.name,c.color
@@ -216,8 +216,10 @@ func (s *server) listNotifications(w http.ResponseWriter, r *http.Request) {
 		WHERE n.user_id=$1 AND n.dismissed_at IS NULL
           AND (c.id IS NULL OR $3 IN ('admin','planner') OR COALESCE(p.can_view,false)=true)
           AND (NOT $4 OR c.id IS NULL OR c.calendar_type<>'bill_pay')
+          AND ($5 OR c.id IS NULL)
+          AND (NOT $4 OR n.kind<>'bill_review')
 		ORDER BY n.created_at DESC
-		LIMIT $2`, a.ID, limit,a.Role,a.IsChild)
+		LIMIT $2`, a.ID, limit,a.Role,a.IsChild,!a.IsChild||childModuleAllowed(a.ChildModules,"calendar")
 	if err != nil {
 		writeError(w, 500, "Could not load notifications")
 		return
@@ -260,7 +262,9 @@ func (s *server) listNotifications(w http.ResponseWriter, r *http.Request) {
        LEFT JOIN calendar_permissions p ON p.calendar_id=c.id AND p.user_id=$1
        WHERE n.user_id=$1 AND n.read_at IS NULL AND n.dismissed_at IS NULL
        AND (c.id IS NULL OR $2 IN ('admin','planner') OR COALESCE(p.can_view,false)=true)
-       AND (NOT $3 OR c.id IS NULL OR c.calendar_type<>'bill_pay')`, a.ID,a.Role,a.IsChild).Scan(&unread); err != nil {
+       AND (NOT $3 OR c.id IS NULL OR c.calendar_type<>'bill_pay')
+       AND ($4 OR c.id IS NULL)
+       AND (NOT $3 OR n.kind<>'bill_review')`, a.ID,a.Role,a.IsChild,!a.IsChild||childModuleAllowed(a.ChildModules,"calendar")).Scan(&unread); err != nil {
 		writeError(w, 500, "Could not count unread notifications")
 		return
 	}

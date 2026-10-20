@@ -124,12 +124,26 @@ func (d *dispatcher) lease(ctx context.Context) (delivery,error){
        SELECT p.notification_id,p.device_id
        FROM notification_push_deliveries p
        JOIN notifications n ON n.id=p.notification_id
-       JOIN calden_devices d ON d.id=p.device_id
+       JOIN users usr ON usr.id=n.user_id
+       JOIN calden_devices d ON d.id=p.device_id AND d.user_id=n.user_id
+       LEFT JOIN events e ON e.id=n.event_id
+       LEFT JOIN calendars cal ON cal.id=COALESCE(n.calendar_id,e.calendar_id)
+       LEFT JOIN calendar_permissions perm ON perm.calendar_id=cal.id AND perm.user_id=usr.id
+       LEFT JOIN family_child_profiles child ON child.user_id=usr.id
        WHERE (p.status='pending' AND p.next_attempt_at<=now()
            OR p.status='leased' AND p.leased_until<now())
          AND d.revoked_at IS NULL AND d.enabled AND d.push_provider='fcm'
          AND d.push_token IS NOT NULL
          AND n.read_at IS NULL AND n.dismissed_at IS NULL
+         AND usr.active=true
+         AND (cal.id IS NULL OR usr.role IN ('admin','planner') OR COALESCE(perm.can_view,false)=true)
+         AND (NOT usr.is_child OR (
+           child.user_id IS NOT NULL
+           AND 'notifications'=ANY(child.allowed_modules)
+           AND n.kind<>'bill_review'
+           AND (cal.id IS NULL OR (
+             cal.calendar_type<>'bill_pay'
+             AND 'calendar'=ANY(child.allowed_modules)))))
        ORDER BY p.next_attempt_at
        LIMIT 1 FOR UPDATE OF p SKIP LOCKED
     ), claimed AS (

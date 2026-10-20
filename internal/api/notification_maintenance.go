@@ -27,7 +27,7 @@ func StartNotificationMaintenance(ctx context.Context, db *pgxpool.Pool) {
 func runNotificationMaintenance(ctx context.Context,db *pgxpool.Pool){
  scoped,cancel:=context.WithTimeout(ctx,50*time.Second)
  defer cancel()
- rows,err:=db.Query(scoped,`SELECT id,role FROM users WHERE active=true ORDER BY id LIMIT 1000`)
+ rows,err:=db.Query(scoped,`SELECT id,role FROM users WHERE active=true AND is_child=false ORDER BY id LIMIT 1000`)
  if err!=nil{log.Printf("Calden notification maintenance: load users failed: %v",err);return}
  type recipient struct{id uuid.UUID;role string}
  people:=[]recipient{}

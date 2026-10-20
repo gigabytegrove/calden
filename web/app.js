@@ -284,7 +284,7 @@ async function reloadSharedData(){
     api("/api/users"),
     (!state.me?.is_child||(state.me.child_modules||[]).includes("calendar"))?api("/api/calendars"):Promise.resolve([]),
     (!state.me?.is_child||(state.me.child_modules||[]).includes("calendar"))?api("/api/categories"):Promise.resolve([]),
-    api("/api/notifications")
+    (!state.me?.is_child||(state.me.child_modules||[]).includes("notifications"))?api("/api/notifications"):Promise.resolve({items:[],unread:0})
   ]);
   state.users=users;state.calendars=calendars;state.categories=categories;
   state.notifications=notificationData?.items||[];
@@ -329,7 +329,7 @@ function renderApp(){
   window.caldenFamily?.renderShopping();
   window.caldenRoutines?.render();
   window.caldenRewards?.render();
-  $(".rewards-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.rewards_enabled!==true));
+  $$(".rewards-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.rewards_enabled!==true));
   window.caldenChildren?.applyChildView();
   decorateNavigation();
   ensureNotificationPolling();
@@ -441,7 +441,7 @@ function navigate(page,load=true,writeURL=true){
   if(page==="bills"&&state.settings?.bills_enabled===false)page="calendar";
   if(state.me?.is_child){
     const allowed=new Set(state.me.child_modules||[]);
-    const permitted=page==="dashboard"||page==="notifications"||
+    const permitted=page==="dashboard"||(page==="notifications"&&allowed.has("notifications"))||
       (page==="calendar"&&allowed.has("calendar"))||
       (page==="agenda"&&allowed.has("calendar"))||
       (page==="chores"&&(allowed.has("chores")||allowed.has("tasks")))||
@@ -1278,6 +1278,7 @@ document.addEventListener("visibilitychange",()=>{
   }
 });
 function ensureNotificationPolling(){
+  if(state.me?.is_child && !(state.me.child_modules||[]).includes("notifications"))return;
   connectCaldenNotifications();
   if(state.notificationPoll)return;
   state.notificationPoll=setInterval(()=>{
@@ -3085,7 +3086,7 @@ for(const [name,label] of [["bills","Bills"],["agenda","Agenda"],["tasks","Tasks
       $$(".routines-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.routines_enabled!==true));
       if(name==="shopping"&&state.settings.shopping_enabled===false&&state.currentPage==="shopping")navigate("calendar");
       if(name==="routines"&&state.settings.routines_enabled!==true&&state.currentPage==="routines")navigate("calendar");
-      $(".rewards-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.rewards_enabled!==true));
+      $$(".rewards-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.rewards_enabled!==true));
       if(name==="rewards"&&state.settings.rewards_enabled!==true&&state.currentPage==="rewards")navigate("calendar");
       window.caldenFamily?.renderDashboard();
       if(!state.settings.chores_enabled&&!state.settings.tasks_enabled&&state.currentPage==="chores"){
@@ -3122,7 +3123,7 @@ boot().catch(err=>{console.error("Calden failed before authentication",err);show
     if(state.me?.is_child){
       const allowed=new Set(state.me.child_modules||[]);
       const module=kind==="agenda"?"calendar":kind;
-      if(kind!=="notifications"&&!allowed.has(module))return false;
+      if(!allowed.has(module))return false;
     }
     if(kind==="chores")return !!state.settings?.chores_enabled;
     if(kind==="shopping")return state.settings?.shopping_enabled!==false;

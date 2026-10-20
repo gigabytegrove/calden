@@ -24,7 +24,7 @@ func childDashboardAllowed(widget string,modules []string)bool{
     case "calendar","agenda":return childModuleAllowed(modules,"calendar")
     case "chores","tasks":return childModuleAllowed(modules,widget)
     case "routines","rewards","shopping":return childModuleAllowed(modules,widget)
-    case "notifications":return true
+    case "notifications":return childModuleAllowed(modules,"notifications")
     default:return false // bills, and future widgets, are never child-permitted
     }
 }
@@ -33,7 +33,7 @@ func sanitizeChildDashboard(p dashboardPreferences,a actor) dashboardPreferences
     p.Layout=a.ChildLayout
     filtered:=[]string{}
     for _,w:=range p.Widgets{if childDashboardAllowed(w,a.ChildModules){filtered=append(filtered,w)}}
-    if len(filtered)==0{filtered=[]string{"notifications"}}
+    if len(filtered)==0{filtered=[]string{}}
     p.Widgets=filtered
     return p
 }

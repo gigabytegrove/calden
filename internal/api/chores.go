@@ -107,6 +107,10 @@ func (s *server) requireChores(w http.ResponseWriter,r *http.Request) bool {
     if !tasks&&!chores {writeError(w,403,"Tasks and Chores are turned off by your household administrator");return false}
     return true
 }
+func childWorkModule(kind string)string{
+    if kind=="task"{return "tasks"}
+    return "chores"
+}
 func (s *server) requireWorkKind(w http.ResponseWriter,r *http.Request,kind string) bool {
     tasks,chores,err:=s.enabledWorkKinds(r)
     if err!=nil {writeError(w,500,"Could not load optional feature settings");return false}
@@ -207,6 +211,7 @@ func (s *server) listChores(w http.ResponseWriter,r *http.Request) {
     future:=today.AddDate(0,0,45)
     out:=[]map[string]any{}
     for _,ch:=range series{
+        if currentActor(r).IsChild && !childModuleAllowed(currentActor(r).ChildModules,childWorkModule(ch.Kind)){continue}
         first,last:=ch.Start,ch.Start
         if ch.Rule!="none" {
             if first.Before(past){first=past}
@@ -225,6 +230,14 @@ func (s *server) listChores(w http.ResponseWriter,r *http.Request) {
             date:=day.Format("2006-01-02")
             assigned:=members[ch.ID]
             if len(assigned)==0 {assigned=[]choreMember{{ID:ch.Primary,Name:ch.Name,Initials:ch.Initials,Avatar:ch.Avatar}}}
+            if currentActor(r).IsChild {
+                own:=make([]choreMember,0,1)
+                for _,person:=range assigned{
+                    if person.ID==currentActor(r).ID {own=append(own,person)}
+                }
+                if len(own)==0 {continue}
+                assigned=own
+            }
             people:=make([]map[string]any,0,len(assigned))
             completed,started:=0,0
             var completedAt *time.Time
@@ -355,6 +368,9 @@ func (s *server) changeChoreStatus(w http.ResponseWriter,r *http.Request) {
     if errors.Is(err,pgx.ErrNoRows){writeError(w,404,"Chore not found");return}
     if err!=nil{writeError(w,500,"Could not find chore");return}
     if !s.requireWorkKind(w,r,kind){return}
+    if actor.IsChild&&!childModuleAllowed(actor.ChildModules,childWorkModule(kind)){
+        writeError(w,403,"A guardian has not enabled this type of work");return
+    }
     if input.AssigneeID=="" && canManageChores(actor.Role){target=primary}
     date:=start.Format("2006-01-02")
     if input.OccurrenceDate!=""{date=input.OccurrenceDate}
