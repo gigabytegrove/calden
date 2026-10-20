@@ -88,6 +88,7 @@
       <a class="nav-item active" data-page="calendar" href="/calendar">Calendar</a>
       <a class="nav-item shopping-nav" data-page="shopping" href="/shopping">Shopping</a>
       <a class="nav-item routines-nav hidden" data-page="routines" href="/routines">Routines</a>
+      <a class="nav-item rewards-nav hidden" data-page="rewards" href="/rewards">Rewards &amp; Allowances</a>
       <a class="nav-item bill-nav hidden" data-page="bills" href="/bills">Bills</a>
       <a class="nav-item agenda-nav" data-page="agenda" href="/agenda">Agenda</a>
       <a class="nav-item chore-nav hidden" data-page="chores" href="/chores"><span class="nav-label">Tasks &amp; Chores</span></a>
@@ -265,6 +266,81 @@
       <div id="events" class="events"></div>
     </section>
 
+    <section id="page-rewards" class="app-page hidden family-page">
+      <div class="page-header"><div><p class="eyebrow">Family motivation</p><h2>Rewards &amp; allowances</h2>
+        <p class="muted">Recognize completed chores, save points for rewards, and track allowances owed or paid.</p></div>
+        <button type="button" class="button secondary compact" id="rewards-refresh">Refresh</button>
+      </div>
+      <p id="rewards-status" class="status-line" role="status" aria-live="polite"></p>
+      <div class="rewards-balance-grid" id="rewards-balances"></div>
+      <div class="family-rewards-layout">
+        <div class="family-rewards-primary">
+          <section class="panel stack">
+            <div class="family-sidebar-heading"><div><h3>Rewards to choose from</h3>
+            <p class="muted">Points are reserved when you request a reward. A parent or planner confirms fulfillment.</p></div></div>
+            <div id="rewards-catalog" class="rewards-catalog"></div>
+          </section>
+          <section class="panel stack">
+            <h3>Reward requests</h3>
+            <div id="rewards-claims" class="rewards-stack"></div>
+          </section>
+          <section class="panel stack">
+            <h3>Activity &amp; allowance history</h3>
+            <p class="muted">Allowance balances are records of money due or paid, not bank balances or transfers.</p>
+            <div id="rewards-activity" class="rewards-stack"></div>
+          </section>
+        </div>
+        <aside class="family-rewards-side">
+          <section class="panel stack reward-manager hidden" id="rewards-review-panel">
+            <h3>Completed chores to review</h3>
+            <p class="muted">Approve work before awarding points. Approvals are saved permanently.</p>
+            <div id="rewards-chore-approvals" class="rewards-stack"></div>
+          </section>
+          <section class="panel stack reward-manager hidden">
+            <h3>Manage reward options</h3>
+            <form id="reward-catalog-form" class="stack">
+              <input type="hidden" name="id">
+              <label>Reward name<input name="title" maxlength="140" required placeholder="Pick movie night"></label>
+              <label>Cost in points<input name="cost_points" type="number" min="1" max="100000" required value="20"></label>
+              <label>Description<input name="description" maxlength="1500" placeholder="Optional"></label>
+              <label class="family-inline-check"><input type="checkbox" name="active" checked> Available to family members</label>
+              <div class="form-actions"><button class="button" type="submit">Save reward</button><button type="button" class="button secondary compact" id="reward-catalog-clear">Clear</button></div>
+            </form>
+          </section>
+          <section class="panel stack reward-manager hidden">
+            <h3>Points adjustment</h3><p class="muted">Use this for a manual bonus or correction. A reason is required.</p>
+            <form id="reward-points-form" class="stack">
+              <label>Person<select name="user_id" required></select></label>
+              <label>Points (+ or −)<input type="number" name="delta" min="-10000" max="10000" step="1" required placeholder="+10"></label>
+              <label>Reason<input name="reason" maxlength="250" minlength="3" required></label>
+              <button type="submit" class="button">Record adjustment</button>
+            </form>
+          </section>
+          <section class="panel stack reward-manager hidden">
+            <h3>Recurring allowance</h3><p class="muted">Schedule weekly or monthly allowances. Amounts due are recorded separately from payments.</p>
+            <form id="allowance-plan-form" class="stack">
+              <label>Person<select name="user_id" required></select></label>
+              <label>Amount (USD)<input name="amount" type="number" min="0.01" max="1000000" step="0.01" value="5.00" required></label>
+              <label>Repeat<select name="frequency"><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label>
+              <label>Next due date<input name="first_due" type="date" required></label>
+              <label class="family-inline-check"><input type="checkbox" name="active" checked> Schedule active</label>
+              <button type="submit" class="button">Save allowance schedule</button>
+            </form>
+            <div id="allowance-plans-list" class="rewards-stack"></div>
+          </section>
+          <section class="panel stack reward-manager hidden">
+            <h3>Record an allowance payment</h3><p class="muted">For payments already made outside Calden. No money moves through this app.</p>
+            <form id="allowance-payment-form" class="stack">
+              <label>Person<select name="user_id" required></select></label>
+              <label>Paid amount (USD)<input name="amount" type="number" min="0.01" max="1000000" step="0.01" value="5.00" required></label>
+              <label>Note<input name="note" maxlength="300" placeholder="Cash / bank transfer / other"></label>
+              <button type="submit" class="button">Record payment</button>
+            </form>
+          </section>
+        </aside>
+      </div>
+    </section>
+
     <section id="page-chores" class="app-page hidden">
       <div class="page-header"><div><p class="eyebrow">Household responsibilities</p><h2 id="chore-page-title">Tasks &amp; Chores</h2>
       <p class="muted">Know what's due, who is responsible, and what's completed.</p></div>
@@ -283,6 +359,10 @@
           <label>Type<select name="kind" id="chore-kind"><option value="task">Task</option><option value="chore">Chore</option></select></label>
           <label>Task or chore<input name="title" maxlength="200" required placeholder="Take out the trash"></label>
           <label>Details<textarea name="notes" maxlength="4000" rows="3"></textarea></label>
+          <label class="reward-chore-field">Reward points (0 for no reward)
+            <input name="reward_points" type="number" min="0" max="10000" step="1" value="0">
+            <small class="muted">A household administrator or planner awards these after reviewing completed chores.</small>
+          </label>
           <div class="two"><label>First due date<input name="due_date" type="date" required></label>
           <label>Repeat<select name="recurrence_rule"><option value="none">Does not repeat</option><option value="daily">Every day</option><option value="weekly">Every week</option><option value="biweekly">Every 2 weeks</option><option value="monthly">Every month</option><option value="yearly">Every year</option></select></label></div>
           <label id="chore-repeat-until-wrap" class="hidden">Repeat until (optional)<input name="recurrence_until" type="date"></label>
@@ -596,6 +676,8 @@
               <p class="muted">Show or hide shared household shopping lists. All lists and items remain saved.</p>
               <label class="toggle-row"><input id="settings-routines-enabled" type="checkbox"><span>Enable Family Routines</span></label>
               <p class="muted">Create repeating personal checklists. Hiding routines preserves their completion history.</p>
+              <label class="toggle-row"><input id="settings-rewards-enabled" type="checkbox"><span>Enable Rewards &amp; Allowances</span></label>
+              <p class="muted">Allow family points, reward requests and allowance tracking. Turning this off never deletes prior transactions.</p>
               <p id="settings-feature-status" class="status-line" role="status" aria-live="polite">Each switch affects the whole household.</p>
             </section>
           </section>
@@ -852,5 +934,6 @@
 
 <script src="/app.js?v=1.4.8" defer></script>
 <script src="/routines.js?v=1.4.8-family-routines" defer></script>
+<script src="/rewards.js?v=1.4.8-family-rewards" defer></script>
 </body>
 </html>
