@@ -56,7 +56,7 @@
          <p class="eyebrow">${escapeHTML(person.name)}</p>
          <div class="rewards-balance-numbers">
            <div><strong>${Number(person.points||0).toLocaleString()}</strong><span>Points</span></div>
-           <div><strong>${centsToMoney(person.allowance_balance_cents)}</strong><span>Allowance due</span></div>
+           <div><strong>${centsToMoney(Math.abs(person.allowance_balance_cents))}</strong><span>${Number(person.allowance_balance_cents)<0?"Prepaid allowance":"Allowance due"}</span></div>
          </div>
        </article>`).join(""):'<div class="panel">No household balances available yet.</div>';
    const selfPoints=Number(user?.points||0);
@@ -75,6 +75,16 @@
          <button type="button" class="button compact" data-claim-action="${escapeAttr(claim.id)}" data-status="fulfilled">Fulfilled</button>
          <button type="button" class="button secondary compact" data-claim-action="${escapeAttr(claim.id)}" data-status="cancelled">Cancel / refund</button></div>`:""}
      </div>`).join(""):'<p class="family-widget-empty">No requests yet.</p>';
+   const reviewHistory=state.rewards?.reviews||[];
+   $("#rewards-review-history").innerHTML=reviewHistory.length?reviewHistory.map(item=>
+     `<div class="rewards-item">
+       <div><strong>${escapeHTML(item.title)}</strong>
+         <small>${escapeHTML(item.name)} · ${escapeHTML(item.date)} · ${escapeHTML(item.decision)}
+         ${item.points_awarded?" · "+Number(item.points_awarded).toLocaleString()+" points":""}</small>
+         ${item.note?`<span class="muted">${escapeHTML(item.note)}</span>`:""}
+       </div>
+       <span class="muted">${new Date(item.reviewed_at).toLocaleDateString()}</span>
+     </div>`).join(""):'<p class="family-widget-empty">No chore reviews recorded yet.</p>';
    const reviews=state.rewards?.pending_chores||[];
    $("#rewards-chore-approvals").innerHTML=reviews.length?reviews.map(c=>`
      <div class="rewards-item">
