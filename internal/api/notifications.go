@@ -30,11 +30,16 @@ func (s *server) createEventNotifications(
 			if userID == uuid.Nil || recipients[userID] {
 				continue
 			}
-			var active bool
-			if err := tx.QueryRow(ctx, `SELECT active FROM users WHERE id=$1`, userID).Scan(&active); err != nil {
-				return err
-			}
-			if active {
+			var permitted bool
+            if err := tx.QueryRow(ctx, `SELECT EXISTS(
+                SELECT 1 FROM users u
+                LEFT JOIN calendar_permissions p ON p.user_id=u.id AND p.calendar_id=$2
+                WHERE u.id=$1 AND u.active=true
+                AND (u.role IN ('admin','planner') OR COALESCE(p.can_view,false)=true)
+            )`, userID,calendarID).Scan(&permitted); err != nil {
+                return err
+            }
+            if permitted {
 				recipients[userID] = true
 			}
 		}
@@ -207,9 +212,11 @@ func (s *server) listNotifications(w http.ResponseWriter, r *http.Request) {
 		FROM notifications n
 		LEFT JOIN events e ON e.id=n.event_id
 		LEFT JOIN calendars c ON c.id=COALESCE(n.calendar_id,e.calendar_id)
+        LEFT JOIN calendar_permissions p ON p.calendar_id=c.id AND p.user_id=$1
 		WHERE n.user_id=$1 AND n.dismissed_at IS NULL
+          AND (c.id IS NULL OR $3 IN ('admin','planner') OR COALESCE(p.can_view,false)=true)
 		ORDER BY n.created_at DESC
-		LIMIT $2`, a.ID, limit)
+		LIMIT $2`, a.ID, limit,a.Role)
 	if err != nil {
 		writeError(w, 500, "Could not load notifications")
 		return
@@ -246,7 +253,12 @@ func (s *server) listNotifications(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var unread int
-	if err := s.db.QueryRow(r.Context(), `SELECT count(*) FROM notifications WHERE user_id=$1 AND read_at IS NULL AND dismissed_at IS NULL`, a.ID).Scan(&unread); err != nil {
+	if err := s.db.QueryRow(r.Context(), `SELECT count(*) FROM notifications n
+       LEFT JOIN events e ON e.id=n.event_id
+       LEFT JOIN calendars c ON c.id=COALESCE(n.calendar_id,e.calendar_id)
+       LEFT JOIN calendar_permissions p ON p.calendar_id=c.id AND p.user_id=$1
+       WHERE n.user_id=$1 AND n.read_at IS NULL AND n.dismissed_at IS NULL
+       AND (c.id IS NULL OR $2 IN ('admin','planner') OR COALESCE(p.can_view,false)=true)`, a.ID,a.Role).Scan(&unread); err != nil {
 		writeError(w, 500, "Could not count unread notifications")
 		return
 	}

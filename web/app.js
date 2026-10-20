@@ -29,6 +29,7 @@ const savedScrollNow=localStorage.getItem("calden_scroll_now")!=="false";
 const state={
   token:localStorage.getItem("calden_token")||"",
   me:null,settings:null,users:[],calendars:[],categories:[],events:[],chores:[],householdDevices:[],
+  dashboard:null,shopping:{lists:[],items:[],listID:null},
   editingEvent:null,editingScope:"series",preserveRawRecurrence:false,editingCalendar:null,editingCategory:null,editingUser:null,
   setupStep:0,currentPage:"calendar",
   viewDays:[1,7,14,30].includes(savedDays)?savedDays:7,
@@ -254,6 +255,7 @@ async function boot(){
   try{
     state.me=await api("/api/me");
     state.settings=await api("/api/settings/general");
+    state.dashboard=await api("/api/me/dashboard");
     if(!localStorage.getItem("calden_view_days")&&[1,7,14,30].includes(Number(state.settings.default_view)))state.viewDays=Number(state.settings.default_view);
     await reloadSharedData();
     renderApp();
@@ -314,6 +316,9 @@ function renderApp(){
   renderNotifications();
   renderSettings();
   renderChores();
+  $(".shopping-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.shopping_enabled===false));
+  window.caldenFamily?.renderDashboard();
+  window.caldenFamily?.renderShopping();
   decorateNavigation();
   ensureNotificationPolling();
 }
@@ -345,7 +350,7 @@ function startCalDenVersionWatch(){
   document.addEventListener("visibilitychange",()=>{if(!document.hidden)checkCalDenClientVersion()});
 }
 
-const caldenPages=new Set(["calendar","bills","agenda","chores","people","calendars","categories","notifications","integrations","updates","backups","activity","settings"]);
+const caldenPages=new Set(["dashboard","shopping","calendar","bills","agenda","chores","people","calendars","categories","notifications","integrations","updates","backups","activity","settings"]);
 function caldenPageURL(page){
   if(page==="calendar")return "/calendar?date="+dateInputValue(state.anchorDate)+"&days="+state.viewDays;
   if(page==="bills")return "/bills?month="+dateInputValue(state.billMonth).slice(0,7);
@@ -417,16 +422,18 @@ function navigate(page,load=true,writeURL=true){
   if(adminPages.has(page)&&state.me?.role!=="admin")page="calendar";
   if(["calendars","categories"].includes(page)&&!["admin","planner"].includes(state.me?.role))page="calendar";
   if(page==="chores"&&!state.settings?.chores_enabled&&!state.settings?.tasks_enabled)page="calendar";
+  if(page==="shopping"&&state.settings?.shopping_enabled===false)page="calendar";
   if(page==="agenda"&&state.settings?.agenda_enabled===false)page="calendar";
   if(page==="bills"&&state.settings?.bills_enabled===false)page="calendar";
   state.currentPage=page;
   if(writeURL)history.pushState({calden:true},"",caldenPageURL(page));
   $$(".app-page").forEach(el=>el.classList.toggle("hidden",el.id!==`page-${page}`));
   $$("[data-page]").forEach(el=>el.classList.toggle("active",el.dataset.page===page));
-  const titles={calendar:"Calendar",bills:"Bill Pay",agenda:"Agenda",chores:"Tasks & Chores",people:"People",calendars:"Calendars",categories:"Categories",notifications:"Notifications",integrations:"Integrations",updates:"Updates",backups:"Backups & Restore",activity:"Activity",settings:"Settings"};
+  const titles={dashboard:"My home",shopping:"Shopping",calendar:"Calendar",bills:"Bill Pay",agenda:"Agenda",chores:"Tasks & Chores",people:"People",calendars:"Calendars",categories:"Categories",notifications:"Notifications",integrations:"Integrations",updates:"Updates",backups:"Backups & Restore",activity:"Activity",settings:"Settings"};
   $("#page-title").textContent=titles[page]||"Calden";
   $("#new-event").classList.toggle("hidden",!["calendar","agenda"].includes(page));
   $("#sidebar").classList.remove("open");
+  window.caldenFamily?.enter(page);
   if(!load)return;
   if(page==="notifications")loadNotifications(false).catch(()=>renderNotifications());
   if(page==="bills")loadBillMonth();
@@ -1252,6 +1259,8 @@ function ensureNotificationPolling(){
 
 function decorateNavigation(){
   const icons={
+    dashboard:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10 12 3l9 7v11h-7v-7h-4v7H3V10Z"/></svg>',
+    shopping:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2 11h12l2-8H6m4 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm8 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/></svg>',
     calendar:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3v3m12-3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/></svg>',
     bills:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Zm3 5h6m-6 4h6m-6 4h4"/></svg>',
     agenda:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>',
@@ -1477,6 +1486,7 @@ function renderSettings(){
   }
   $("#settings-tasks-enabled").checked=!!state.settings?.tasks_enabled;
   $("#settings-chores-enabled").checked=!!state.settings?.chores_enabled;
+  $("#settings-shopping-enabled").checked=state.settings?.shopping_enabled!==false;
   $("#settings-bills-enabled").checked=state.settings?.bills_enabled!==false;
   $("#settings-agenda-enabled").checked=state.settings?.agenda_enabled!==false;
   const personalWeekStart=$("#settings-personal-week-start");
@@ -3025,7 +3035,7 @@ $("#chore-list").addEventListener("change",async event=>{
 });
 // Each checkbox saves only its own global setting. The API returns all four,
 // keeping the other three unchanged. This works for every household member.
-for(const [name,label] of [["bills","Bills"],["agenda","Agenda"],["tasks","Tasks"],["chores","Chores"]]){
+for(const [name,label] of [["bills","Bills"],["agenda","Agenda"],["tasks","Tasks"],["chores","Chores"],["shopping","Shopping"]]){
   $("#settings-"+name+"-enabled").addEventListener("change",async event=>{
     if(state.me?.role!=="admin")return;
     const control=event.currentTarget,status=$("#settings-feature-status"),value=control.checked;
@@ -3034,6 +3044,9 @@ for(const [name,label] of [["bills","Bills"],["agenda","Agenda"],["tasks","Tasks
       state.settings=await api("/api/settings/features",{method:"PUT",body:JSON.stringify({[name+"_enabled"]:value})});
       renderBillNavigation();
       renderChores();
+      $(".shopping-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.shopping_enabled===false));
+      if(name==="shopping"&&state.settings.shopping_enabled===false&&state.currentPage==="shopping")navigate("calendar");
+      window.caldenFamily?.renderDashboard();
       if(!state.settings.chores_enabled&&!state.settings.tasks_enabled&&state.currentPage==="chores"){
         $("#chore-editor-panel").classList.add("hidden");navigate("calendar");
       }
@@ -3054,3 +3067,293 @@ resetPersonForm();
 resetCalendarForm();
 resetCategoryForm();
 boot().catch(err=>{console.error("Calden failed before authentication",err);showBootFailure(err);caldenBooting=false});
+
+
+;(function familyUI() {
+  // This controller is appended to the existing Calden web client.
+  // All data-changing operations use the existing authenticated api() helper.
+  const labels={calendar:"Upcoming events",notifications:"My reminders",chores:"Chores",tasks:"Tasks",bills:"Bills",agenda:"Family agenda",shopping:"Shopping lists"};
+  const status=(id,value)=>{const el=$(id);if(el)el.textContent=value||""};
+  const esc=value=>escapeHTML(value??"");
+  const canShop=()=>state.me?.role!=="restricted";
+  const selectedList=()=>state.shopping.lists.find(item=>item.id===state.shopping.listID);
+  const availableWidget=kind=>{
+    if(kind==="chores")return !!state.settings?.chores_enabled;
+    if(kind==="shopping")return state.settings?.shopping_enabled!==false;
+    if(kind==="tasks")return !!state.settings?.tasks_enabled;
+    if(kind==="bills")return state.settings?.bills_enabled!==false;
+    if(kind==="agenda")return state.settings?.agenda_enabled!==false;
+    return Object.hasOwn(labels,kind);
+  };
+  const preference=()=>state.dashboard||{appearance:"system",layout:"standard",widgets:["calendar","notifications"]};
+  function applyDashboardAppearance(){
+    const pref=preference();
+    document.body.classList.toggle("calden-family-dark",pref.appearance==="dark"||(pref.appearance==="system"&&window.matchMedia?.("(prefers-color-scheme: dark)").matches));
+    document.body.classList.toggle("calden-family-simple",pref.layout==="simple");
+  }
+  const widgetList=(items,empty)=>{
+    if(!items.length)return `<p class="family-widget-empty">${esc(empty)}</p>`;
+    return `<ul class="family-widget-list">${items.map(item=>`<li><strong>${esc(item.title)}</strong><span>${esc(item.detail)}</span></li>`).join("")}</ul>`;
+  };
+  function dashboardContent(kind){
+    if(kind==="calendar"||kind==="agenda"||kind==="bills"){
+      const now=Date.now();
+      const events=visibleEvents().filter(event=>{
+        const start=new Date(event.starts_at).getTime();
+        return Number.isFinite(start)&&start>=now&&start<now+30*86400000&&(kind!=="bills"||isBillCalendar(event.calendar_id));
+      }).sort((a,b)=>new Date(a.starts_at)-new Date(b.starts_at)).slice(0,6);
+      return widgetList(events.map(e=>({title:e.title,detail:new Date(e.starts_at).toLocaleString(undefined,{dateStyle:"medium",timeStyle:"short"})+" · "+(e.calendar_name||"Family")})),"Nothing upcoming in the next 30 days.");
+    }
+    if(kind==="notifications"){
+      const items=(state.notifications||[]).filter(x=>!x.read_at).slice(0,5);
+      return widgetList(items.map(x=>({title:x.title||"Reminder",detail:x.message||"New family notification"})),"You're all caught up.");
+    }
+    if(kind==="tasks"||kind==="chores"){
+      const own=(state.chores||[]).filter(c=>(c.kind||"chore")===(kind==="tasks"?"task":"chore")
+        &&(c.assignee_ids||[c.assigned_to]).includes(state.me?.id)).slice(0,6);
+      return widgetList(own.map(c=>({title:c.title,detail:"Due "+(c.occurrence_date||c.due_date||"soon")})),"No assigned items right now.");
+    }
+    if(kind==="shopping"){
+      const lists=(state.shopping.lists||[]).filter(x=>!x.archived).slice(0,6);
+      return widgetList(lists.map(l=>({title:l.name,detail:l.remaining+" still needed · "+(l.shared?"Shared":"Private")})),"No shopping lists yet.");
+    }
+    return "";
+  }
+  function renderDashboard(){
+    if(!state.me)return;
+    applyDashboardAppearance();
+    const host=$("#dashboard-widgets");if(!host)return;
+    const pref=preference();
+    $("#dashboard-appearance").value=pref.appearance;
+    $("#dashboard-layout").value=pref.layout;
+    $("#dashboard-widget-choices").innerHTML=Object.entries(labels).filter(([kind])=>availableWidget(kind))
+      .map(([kind,label])=>`<label><input type="checkbox" data-dashboard-choice="${kind}" ${pref.widgets.includes(kind)?"checked":""}>${esc(label)}</label>`).join("");
+    const widgets=pref.widgets.filter(availableWidget);
+    host.innerHTML=widgets.length?widgets.map((kind,index)=>{
+      const page=kind==="shopping"?"shopping":kind==="notifications"?"notifications":kind==="tasks"||kind==="chores"?"chores":kind==="bills"?"bills":kind==="agenda"?"agenda":"calendar";
+      return `<article class="family-widget" data-dashboard-widget="${kind}"><div class="family-widget-title"><h3>${esc(labels[kind])}</h3>
+          <div class="family-widget-tools"><button type="button" class="button secondary compact" data-dashboard-move="${kind}" data-direction="-1" ${index===0?"disabled":""} aria-label="Move ${esc(labels[kind])} up">↑</button>
+          <button type="button" class="button secondary compact" data-dashboard-move="${kind}" data-direction="1" ${index===widgets.length-1?"disabled":""} aria-label="Move ${esc(labels[kind])} down">↓</button></div></div>
+          ${dashboardContent(kind)}
+          <button type="button" class="button secondary compact" data-open-family-page="${page}" style="margin-top:14px">Open ${esc(labels[kind])}</button></article>`;
+    }).join(""):`<div class="panel"><h3>Make this space yours</h3><p class="muted">Choose a widget to start building your home.</p></div>`;
+  }
+  async function saveDashboard(prefs){
+    status("#dashboard-status","Saving…");
+    try{
+      const saved=await api("/api/me/dashboard",{method:"PUT",body:JSON.stringify(prefs)});
+      state.dashboard=saved;renderDashboard();
+      status("#dashboard-status","Saved for your account and your other devices.");
+      return true;
+    }catch(err){status("#dashboard-status","Couldn't save: "+err.message);return false}
+  }
+  function closeDashboardEditor(){
+    $("#dashboard-config").classList.add("hidden");
+    $("#dashboard-customize").setAttribute("aria-expanded","false");
+  }
+  $("#dashboard-customize").addEventListener("click",()=>{
+    const open=$("#dashboard-config").classList.toggle("hidden")===false;
+    $("#dashboard-customize").setAttribute("aria-expanded",String(open));
+    renderDashboard();
+  });
+  $("#dashboard-cancel").addEventListener("click",closeDashboardEditor);
+  $("#dashboard-save").addEventListener("click",async()=>{
+    const prefs=preference();
+    const selected=new Set([...$$("[data-dashboard-choice]:checked")].map(x=>x.dataset.dashboardChoice));
+    const widgets=[...prefs.widgets.filter(x=>selected.has(x)),...Object.keys(labels).filter(x=>selected.has(x)&&!prefs.widgets.includes(x))];
+    const ok=await saveDashboard({appearance:$("#dashboard-appearance").value,layout:$("#dashboard-layout").value,widgets});
+    if(ok)closeDashboardEditor();
+  });
+  $("#dashboard-widgets").addEventListener("click",async event=>{
+    const move=event.target.closest("[data-dashboard-move]");
+    if(move){
+      const prefs=preference();
+      const widgets=prefs.widgets.slice(),index=widgets.indexOf(move.dataset.dashboardMove),next=index+Number(move.dataset.direction);
+      if(index<0||next<0||next>=widgets.length)return;
+      [widgets[index],widgets[next]]=[widgets[next],widgets[index]];
+      await saveDashboard({...prefs,widgets});
+      return;
+    }
+    const open=event.target.closest("[data-open-family-page]");
+    if(open)navigate(open.dataset.openFamilyPage);
+  });
+  const media=window.matchMedia?.("(prefers-color-scheme: dark)");
+  media?.addEventListener?.("change",applyDashboardAppearance);
+  // Update list summaries independently of item detail loading.
+  async function loadShoppingLists(){
+    const result=await api("/api/shopping/lists");
+    state.shopping.lists=result.items||[];
+    if(!state.shopping.lists.some(x=>x.id===state.shopping.listID))
+      state.shopping.listID=state.shopping.lists.find(x=>!x.archived)?.id||state.shopping.lists[0]?.id||null;
+    renderShopping();renderDashboard();
+  }
+  async function loadShoppingItems(){
+    const id=state.shopping.listID;
+    if(!id){state.shopping.items=[];renderShopping();return}
+    const result=await api("/api/shopping/lists/"+encodeURIComponent(id)+"/items");
+    if(state.shopping.listID!==id)return;
+    state.shopping.items=result.items||[];
+    renderShopping();
+  }
+  async function loadShopping(){
+    try{
+      status("#shopping-status","");
+      await loadShoppingLists();
+      await loadShoppingItems();
+    }catch(err){status("#shopping-status","Couldn't load shopping lists: "+err.message)}
+  }
+  function itemPayload(item,purchased=item.purchased){
+    return {name:item.name,quantity:Number(item.quantity),unit:item.unit,notes:item.notes||"",purchased:!!purchased};
+  }
+  function renderShopping(){
+    const picker=$("#shopping-list-picker"),host=$("#shopping-item-list");
+    if(!picker||!host)return;
+    $("#shopping-new-list").classList.toggle("hidden",!canShop());
+    picker.innerHTML=state.shopping.lists.length?state.shopping.lists.map(l=>
+      `<button type="button" class="family-list-choice ${l.id===state.shopping.listID?"active":""}"
+        data-shopping-select="${esc(l.id)}" aria-current="${l.id===state.shopping.listID?"true":"false"}">
+        <strong>${esc(l.name)}</strong><small>${l.archived?"Archived · ":""}${esc(String(l.remaining))} needed · ${l.shared?"Shared":"Private"}</small></button>`).join("")
+      :`<p class="family-widget-empty">No lists yet. Add one to get started.</p>`;
+    const list=selectedList();
+    $("#shopping-detail-name").textContent=list?.name||"Choose or create a list";
+    $("#shopping-detail-caption").textContent=list?(list.shared?"Visible to everyone in the household":"Only visible to you"):"Shopping lists keep your family's purchases organized.";
+    $("#shopping-edit-list").classList.toggle("hidden",!list?.can_manage);
+    $("#shopping-delete-list").classList.toggle("hidden",!list?.can_manage);
+    $("#shopping-item-form").classList.toggle("hidden",!list||!canShop()||list.archived);
+    if(!list){host.innerHTML='<p class="family-widget-empty">Create a list to add items.</p>';return}
+    const groups=[{label:"Still needed",items:state.shopping.items.filter(x=>!x.purchased)},{label:"Purchased",items:state.shopping.items.filter(x=>x.purchased)}];
+    host.innerHTML=groups.map(group=>`<div class="family-section-title">${group.label} (${group.items.length})</div>`
+      +(group.items.length?group.items.map(item=>`<div class="family-shopping-row ${item.purchased?"is-purchased":""}">
+         <input type="checkbox" data-shopping-toggle="${esc(item.id)}" ${item.purchased?"checked":""} ${!canShop()||list.archived?"disabled":""} aria-label="Mark ${esc(item.name)} ${item.purchased?"needed":"purchased"}">
+         <div><span class="family-shopping-name">${esc(item.name)}</span><span class="family-shopping-meta">${esc(Number(item.quantity).toString())} ${esc(item.unit)}${item.notes?" · "+esc(item.notes):""}</span></div>
+         <div class="family-shopping-actions">${canShop()&&!list.archived?`<button class="button secondary compact" data-shopping-edit="${esc(item.id)}" type="button">Edit</button><button class="button secondary compact" data-shopping-delete="${esc(item.id)}" type="button">Remove</button>`:""}</div>
+        </div>`).join(""):`<p class="family-widget-empty">No items here.</p>`)).join("");
+  }
+  function openShoppingListForm(list=null){
+    if(!canShop())return;
+    const form=$("#shopping-list-form");
+    form.reset();
+    form.elements.namedItem("id").value=list?.id||"";
+    form.elements.namedItem("name").value=list?.name||"";
+    form.elements.namedItem("shared").checked=list?list.shared:true;
+    form.elements.namedItem("archived").checked=!!list?.archived;
+    $("#shopping-list-form-title").textContent=list?"List settings":"New shopping list";
+    form.classList.remove("hidden");
+    form.elements.namedItem("name").focus();
+  }
+  function resetShoppingItemForm(){
+    const form=$("#shopping-item-form");form.reset();
+    form.elements.namedItem("id").value="";
+    $("#shopping-item-submit").textContent="Add item";
+    $("#shopping-item-cancel").classList.add("hidden");
+  }
+  $("#shopping-refresh").addEventListener("click",loadShopping);
+  $("#shopping-new-list").addEventListener("click",()=>openShoppingListForm());
+  $("#shopping-edit-list").addEventListener("click",()=>{const list=selectedList();if(list?.can_manage)openShoppingListForm(list)});
+  $("#shopping-list-cancel").addEventListener("click",()=>$("#shopping-list-form").classList.add("hidden"));
+  $("#shopping-list-picker").addEventListener("click",async event=>{
+    const button=event.target.closest("[data-shopping-select]");
+    if(!button)return;
+    state.shopping.listID=button.dataset.shoppingSelect;
+    state.shopping.items=[];
+    resetShoppingItemForm();
+    renderShopping();
+    try{await loadShoppingItems()}catch(err){status("#shopping-status",err.message)}
+  });
+  $("#shopping-list-form").addEventListener("submit",async event=>{
+    event.preventDefault();
+    const form=event.currentTarget;
+    const id=form.elements.namedItem("id").value;
+    const name=form.elements.namedItem("name").value.trim();
+    const payload={name,shared:form.elements.namedItem("shared").checked,archived:form.elements.namedItem("archived").checked};
+    if(!name){status("#shopping-status","Name your shopping list.");return}
+    try{
+      const result=await api(id?"/api/shopping/lists/"+encodeURIComponent(id):"/api/shopping/lists",
+        {method:id?"PUT":"POST",body:JSON.stringify(payload)});
+      if(!id)state.shopping.listID=result.id;
+      form.classList.add("hidden");
+      await loadShopping();
+      status("#shopping-status",id?"List updated.":"List created.");
+    }catch(err){status("#shopping-status","Couldn't save list: "+err.message)}
+  });
+  $("#shopping-delete-list").addEventListener("click",async()=>{
+    const list=selectedList();if(!list?.can_manage)return;
+    if(!confirm('Delete "'+list.name+'" and all its shopping items? This cannot be undone.'))return;
+    try{
+      await api("/api/shopping/lists/"+encodeURIComponent(list.id),{method:"DELETE"});
+      state.shopping.listID=null;
+      await loadShopping();
+      status("#shopping-status","Shopping list deleted.");
+    }catch(err){status("#shopping-status","Couldn't delete list: "+err.message)}
+  });
+  $("#shopping-item-form").addEventListener("submit",async event=>{
+    event.preventDefault();
+    const list=selectedList();if(!list||!canShop()||list.archived)return;
+    const form=event.currentTarget;
+    const id=form.elements.namedItem("id").value;
+    const previous=state.shopping.items.find(item=>item.id===id);
+    const payload={
+      name:form.elements.namedItem("name").value.trim(),
+      quantity:Number(form.elements.namedItem("quantity").value),
+      unit:form.elements.namedItem("unit").value,
+      notes:form.elements.namedItem("notes").value.trim(),
+      purchased:previous?.purchased||false
+    };
+    try{
+      const base="/api/shopping/lists/"+encodeURIComponent(list.id)+"/items";
+      await api(id?base+"/"+encodeURIComponent(id):base,{method:id?"PUT":"POST",body:JSON.stringify(payload)});
+      resetShoppingItemForm();
+      await loadShoppingLists();await loadShoppingItems();
+      status("#shopping-status",id?"Item saved.":"Item added.");
+    }catch(err){status("#shopping-status","Couldn't save item: "+err.message)}
+  });
+  $("#shopping-item-cancel").addEventListener("click",resetShoppingItemForm);
+  $("#shopping-item-list").addEventListener("click",async event=>{
+    const edit=event.target.closest("[data-shopping-edit]");
+    const del=event.target.closest("[data-shopping-delete]");
+    const list=selectedList();if(!list||!canShop()||list.archived)return;
+    const id=edit?.dataset.shoppingEdit||del?.dataset.shoppingDelete;
+    if(!id)return;
+    const item=state.shopping.items.find(x=>x.id===id);if(!item)return;
+    if(edit){
+      const form=$("#shopping-item-form");
+      for(const name of ["name","quantity","unit","notes"])form.elements.namedItem(name).value=item[name]??"";
+      form.elements.namedItem("id").value=item.id;
+      $("#shopping-item-submit").textContent="Save item";
+      $("#shopping-item-cancel").classList.remove("hidden");
+      form.elements.namedItem("name").focus();
+      return;
+    }
+    if(!confirm('Remove "'+item.name+'" from this list?'))return;
+    try{
+      await api("/api/shopping/lists/"+encodeURIComponent(list.id)+"/items/"+encodeURIComponent(id),{method:"DELETE"});
+      await loadShoppingLists();await loadShoppingItems();
+      status("#shopping-status","Item removed.");
+    }catch(err){status("#shopping-status","Couldn't remove item: "+err.message)}
+  });
+  $("#shopping-item-list").addEventListener("change",async event=>{
+    const control=event.target.closest("[data-shopping-toggle]");
+    if(!control)return;
+    const list=selectedList();const item=state.shopping.items.find(x=>x.id===control.dataset.shoppingToggle);
+    if(!list||!item||!canShop()||list.archived){renderShopping();return}
+    control.disabled=true;
+    try{
+      await api("/api/shopping/lists/"+encodeURIComponent(list.id)+"/items/"+encodeURIComponent(item.id),
+        {method:"PUT",body:JSON.stringify(itemPayload(item,control.checked))});
+      await loadShoppingLists();await loadShoppingItems();
+    }catch(err){status("#shopping-status","Couldn't update item: "+err.message);renderShopping()}
+  });
+  // Used by existing routing and initial application rendering.
+  window.caldenFamily={
+    renderDashboard,renderShopping,
+    enter(page){
+      if(page==="dashboard"){
+        renderDashboard();
+        if(state.settings?.shopping_enabled!==false)loadShoppingLists().catch(()=>{});
+        if(state.settings?.chores_enabled||state.settings?.tasks_enabled)
+          loadChores().then(renderDashboard).catch(()=>{});
+      }
+      if(page==="shopping")loadShopping();
+    }
+  };
+})();

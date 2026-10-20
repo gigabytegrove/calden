@@ -917,3 +917,57 @@ dialog::backdrop{background:rgba(15,23,42,.58);backdrop-filter:blur(2px)}
     flex:1 1 auto;
   }
 }
+
+/* Family home and shopping — existing Calden typography, spacing and controls. */
+.family-page .page-header{align-items:center}
+.family-widgets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}
+.family-widget{background:#fff;border:1px solid #e1e6ef;border-radius:12px;min-width:0;padding:20px;box-shadow:0 2px 11px #1c294510}
+.family-widget h3{margin:0;font-size:1.02rem}
+.family-widget-title{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+.family-widget-tools{display:flex;gap:5px}
+.family-widget-tools button{padding:5px 9px;min-width:32px}
+.family-widget-list{display:grid;gap:8px;list-style:none;padding:0;margin:0}
+.family-widget-list li{padding:9px 10px;background:#f7f9fc;border:1px solid #eef0f4;border-radius:8px}
+.family-widget-list li strong{display:block;font-size:.9rem}
+.family-widget-list li span{display:block;color:#627188;font-size:.8rem;margin-top:3px}
+.family-widget-empty{padding:15px 0;color:#667085;font-size:.9rem}
+.family-pref-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.family-choice-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.family-choice-grid label{display:flex;align-items:center;gap:8px;border:1px solid #e1e6ed;border-radius:8px;padding:10px}
+.family-choice-grid input,.family-inline-check input{width:auto;margin:0}
+.family-shopping-layout{display:grid;grid-template-columns:minmax(210px,280px) minmax(0,1fr);align-items:start;gap:20px}
+.family-shopping-main{display:grid;gap:15px;min-width:0}
+.family-sidebar-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.family-sidebar-heading h3{margin:0}
+.family-list-picker{display:grid;gap:7px;margin-top:13px}
+.family-list-choice{width:100%;text-align:left;border:1px solid #e0e6ef;border-radius:8px;padding:11px 12px;background:#fff;color:#243249;cursor:pointer}
+.family-list-choice.active{border-color:#2563eb;background:#eff6ff}
+.family-list-choice strong,.family-list-choice small{display:block}
+.family-list-choice small{color:#64748b;margin-top:4px}
+.family-inline-check{display:flex!important;align-items:center;gap:9px}
+.family-item-form{display:grid;grid-template-columns:minmax(150px,2fr) minmax(90px,.6fr) minmax(110px,.7fr);gap:10px;align-items:end}
+.family-item-form .family-notes{grid-column:1/-1}
+.family-item-form .form-actions{grid-column:1/-1}
+.family-shopping-items{display:grid;gap:8px}
+.family-shopping-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;padding:11px 12px;border:1px solid #e1e6ef;border-radius:9px;background:#fff}
+.family-shopping-row.is-purchased{background:#f6f9f7}
+.family-shopping-row.is-purchased .family-shopping-name{text-decoration:line-through;color:#64748b}
+.family-shopping-name{font-size:.94rem;font-weight:650;overflow-wrap:anywhere}
+.family-shopping-meta{display:block;font-size:.79rem;color:#67768b;margin-top:4px}
+.family-shopping-row input[type=checkbox]{width:21px;height:21px}
+.family-shopping-actions{display:flex;gap:6px;align-items:center}
+.family-shopping-actions button{font-size:.77rem;padding:6px 9px}
+.family-section-title{font-size:.79rem;text-transform:uppercase;letter-spacing:.06em;font-weight:750;color:#627188;margin:16px 0 4px}
+.family-shopping-row button:focus-visible,.family-list-choice:focus-visible,.family-widget-tools button:focus-visible{outline:3px solid #2563eb;outline-offset:2px}
+body.calden-family-dark .family-page .family-widget,body.calden-family-dark .family-page .panel{background:#1d2738;color:#f1f5f9;border-color:#364258}
+body.calden-family-dark .family-page .muted,body.calden-family-dark .family-widget-empty{color:#bac5d6}
+body.calden-family-dark .family-widget-list li,body.calden-family-dark .family-shopping-row{background:#263347;border-color:#38475c;color:#f1f5f9}
+body.calden-family-dark .family-list-choice{background:#263347;color:#f1f5f9;border-color:#38475c}
+body.calden-family-dark .family-list-choice.active{background:#193a69;border-color:#80b0f5}
+body.calden-family-dark .family-shopping-row.is-purchased{background:#24382f}
+body.calden-family-dark .family-page input,body.calden-family-dark .family-page select{background:#111827;color:#f1f5f9;border-color:#596477}
+body.calden-family-simple .family-widget{padding:25px}
+body.calden-family-simple .family-widget-list li{padding:15px;font-size:1.02rem}
+@media(max-width:950px){.family-shopping-layout{grid-template-columns:1fr}.family-widgets{grid-template-columns:1fr}}
+@media(max-width:650px){.family-page .page-header{align-items:flex-start;flex-direction:column}.family-item-form,.family-pref-grid,.family-choice-grid{grid-template-columns:1fr}.family-shopping-row{grid-template-columns:auto minmax(0,1fr)}.family-shopping-actions{grid-column:2;justify-content:flex-start}.family-shopping-main .panel{padding:14px}}
+@media(prefers-reduced-motion:reduce){.family-page *{scroll-behavior:auto!important;transition:none!important}}

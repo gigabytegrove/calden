@@ -12,6 +12,10 @@ A calendar has its own color. A person has their own identity. The two never com
 
 Calden 1.2.0 is the first stable release. Development continues on the existing web application, with compatible in-place updates.
 
+## Unreleased family expansion development
+
+The approved family platform expansion is now being implemented on the existing application. A development candidate adds personal dashboard configuration and household shopping lists with shared/private access, persistent items, feature visibility and a responsive browser interface. **These changes are not part of the 1.4.8 stable release and are not yet production accepted.** See [implementation and acceptance notes](docs/releases/family-home-shopping-candidate.md) and [the full approved scope](docs/FAMILY-PLATFORM-EXPANSION.md). Android parity, integration tests and remaining family modules are still required before announcing the full expansion as released.
+
 ## Product direction
 
 The approved product scope, implementation priorities, and compatibility boundaries are documented in [Product Direction](docs/PRODUCT-DIRECTION.md). Proposed capabilities are not represented as released until implemented and tested.
