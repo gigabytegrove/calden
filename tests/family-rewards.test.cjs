@@ -17,6 +17,8 @@ test("rewards client is parsed and loaded as addressable Calden page",()=>{
  }
  assert.match(html,/data-page="rewards" href="\/rewards"/);
  assert.match(html,/src="\/rewards\.js\?/);
+ assert.ok(html.includes('id="rewards-review-history"'));
+ assert.match(rewards,/Prepaid allowance/);
  assert.match(app,/rewards_enabled===true/);
  assert.match(app,/window\.caldenRewards\?\.enter\(page\)/);
  assert.match(app,/const caldenPages=new Set\(\["dashboard","shopping","routines","rewards"/);
@@ -39,6 +41,9 @@ test("rewards APIs are all authenticated, using manager checks on privileged wri
  assert.match(backend,/lockRewardUser\(r,tx/);
  assert.match(backend,/if balance<int64\(cost\)/);
  assert.match(backend,/oldReward!=rewardID/);
+ assert.match(backend,/JOIN users u ON u\.id=p\.user_id AND u\.active=true/);
+ assert.match(backend,/rv\.decision='rejected'/);
+ assert.match(backend,/"reviews":reviews/);
  assert.match(backend,/ON CONFLICT \(plan_id,due_date\) WHERE kind='due' DO NOTHING/);
 });
 

@@ -66,8 +66,9 @@ func (s *server) accrueAllowances(r *http.Request)error {
  today,_:=choreDate(time.Now().In(loc).Format("2006-01-02"))
  tx,err:=s.db.Begin(r.Context());if err!=nil{return err}
  defer tx.Rollback(r.Context())
- rows,err:=tx.Query(r.Context(),`SELECT id,user_id,amount_cents,frequency,anchor_day,next_due_date,created_by
-   FROM family_allowance_plans WHERE active=true ORDER BY id FOR UPDATE`)
+ rows,err:=tx.Query(r.Context(),`SELECT p.id,p.user_id,p.amount_cents,p.frequency,p.anchor_day,p.next_due_date,p.created_by
+   FROM family_allowance_plans p JOIN users u ON u.id=p.user_id AND u.active=true
+   WHERE p.active=true ORDER BY p.id FOR UPDATE OF p`)
  if err!=nil{return err}
  type plan struct {id,user,creator uuid.UUID;amount int64;frequency string;anchor int;next time.Time}
  plans:=[]plan{}
@@ -152,6 +153,26 @@ func (s *server) rewardsOverview(w http.ResponseWriter,r *http.Request){
   if err==nil{err=rows.Err()}
   rows.Close();if err!=nil{writeError(w,500,"Could not read pending approvals");return}
  }
+ reviews:=[]map[string]any{}
+ rows,err=s.db.Query(r.Context(),`SELECT rv.id,rv.user_id,u.display_name,c.title,
+   to_char(rv.occurrence_date,'YYYY-MM-DD'),rv.decision,rv.points_awarded,rv.note,rv.reviewed_at
+   FROM family_chore_reviews rv
+   JOIN users u ON u.id=rv.user_id JOIN chores c ON c.id=rv.chore_id
+   WHERE ($1::boolean OR rv.user_id=$2)
+   ORDER BY rv.reviewed_at DESC LIMIT 120`,manager,a.ID)
+ if err!=nil{writeError(w,500,"Could not load chore review history");return}
+ for rows.Next(){
+  var id,user uuid.UUID
+  var name,title,date,decision,note string
+  var points int
+  var reviewedAt time.Time
+  if err=rows.Scan(&id,&user,&name,&title,&date,&decision,&points,&note,&reviewedAt);err!=nil{break}
+  reviews=append(reviews,map[string]any{"id":id,"user_id":user,"name":name,
+   "title":title,"date":date,"decision":decision,"points_awarded":points,
+   "note":note,"reviewed_at":reviewedAt})
+ }
+ if err==nil{err=rows.Err()}
+ rows.Close();if err!=nil{writeError(w,500,"Could not read chore review history");return}
  claims:=[]map[string]any{}
  rows,err=s.db.Query(r.Context(),`SELECT id,user_id,title_snapshot,cost_points,status,requested_at
    FROM family_reward_claims WHERE ($1::boolean OR user_id=$2)
@@ -195,7 +216,7 @@ func (s *server) rewardsOverview(w http.ResponseWriter,r *http.Request){
  if err==nil{err=rows.Err()}
  rows.Close();if err!=nil{writeError(w,500,"Could not load reward activity");return}
  writeJSON(w,200,map[string]any{"catalog":catalog,"balances":balances,"pending_chores":pending,
-  "claims":claims,"plans":plans,"activity":ledger,"can_manage":manager})
+  "claims":claims,"reviews":reviews,"plans":plans,"activity":ledger,"can_manage":manager})
 }
 func (s *server) rewardCatalogCreate(w http.ResponseWriter,r *http.Request){
  if !s.requireRewards(w,r)||!requiredRewardManager(w,r){return}

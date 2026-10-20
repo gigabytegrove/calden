@@ -13,7 +13,7 @@
 - Client request IDs and unique source constraints provide duplicate-submission protection for reward claims, manual adjustments, and recorded allowance payments.
 - Weekly and monthly allowance plans store amounts in integer cents and produce due ledger entries when Rewards is opened, with unique plan/date keys. Monthly schedules keep the configured day across shorter months, including February and leap years.
 - Household administrators/planners record payments already made outside the application. Calden **never processes or transfers money**.
-- Each person can see their own balances, claims and history; household administrators/planners can review all household accounts.
+- Each person can see their own balances, claims, chore-review decisions and history; household administrators/planners can review all household accounts. Deactivated members do not continue automatically accruing scheduled allowances.
 - A dedicated **/rewards** web page includes balances, catalog, requests, pending chore approvals, reward editing, points adjustments, recurring allowances, payment entries and activity.
 - A personal Rewards dashboard widget is supported, and the existing Tasks & Chores editor exposes reward points for chores.
 
@@ -39,7 +39,7 @@ Review operations serialize on the chore row. Point debits, refunds and adjustme
 
 - **Points credit requires a manager approval**; completing a chore does not itself pay or credit points.
 - **Recurring allowance accrual is lazy**: due entries are inserted when the Rewards view is loaded, not by a guaranteed unattended timed job. Weekly/monthly plan recurrence works through bounded catch-up and idempotent records, but an offline or unused instance may post entries later when opened.
-- **No banking integration, payment settlement or independent account balance verification.**
+- **No banking integration, payment settlement or independent account balance verification.** Prepaid allowance balances are labeled separately from unpaid allowances.
 - The existing Android client is not yet updated to display the Rewards interface. These endpoints support future native Kotlin integration but **Android parity is not claimed**.
 - No dedicated reward approval push notifications are added in this candidate; existing calendar and chore notifications should not be misrepresented as reward-specific alerts.
 - Existing chore series deletion is blocked when review history exists, to avoid erasing credited chore provenance. A richer chore archiving UX can be added later.
