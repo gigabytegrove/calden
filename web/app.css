@@ -917,3 +917,37 @@ dialog::backdrop{background:rgba(15,23,42,.58);backdrop-filter:blur(2px)}
     flex:1 1 auto;
   }
 }
+
+/* Calden household organization and dashboard experience */
+.family-dashboard-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:16px;align-items:start}
+.family-dashboard-card{min-height:170px}.family-dashboard-card ul{padding-left:20px;margin:12px 0;display:grid;gap:8px}
+.family-card-head{display:flex;justify-content:space-between;gap:12px}
+.family-card-head a{font-weight:700;color:#2563eb}
+.family-toolbar,.family-entry,.family-entry-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.family-toolbar{margin:0 0 16px}.family-toolbar label{display:flex;gap:8px;align-items:center}
+.family-toolbar input{padding:8px;min-height:40px}.family-list{display:grid;gap:12px}
+.family-entry{justify-content:space-between}.family-entry-main{flex:1 1 260px;min-width:0}
+.family-entry-main p{margin:5px 0;overflow-wrap:anywhere}
+.family-entry-done{border-color:#86efac}.family-private{display:inline-block;font-size:.72rem;border-radius:20px;padding:3px 8px;margin-left:8px;background:#e2e8f0;color:#334155}
+.family-form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:14px}
+.family-quantity-fields{display:flex;gap:10px}.family-quantity-fields label{min-width:0;flex:1}
+.family-editor{margin-bottom:20px}.family-widget-picker{display:grid;gap:10px}
+.family-widget-row{display:flex;align-items:center;justify-content:space-between;border:1px solid #dbe3ef;border-radius:12px;padding:10px;gap:12px}
+.family-widget-row label{display:flex;align-items:center;gap:10px;margin:0}
+.family-widget-order{display:flex;gap:6px}
+.family-widget-order button{border:1px solid #bac8da;border-radius:8px;min-height:36px;min-width:36px;background:white;cursor:pointer}
+.family-widget-order button:disabled{opacity:.4;cursor:default}
+.family-settings-extra{border-top:1px solid #e2e8f0;padding-top:18px;margin-top:18px;display:grid;gap:8px}
+body[data-family-theme="ocean"]{--family-accent:#2563eb}
+body[data-family-theme="forest"]{--family-accent:#13805a}
+body[data-family-theme="violet"]{--family-accent:#7853b6}
+body[data-family-theme="sunset"]{--family-accent:#ba591f}
+.family-page .button:not(.secondary){background:var(--family-accent);border-color:var(--family-accent)}
+.calden-simple .family-entry{padding:20px}.calden-simple .family-entry button{min-height:46px}
+.calden-dark,.calden-dark .workspace,.calden-dark .workspace-topbar,.calden-dark .app-page{background:#0f172a;color:#e2e8f0}
+.calden-dark .panel,.calden-dark .settings-workspace,.calden-dark .settings-content,.calden-dark .family-entry{background:#1e293b;color:#f1f5f9;border-color:#475569}
+.calden-dark .muted,.calden-dark .settings-nav-item span{color:#cbd5e1}
+.calden-dark input,.calden-dark select,.calden-dark textarea{background:#172033;color:#f1f5f9;border-color:#64748b}
+.calden-dark .family-widget-row{border-color:#475569}
+.calden-dark .family-widget-order button{background:#334155;color:#f8fafc;border-color:#64748b}
+@media(max-width:680px){.family-entry-actions{width:100%}.family-form-grid{grid-template-columns:1fr}.family-dashboard-grid{grid-template-columns:1fr}}

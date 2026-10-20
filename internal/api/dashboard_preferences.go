@@ -17,6 +17,7 @@ type dashboardPreferences struct {
 var dashboardWidgets = map[string]bool{
     "calendar": true, "notifications": true, "tasks": true,
     "chores": true, "bills": true, "agenda": true,
+    "shopping":true,"school":true,"maintenance":true,"pets":true,"routines":true,
 }
 
 func defaultDashboardPreferences() dashboardPreferences {

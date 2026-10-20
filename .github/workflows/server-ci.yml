@@ -71,20 +71,27 @@ jobs:
       - name: Verify web assets cannot stay stale across an update
         run: |
           set -euo pipefail
+          VERSION="$(cat VERSION)"
           curl -fsSI http://127.0.0.1:8787/ | tr -d '\r' > /tmp/root-headers.txt
-          curl -fsSI http://127.0.0.1:8787/app.js?v=1.4.7 | tr -d '\r' > /tmp/app-headers.txt
+          curl -fsSI "http://127.0.0.1:8787/app.js?v=$VERSION" | tr -d '\r' > /tmp/app-headers.txt
+          curl -fsSI "http://127.0.0.1:8787/family.js?v=$VERSION" | tr -d '\r' > /tmp/family-headers.txt
           grep -qi '^Cache-Control: .*no-store' /tmp/root-headers.txt
           grep -qi '^Cache-Control: .*no-store' /tmp/app-headers.txt
-          curl -fsS http://127.0.0.1:8787/ | grep -q '/app.js?v=1.4.7'
-          curl -fsS http://127.0.0.1:8787/ | grep -q '/styles.css?v=1.4.7'
+          grep -qi '^Cache-Control: .*no-store' /tmp/family-headers.txt
+          curl -fsS http://127.0.0.1:8787/ | grep -Fq "/app.js?v=$VERSION"
+          curl -fsS http://127.0.0.1:8787/ | grep -Fq "/family.js?v=$VERSION"
+          curl -fsS http://127.0.0.1:8787/ | grep -Fq "/styles.css?v=$VERSION"
 
       - name: Set up browser test
         uses: actions/setup-node@v4
         with:
           node-version: "22"
 
-      - name: Run date parsing regression tests
-        run: node --test tests/web-date.test.cjs
+      - name: Run complete web regression suite
+        run: |
+          npm install --no-audit --no-fund
+          npm run test:web
+
 
       - name: Install Chromium test runtime
         run: |
@@ -1747,6 +1754,9 @@ jobs:
           assert any(b["name"].startswith("pre-restore-") for b in status["backups"]), status
           print(json.dumps({"settings":settings,"restore":status["last"]},indent=2))
           PY
+      - name: Validate expanded household API
+        run: python tests/family_integration_smoke.py
+
       - name: Stop source-build test stack
         run: docker compose down -v
 

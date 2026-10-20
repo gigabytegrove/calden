@@ -84,6 +84,12 @@
       <div class="sidebar-logo-surface"><img class="calden-official-mark" src="/assets/calden-logo.svg" alt="Calden"></div>
     </div>
     <nav class="primary-nav" aria-label="Main navigation">
+      <a class="nav-item" data-page="home" href="/home">My dashboard</a>
+      <a class="nav-item family-nav hidden" data-page="shopping" href="/shopping"><span class="nav-label">Shopping lists</span></a>
+      <a class="nav-item family-nav hidden" data-page="school" href="/school"><span class="nav-label">School activities</span></a>
+      <a class="nav-item family-nav hidden" data-page="maintenance" href="/maintenance"><span class="nav-label">Home maintenance</span></a>
+      <a class="nav-item family-nav hidden" data-page="pets" href="/pets"><span class="nav-label">Pet care</span></a>
+      <a class="nav-item family-nav hidden" data-page="routines" href="/routines"><span class="nav-label">Family routines</span></a>
       <a class="nav-item active" data-page="calendar" href="/calendar">Calendar</a>
       <a class="nav-item bill-nav hidden" data-page="bills" href="/bills">Bills</a>
       <a class="nav-item agenda-nav" data-page="agenda" href="/agenda">Agenda</a>
@@ -192,7 +198,78 @@
       </section>
     </section>
 
-    <section id="page-people" class="app-page hidden admin-only">
+    <section id="page-home" class="app-page hidden"><div class="page-header"><div><p class="eyebrow">Personal space</p><h2>My dashboard</h2><p class="muted">Your household plans at a glance.</p></div><button type="button" class="button secondary" id="dashboard-personalize">Customize</button></div><div id="family-dashboard-widgets" class="family-dashboard-grid"></div></section>
+<section id="page-shopping" class="app-page family-page hidden" data-family-section="shopping">
+<div class="page-header"><div><p class="eyebrow">Family organization</p><h2 class="family-page-title">Shopping lists</h2><p class="muted family-page-intro">Shopping items, groceries and supplies.</p></div><button type="button" class="button family-add">+ Add item</button></div>
+<div class="family-toolbar"><label>Completion date <input class="family-on-date" id="family-date-shopping" type="date"></label><span class="grow"></span><span id="family-count-shopping"></span><button type="button" class="button secondary compact family-refresh">Refresh</button></div>
+<p class="status-line family-status" role="status"></p><form class="panel stack family-editor hidden" id="family-form-shopping">
+<input name="id" type="hidden"><h3 class="family-form-title">Add item</h3><label>Name<input name="title" maxlength="160" required></label>
+<div class="family-form-grid"><label><span data-family-subject-label>Person or subject</span><input name="subject" maxlength="100"></label>
+<label><span data-family-group-label>Group</span><input name="list_name" maxlength="100"></label>
+<div class="family-quantity-fields"><label>Quantity<input name="quantity" type="number" min="0.001" max="1000000" step="any" value="1"></label><label>Unit<input name="unit" maxlength="24"></label></div>
+<label><span data-family-due-label>Due date</span><input name="due_on" type="date"></label>
+<label>Repeat<select name="recurrence"><option value="none">Does not repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="biweekly">Every two weeks</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select></label></div>
+<label>Notes<textarea name="notes" rows="3" maxlength="4000"></textarea></label>
+<label class="toggle-row"><input type="checkbox" name="private"><span>Only I can see this item</span></label>
+<div class="form-actions"><button type="button" class="button secondary family-cancel">Cancel</button><span class="grow"></span><button class="button" type="submit">Save item</button></div>
+</form><div id="family-list-shopping" class="family-list"></div></section>
+<section id="page-school" class="app-page family-page hidden" data-family-section="school">
+<div class="page-header"><div><p class="eyebrow">Family organization</p><h2 class="family-page-title">School activities</h2><p class="muted family-page-intro">Track school assignments, activities and dates.</p></div><button type="button" class="button family-add">+ Add item</button></div>
+<div class="family-toolbar"><label>Completion date <input class="family-on-date" id="family-date-school" type="date"></label><span class="grow"></span><span id="family-count-school"></span><button type="button" class="button secondary compact family-refresh">Refresh</button></div>
+<p class="status-line family-status" role="status"></p><form class="panel stack family-editor hidden" id="family-form-school">
+<input name="id" type="hidden"><h3 class="family-form-title">Add item</h3><label>Name<input name="title" maxlength="160" required></label>
+<div class="family-form-grid"><label><span data-family-subject-label>Person or subject</span><input name="subject" maxlength="100"></label>
+<label><span data-family-group-label>Group</span><input name="list_name" maxlength="100"></label>
+<div class="family-quantity-fields"><label>Quantity<input name="quantity" type="number" min="0.001" max="1000000" step="any" value="1"></label><label>Unit<input name="unit" maxlength="24"></label></div>
+<label><span data-family-due-label>Due date</span><input name="due_on" type="date"></label>
+<label>Repeat<select name="recurrence"><option value="none">Does not repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="biweekly">Every two weeks</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select></label></div>
+<label>Notes<textarea name="notes" rows="3" maxlength="4000"></textarea></label>
+<label class="toggle-row"><input type="checkbox" name="private"><span>Only I can see this item</span></label>
+<div class="form-actions"><button type="button" class="button secondary family-cancel">Cancel</button><span class="grow"></span><button class="button" type="submit">Save item</button></div>
+</form><div id="family-list-school" class="family-list"></div></section>
+<section id="page-maintenance" class="app-page family-page hidden" data-family-section="maintenance">
+<div class="page-header"><div><p class="eyebrow">Family organization</p><h2 class="family-page-title">Home maintenance</h2><p class="muted family-page-intro">Maintenance, service and home equipment.</p></div><button type="button" class="button family-add">+ Add item</button></div>
+<div class="family-toolbar"><label>Completion date <input class="family-on-date" id="family-date-maintenance" type="date"></label><span class="grow"></span><span id="family-count-maintenance"></span><button type="button" class="button secondary compact family-refresh">Refresh</button></div>
+<p class="status-line family-status" role="status"></p><form class="panel stack family-editor hidden" id="family-form-maintenance">
+<input name="id" type="hidden"><h3 class="family-form-title">Add item</h3><label>Name<input name="title" maxlength="160" required></label>
+<div class="family-form-grid"><label><span data-family-subject-label>Person or subject</span><input name="subject" maxlength="100"></label>
+<label><span data-family-group-label>Group</span><input name="list_name" maxlength="100"></label>
+<div class="family-quantity-fields"><label>Quantity<input name="quantity" type="number" min="0.001" max="1000000" step="any" value="1"></label><label>Unit<input name="unit" maxlength="24"></label></div>
+<label><span data-family-due-label>Due date</span><input name="due_on" type="date"></label>
+<label>Repeat<select name="recurrence"><option value="none">Does not repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="biweekly">Every two weeks</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select></label></div>
+<label>Notes<textarea name="notes" rows="3" maxlength="4000"></textarea></label>
+<label class="toggle-row"><input type="checkbox" name="private"><span>Only I can see this item</span></label>
+<div class="form-actions"><button type="button" class="button secondary family-cancel">Cancel</button><span class="grow"></span><button class="button" type="submit">Save item</button></div>
+</form><div id="family-list-maintenance" class="family-list"></div></section>
+<section id="page-pets" class="app-page family-page hidden" data-family-section="pets">
+<div class="page-header"><div><p class="eyebrow">Family organization</p><h2 class="family-page-title">Pet care</h2><p class="muted family-page-intro">Appointments, care, medication and pet reminders.</p></div><button type="button" class="button family-add">+ Add item</button></div>
+<div class="family-toolbar"><label>Completion date <input class="family-on-date" id="family-date-pets" type="date"></label><span class="grow"></span><span id="family-count-pets"></span><button type="button" class="button secondary compact family-refresh">Refresh</button></div>
+<p class="status-line family-status" role="status"></p><form class="panel stack family-editor hidden" id="family-form-pets">
+<input name="id" type="hidden"><h3 class="family-form-title">Add item</h3><label>Name<input name="title" maxlength="160" required></label>
+<div class="family-form-grid"><label><span data-family-subject-label>Person or subject</span><input name="subject" maxlength="100"></label>
+<label><span data-family-group-label>Group</span><input name="list_name" maxlength="100"></label>
+<div class="family-quantity-fields"><label>Quantity<input name="quantity" type="number" min="0.001" max="1000000" step="any" value="1"></label><label>Unit<input name="unit" maxlength="24"></label></div>
+<label><span data-family-due-label>Due date</span><input name="due_on" type="date"></label>
+<label>Repeat<select name="recurrence"><option value="none">Does not repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="biweekly">Every two weeks</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select></label></div>
+<label>Notes<textarea name="notes" rows="3" maxlength="4000"></textarea></label>
+<label class="toggle-row"><input type="checkbox" name="private"><span>Only I can see this item</span></label>
+<div class="form-actions"><button type="button" class="button secondary family-cancel">Cancel</button><span class="grow"></span><button class="button" type="submit">Save item</button></div>
+</form><div id="family-list-pets" class="family-list"></div></section>
+<section id="page-routines" class="app-page family-page hidden" data-family-section="routines">
+<div class="page-header"><div><p class="eyebrow">Family organization</p><h2 class="family-page-title">Family routines</h2><p class="muted family-page-intro">Morning, evening and custom recurring activities.</p></div><button type="button" class="button family-add">+ Add item</button></div>
+<div class="family-toolbar"><label>Completion date <input class="family-on-date" id="family-date-routines" type="date"></label><span class="grow"></span><span id="family-count-routines"></span><button type="button" class="button secondary compact family-refresh">Refresh</button></div>
+<p class="status-line family-status" role="status"></p><form class="panel stack family-editor hidden" id="family-form-routines">
+<input name="id" type="hidden"><h3 class="family-form-title">Add item</h3><label>Name<input name="title" maxlength="160" required></label>
+<div class="family-form-grid"><label><span data-family-subject-label>Person or subject</span><input name="subject" maxlength="100"></label>
+<label><span data-family-group-label>Group</span><input name="list_name" maxlength="100"></label>
+<div class="family-quantity-fields"><label>Quantity<input name="quantity" type="number" min="0.001" max="1000000" step="any" value="1"></label><label>Unit<input name="unit" maxlength="24"></label></div>
+<label><span data-family-due-label>Due date</span><input name="due_on" type="date"></label>
+<label>Repeat<select name="recurrence"><option value="none">Does not repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="biweekly">Every two weeks</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select></label></div>
+<label>Notes<textarea name="notes" rows="3" maxlength="4000"></textarea></label>
+<label class="toggle-row"><input type="checkbox" name="private"><span>Only I can see this item</span></label>
+<div class="form-actions"><button type="button" class="button secondary family-cancel">Cancel</button><span class="grow"></span><button class="button" type="submit">Save item</button></div>
+</form><div id="family-list-routines" class="family-list"></div></section>
+<section id="page-people" class="app-page hidden admin-only">
       <div class="page-header"><div><p class="eyebrow">Family members</p><h2>People</h2><p class="muted">Manage sign-in access, roles, passwords, and who events can be assigned to.</p></div></div>
       <div class="management-layout">
         <div id="people-list" class="card-list"></div>
@@ -315,7 +392,9 @@
       <div class="settings-workspace">
         <nav class="settings-nav" aria-label="Settings sections">
           <button type="button" class="settings-nav-item active admin-settings" data-settings-tab="general"><strong>Household</strong><span>Name, time zone, week layout</span></button>
-          <button type="button" class="settings-nav-item" data-settings-tab="calendar"><strong>Calendar & display</strong><span>Defaults and this browser</span></button>
+          <button type="button" class="settings-nav-item" data-settings-tab="personalize"><strong>My dashboard</strong><span>Widgets, layout and appearance</span></button>
+<button type="button" class="settings-nav-item admin-settings" data-settings-tab="household-style"><strong>Household appearance</strong><span>Family theme and names</span></button>
+<button type="button" class="settings-nav-item" data-settings-tab="calendar"><strong>Calendar & display</strong><span>Defaults and this browser</span></button>
           <button type="button" class="settings-nav-item admin-settings" data-settings-tab="optional-features"><strong>Optional Features</strong><span>Turn household features on or off</span></button>
           <button type="button" class="settings-nav-item admin-settings" data-settings-tab="integrations"><strong>Integrations</strong><span>Connected services</span></button>
           <button type="button" class="settings-nav-item admin-settings" data-settings-tab="updates"><strong>Updates</strong><span>Versions and maintenance</span></button>
@@ -324,7 +403,19 @@
           <button type="button" class="settings-nav-item" data-settings-tab="account"><strong>Your account</strong><span>Profile image and sign-in details</span></button>
         </nav>
         <div class="settings-content">
-          <section class="settings-pane hidden" data-settings-pane="devices">
+          <section class="settings-pane hidden" data-settings-pane="personalize"><div class="page-header"><div><p class="eyebrow">My settings</p><h2>My dashboard</h2></div></div>
+<form class="panel stack" id="my-dashboard-form">
+<label>Appearance<select id="my-dashboard-appearance"><option value="system">Match my device</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+<label>Layout<select id="my-dashboard-layout"><option value="standard">Standard</option><option value="simple">Simplified</option></select></label>
+<h3>My widgets</h3><p class="muted">Choose widgets and use the arrows to change their order.</p><div id="dashboard-widget-picker" class="family-widget-picker"></div>
+<div class="form-actions"><button class="button" type="submit">Save my dashboard</button></div><p id="my-dashboard-status" class="status-line"></p></form></section>
+<section class="settings-pane hidden admin-settings" data-settings-pane="household-style">
+<div class="page-header"><div><p class="eyebrow">Family settings</p><h2>Household appearance</h2></div></div>
+<form class="panel stack" id="family-appearance-form">
+<label>Theme<select id="family-preset"><option value="ocean">Ocean blue</option><option value="forest">Forest green</option><option value="violet">Violet</option><option value="sunset">Sunset</option></select></label>
+<h3>Feature names</h3><div id="family-custom-labels" class="family-form-grid"></div>
+<button type="submit" class="button">Save family appearance</button><p id="family-appearance-status" class="status-line"></p></form></section>
+<section class="settings-pane hidden" data-settings-pane="devices">
             <div class="page-header"><div><p class="eyebrow">Your connected devices</p><h2>My devices</h2><p class="muted">Review devices registered to your account and revoke ones you no longer use. Signing in on an Android phone registers that installation automatically.</p></div></div>
             <section class="panel stack">
               <div class="form-actions"><button id="refresh-devices" class="button secondary compact" type="button">Refresh devices</button></div>
@@ -490,7 +581,7 @@
               <p class="muted">Allow household tasks and their assigned progress.</p>
               <label class="toggle-row"><input id="settings-chores-enabled" type="checkbox"><span>Enable Chores</span></label>
               <p class="muted">Allow chores, including repeating chores. Existing chores remain saved when hidden.</p>
-              <p id="settings-feature-status" class="status-line" role="status" aria-live="polite">Each switch affects the whole household.</p>
+              <div class="family-settings-extra"><h3>More family features</h3><p class="muted">Hide sections without removing saved information.</p><div id="family-feature-controls" class="stack"></div><p id="family-settings-status" class="status-line"></p></div><p id="settings-feature-status" class="status-line" role="status" aria-live="polite">Each switch affects the whole household.</p>
             </section>
           </section>
 
@@ -745,5 +836,6 @@
 </dialog>
 
 <script src="/app.js?v=1.4.8" defer></script>
+<script src="/family.js?v=1.4.8" defer></script>
 </body>
 </html>
