@@ -5,6 +5,7 @@ const {test}=require("node:test");
 const {JSDOM,VirtualConsole}=require("jsdom");
 const html=fs.readFileSync(path.resolve(__dirname,"../web/index.html"),"utf8");
 const script=fs.readFileSync(path.resolve(__dirname,"../web/app.js"),"utf8");
+const familyScript=fs.readFileSync(path.resolve(__dirname,"../web/family.js"),"utf8");
 const person={id:"00000000-0000-4000-8000-000000000001",display_name:"Test User",username:"test",initials:"TU",role:"admin",active:true};
 const settings={household_name:"Test",timezone:"America/New_York",week_start:"sunday",default_view:7};
 function fixture(url){
@@ -29,6 +30,9 @@ function fixture(url){
       "/api/setup/status":{needs_setup:false},
       "/api/me":person,
       "/api/settings/general":settings,
+      "/api/household/features":{features:{shopping:false,school:false,maintenance:false,pets:false,routines:false}},
+      "/api/household/appearance":{preset:"ocean",labels:{},icons:{}},
+      "/api/me/dashboard":{appearance:"system",layout:"standard",widgets:["calendar","notifications"]},
       "/api/users":[person],
       "/api/calendars":[{id:"00000000-0000-4000-8000-000000000002",name:"Bills",calendar_type:"bill_pay",can_edit:true,color:"#2266aa",event_count:0}],
       "/api/categories":[],
@@ -39,7 +43,7 @@ function fixture(url){
     const body=Object.hasOwn(results,name)?results[name]:[];
     return {ok:true,status:200,json:async()=>body};
   };
-  try{w.eval(script)}catch(error){errors.push(error.stack||String(error))}
+  try{w.eval(script+"\n"+familyScript)}catch(error){errors.push(error.stack||String(error))}
   return {dom,w,errors};
 }
 async function assertBoot(url,page){
