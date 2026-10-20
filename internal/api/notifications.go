@@ -215,8 +215,9 @@ func (s *server) listNotifications(w http.ResponseWriter, r *http.Request) {
         LEFT JOIN calendar_permissions p ON p.calendar_id=c.id AND p.user_id=$1
 		WHERE n.user_id=$1 AND n.dismissed_at IS NULL
           AND (c.id IS NULL OR $3 IN ('admin','planner') OR COALESCE(p.can_view,false)=true)
+          AND (NOT $4 OR c.id IS NULL OR c.calendar_type<>'bill_pay')
 		ORDER BY n.created_at DESC
-		LIMIT $2`, a.ID, limit,a.Role)
+		LIMIT $2`, a.ID, limit,a.Role,a.IsChild)
 	if err != nil {
 		writeError(w, 500, "Could not load notifications")
 		return
@@ -258,7 +259,8 @@ func (s *server) listNotifications(w http.ResponseWriter, r *http.Request) {
        LEFT JOIN calendars c ON c.id=COALESCE(n.calendar_id,e.calendar_id)
        LEFT JOIN calendar_permissions p ON p.calendar_id=c.id AND p.user_id=$1
        WHERE n.user_id=$1 AND n.read_at IS NULL AND n.dismissed_at IS NULL
-       AND (c.id IS NULL OR $2 IN ('admin','planner') OR COALESCE(p.can_view,false)=true)`, a.ID,a.Role).Scan(&unread); err != nil {
+       AND (c.id IS NULL OR $2 IN ('admin','planner') OR COALESCE(p.can_view,false)=true)
+       AND (NOT $3 OR c.id IS NULL OR c.calendar_type<>'bill_pay')`, a.ID,a.Role,a.IsChild).Scan(&unread); err != nil {
 		writeError(w, 500, "Could not count unread notifications")
 		return
 	}
