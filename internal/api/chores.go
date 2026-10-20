@@ -14,6 +14,7 @@ import (
 // one editable chore. The legacy single-assignee fields remain API-compatible.
 type choreInput struct {
     Kind string `json:"kind"`
+    RewardPoints *int `json:"reward_points,omitempty"`
     Title string `json:"title"`
     Notes string `json:"notes"`
     DueDate string `json:"due_date"`
@@ -31,6 +32,7 @@ type choreSeries struct {
     ID, Primary, Creator uuid.UUID
     Title, Notes, Name, Initials, Status, Rule, Kind string
     Avatar *string
+    RewardPoints int
     Start time.Time
     Until *time.Time
     Created, Updated time.Time
@@ -125,6 +127,8 @@ func (s *server) saveChoresEnabled(w http.ResponseWriter,r *http.Request) {
 func validateChore(input choreInput) (choreInput,[]uuid.UUID,time.Time,*time.Time,string) {
     if input.Kind=="" {input.Kind="chore"} // older Android builds create chores
     if input.Kind!="task"&&input.Kind!="chore" {return input,nil,time.Time{},nil,"Choose Task or Chore"}
+    if input.RewardPoints!=nil && (*input.RewardPoints<0||*input.RewardPoints>10000) {return input,nil,time.Time{},nil,"Choose 0–10,000 reward points"}
+    if input.Kind=="task" && input.RewardPoints!=nil && *input.RewardPoints>0 {return input,nil,time.Time{},nil,"Points are only available for chores"}
     input.Title=cleanText(strings.TrimSpace(input.Title),200)
     input.Notes=cleanText(strings.TrimSpace(input.Notes),4000)
     if input.Title=="" {return input,nil,time.Time{},nil,"Enter a task or chore name"}
@@ -157,12 +161,12 @@ func (s *server) listChores(w http.ResponseWriter,r *http.Request) {
     if !s.requireChores(w,r){return}
     tasksOn,choresOn,settingsErr:=s.enabledWorkKinds(r)
     if settingsErr!=nil{writeError(w,500,"Could not load optional feature settings");return}
-    rows,err:=s.db.Query(r.Context(),"SELECT ch.id,ch.title,ch.notes,ch.due_date,ch.assigned_to,u.display_name,u.initials,u.avatar_url,ch.created_by,ch.status,ch.recurrence_rule,ch.recurrence_until,ch.created_at,ch.updated_at,ch.kind FROM chores ch JOIN users u ON u.id=ch.assigned_to WHERE (ch.kind='task' AND $1) OR (ch.kind='chore' AND $2) ORDER BY ch.due_date,ch.created_at DESC",tasksOn,choresOn)
+    rows,err:=s.db.Query(r.Context(),"SELECT ch.id,ch.title,ch.notes,ch.due_date,ch.assigned_to,u.display_name,u.initials,u.avatar_url,ch.created_by,ch.status,ch.recurrence_rule,ch.recurrence_until,ch.created_at,ch.updated_at,ch.kind,ch.reward_points FROM chores ch JOIN users u ON u.id=ch.assigned_to WHERE (ch.kind='task' AND $1) OR (ch.kind='chore' AND $2) ORDER BY ch.due_date,ch.created_at DESC",tasksOn,choresOn)
     if err!=nil {writeError(w,500,"Could not load tasks and chores");return}
     series:=[]choreSeries{}
     for rows.Next(){
         var ch choreSeries
-        if err=rows.Scan(&ch.ID,&ch.Title,&ch.Notes,&ch.Start,&ch.Primary,&ch.Name,&ch.Initials,&ch.Avatar,&ch.Creator,&ch.Status,&ch.Rule,&ch.Until,&ch.Created,&ch.Updated,&ch.Kind);err!=nil{break}
+        if err=rows.Scan(&ch.ID,&ch.Title,&ch.Notes,&ch.Start,&ch.Primary,&ch.Name,&ch.Initials,&ch.Avatar,&ch.Creator,&ch.Status,&ch.Rule,&ch.Until,&ch.Created,&ch.Updated,&ch.Kind,&ch.RewardPoints);err!=nil{break}
         series=append(series,ch)
     }
     if err==nil {err=rows.Err()}
@@ -232,7 +236,7 @@ func (s *server) listChores(w http.ResponseWriter,r *http.Request) {
             var finished any
             if status=="done"{finished=completedAt}
             out=append(out,map[string]any{
-                "id":ch.ID,"kind":ch.Kind,"title":ch.Title,"notes":ch.Notes,
+                "id":ch.ID,"kind":ch.Kind,"title":ch.Title,"notes":ch.Notes,"reward_points":ch.RewardPoints,
                 "due_date":date,"occurrence_date":date,
                 "series_due_date":ch.Start.Format("2006-01-02"),
                 "assigned_to":ch.Primary,"assignee_name":ch.Name,"assignee_initials":ch.Initials,
@@ -262,7 +266,7 @@ func (s *server) createChore(w http.ResponseWriter,r *http.Request) {
     err=tx.QueryRow(r.Context(),"SELECT COUNT(*) FROM users WHERE id=ANY($1::uuid[]) AND active=true",people).Scan(&active)
     if err!=nil||active!=len(people){writeError(w,400,"Choose active household members");return}
     var id uuid.UUID
-    err=tx.QueryRow(r.Context(),"INSERT INTO chores(title,notes,due_date,assigned_to,created_by,recurrence_rule,recurrence_until,kind) VALUES($1,$2,$3::date,$4,$5,$6,$7,$8) RETURNING id",input.Title,input.Notes,input.DueDate,people[0],currentActor(r).ID,input.RecurrenceRule,until,input.Kind).Scan(&id)
+    err=tx.QueryRow(r.Context(),"INSERT INTO chores(title,notes,due_date,assigned_to,created_by,recurrence_rule,recurrence_until,kind,reward_points) VALUES($1,$2,$3::date,$4,$5,$6,$7,$8,COALESCE($9,0)) RETURNING id",input.Title,input.Notes,input.DueDate,people[0],currentActor(r).ID,input.RecurrenceRule,until,input.Kind,input.RewardPoints).Scan(&id)
     if err!=nil{writeError(w,500,"Could not create chore");return}
     for _,person:=range people{
         _,err=tx.Exec(r.Context(),"INSERT INTO chore_assignees(chore_id,user_id) VALUES($1,$2)",id,person)
@@ -289,13 +293,21 @@ func (s *server) updateChore(w http.ResponseWriter,r *http.Request) {
     if !s.requireWorkKind(w,r,input.Kind){return}
     tx,err:=s.db.Begin(r.Context());if err!=nil{writeError(w,500,"Could not edit chore");return}
     defer tx.Rollback(r.Context())
+    _,err=tx.Exec(r.Context(),"SELECT 1 FROM chores WHERE id=$1 FOR UPDATE",id)
+    if err!=nil {writeError(w,500,"Could not lock chore for editing");return}
     var active int
     err=tx.QueryRow(r.Context(),"SELECT COUNT(*) FROM users WHERE id=ANY($1::uuid[]) AND active=true",people).Scan(&active)
     if err!=nil||active!=len(people){writeError(w,400,"Choose active household members");return}
     var changed bool
-    err=tx.QueryRow(r.Context(),"UPDATE chores SET title=$2,notes=$3,due_date=$4::date,assigned_to=$5,recurrence_rule=$6,recurrence_until=$7,kind=$8,updated_at=now(),status=CASE WHEN due_date IS DISTINCT FROM $4::date OR recurrence_rule IS DISTINCT FROM $6 OR assigned_to IS DISTINCT FROM $5 THEN 'pending' ELSE status END,completed_at=CASE WHEN due_date IS DISTINCT FROM $4::date OR recurrence_rule IS DISTINCT FROM $6 OR assigned_to IS DISTINCT FROM $5 THEN NULL ELSE completed_at END,completed_by=CASE WHEN due_date IS DISTINCT FROM $4::date OR recurrence_rule IS DISTINCT FROM $6 OR assigned_to IS DISTINCT FROM $5 THEN NULL ELSE completed_by END WHERE id=$1 RETURNING true",id,input.Title,input.Notes,input.DueDate,people[0],input.RecurrenceRule,until,input.Kind).Scan(&changed)
+    err=tx.QueryRow(r.Context(),"UPDATE chores SET title=$2,notes=$3,due_date=$4::date,assigned_to=$5,recurrence_rule=$6,recurrence_until=$7,kind=$8,reward_points=CASE WHEN $8='task' THEN 0 ELSE COALESCE($9,reward_points) END,updated_at=now(),status=CASE WHEN due_date IS DISTINCT FROM $4::date OR recurrence_rule IS DISTINCT FROM $6 OR assigned_to IS DISTINCT FROM $5 THEN 'pending' ELSE status END,completed_at=CASE WHEN due_date IS DISTINCT FROM $4::date OR recurrence_rule IS DISTINCT FROM $6 OR assigned_to IS DISTINCT FROM $5 THEN NULL ELSE completed_at END,completed_by=CASE WHEN due_date IS DISTINCT FROM $4::date OR recurrence_rule IS DISTINCT FROM $6 OR assigned_to IS DISTINCT FROM $5 THEN NULL ELSE completed_by END WHERE id=$1 RETURNING true",id,input.Title,input.Notes,input.DueDate,people[0],input.RecurrenceRule,until,input.Kind,input.RewardPoints).Scan(&changed)
     if errors.Is(err,pgx.ErrNoRows){writeError(w,404,"Chore not found");return}
     if err!=nil{writeError(w,500,"Could not update chore");return}
+    var protectedAssignee bool
+    err=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM family_chore_reviews
+       WHERE chore_id=$1 AND decision='approved'
+       AND NOT (user_id = ANY($2::uuid[])))`,id,people).Scan(&protectedAssignee)
+    if err!=nil {writeError(w,500,"Could not verify prior reward approvals");return}
+    if protectedAssignee {writeError(w,409,"An approved reward exists for a removed assignee; keep them assigned to preserve history");return}
     // Keeping unchanged assignments preserves their occurrence history.
     _,err=tx.Exec(r.Context(),"DELETE FROM chore_assignees WHERE chore_id=$1 AND NOT (user_id=ANY($2::uuid[]))",id,people)
     if err!=nil{writeError(w,500,"Could not update participants");return}
@@ -322,12 +334,17 @@ func (s *server) changeChoreStatus(w http.ResponseWriter,r *http.Request) {
         if err!=nil||target==uuid.Nil{writeError(w,400,"Invalid assignee");return}
     }
     if target!=actor.ID&&!canManageChores(actor.Role){writeError(w,403,"You can only update your own chores");return}
+    tx,err:=s.db.Begin(r.Context())
+    if err!=nil{writeError(w,500,"Could not begin chore update");return}
+    defer tx.Rollback(r.Context())
     var start time.Time
     var until *time.Time
     var rule string
     var primary uuid.UUID
     var kind string
-    err=s.db.QueryRow(r.Context(),"SELECT due_date,recurrence_rule,recurrence_until,assigned_to,kind FROM chores WHERE id=$1",id).Scan(&start,&rule,&until,&primary,&kind)
+    err=tx.QueryRow(r.Context(),
+      "SELECT due_date,recurrence_rule,recurrence_until,assigned_to,kind FROM chores WHERE id=$1 FOR UPDATE",id).
+      Scan(&start,&rule,&until,&primary,&kind)
     if errors.Is(err,pgx.ErrNoRows){writeError(w,404,"Chore not found");return}
     if err!=nil{writeError(w,500,"Could not find chore");return}
     if !s.requireWorkKind(w,r,kind){return}
@@ -338,13 +355,37 @@ func (s *server) changeChoreStatus(w http.ResponseWriter,r *http.Request) {
     if err!=nil||!choreDueOn(start,when,rule)||(until!=nil&&when.After(*until)){
         writeError(w,400,"Choose a valid occurrence of this chore");return
     }
-    tag,err:=s.db.Exec(r.Context(),"INSERT INTO chore_progress(chore_id,user_id,occurrence_date,status,completed_at,completed_by) SELECT $1,$2,$3::date,$4,CASE WHEN $4='done' THEN now() ELSE NULL END,CASE WHEN $4='done' THEN $5::uuid ELSE NULL END WHERE EXISTS(SELECT 1 FROM chore_assignees WHERE chore_id=$1 AND user_id=$2) ON CONFLICT(chore_id,user_id,occurrence_date) DO UPDATE SET status=EXCLUDED.status,completed_at=CASE WHEN EXCLUDED.status='done' THEN COALESCE(chore_progress.completed_at,now()) ELSE NULL END,completed_by=EXCLUDED.completed_by,updated_at=now()",id,target,date,input.Status,actor.ID)
+    if input.Status!="done" {
+        var approved bool
+        err=tx.QueryRow(r.Context(),`SELECT EXISTS(SELECT 1 FROM family_chore_reviews
+          WHERE chore_id=$1 AND user_id=$2 AND occurrence_date=$3::date
+          AND decision='approved')`,id,target,date).Scan(&approved)
+        if err!=nil{writeError(w,500,"Could not check reward history");return}
+        if approved{writeError(w,409,"This chore was already rewarded; an approved completion cannot be reopened");return}
+    }
+    tag,err:=tx.Exec(r.Context(),`INSERT INTO chore_progress
+        (chore_id,user_id,occurrence_date,status,completed_at,completed_by)
+        SELECT $1,$2,$3::date,$4,CASE WHEN $4='done' THEN now() ELSE NULL END,
+               CASE WHEN $4='done' THEN $5::uuid ELSE NULL END
+        WHERE EXISTS(SELECT 1 FROM chore_assignees WHERE chore_id=$1 AND user_id=$2)
+        ON CONFLICT(chore_id,user_id,occurrence_date) DO UPDATE
+        SET status=EXCLUDED.status,
+            completed_at=CASE WHEN EXCLUDED.status='done'
+              THEN COALESCE(chore_progress.completed_at,now()) ELSE NULL END,
+            completed_by=EXCLUDED.completed_by,updated_at=now()`,
+        id,target,date,input.Status,actor.ID)
     if err!=nil{writeError(w,500,"Could not update chore progress");return}
     if tag.RowsAffected()==0{writeError(w,403,"Only an assigned member or household planner can update this chore");return}
     if target==primary&&date==start.Format("2006-01-02"){
-        _,_ = s.db.Exec(r.Context(),"UPDATE chores SET status=$2,completed_at=CASE WHEN $2='done' THEN now() ELSE NULL END,completed_by=CASE WHEN $2='done' THEN $3::uuid ELSE NULL END,updated_at=now() WHERE id=$1",id,input.Status,actor.ID)
+        _,err=tx.Exec(r.Context(),`UPDATE chores SET status=$2,
+          completed_at=CASE WHEN $2='done' THEN now() ELSE NULL END,
+          completed_by=CASE WHEN $2='done' THEN $3::uuid ELSE NULL END,
+          updated_at=now() WHERE id=$1`,id,input.Status,actor.ID)
+        if err!=nil{writeError(w,500,"Could not update chore summary");return}
     }
-    s.audit(r,"update","chore",&id,"Updated individual chore progress",map[string]any{"status":input.Status,"occurrence_date":date,"assignee_id":target})
+    if err=tx.Commit(r.Context());err!=nil{writeError(w,500,"Could not save chore progress");return}
+    s.audit(r,"update","chore",&id,"Updated individual chore progress",
+      map[string]any{"status":input.Status,"occurrence_date":date,"assignee_id":target})
     writeJSON(w,200,map[string]any{"id":id,"status":input.Status,"occurrence_date":date,"assignee_id":target})
 }
 
@@ -357,6 +398,11 @@ func (s *server) deleteChore(w http.ResponseWriter,r *http.Request) {
     if errors.Is(err,pgx.ErrNoRows){writeError(w,404,"Task or chore not found");return}
     if err!=nil{writeError(w,500,"Could not load task or chore");return}
     if !s.requireWorkKind(w,r,kind){return}
+    var reviewed bool
+    err=s.db.QueryRow(r.Context(),
+      "SELECT EXISTS(SELECT 1 FROM family_chore_reviews WHERE chore_id=$1)",id).Scan(&reviewed)
+    if err!=nil{writeError(w,500,"Could not check chore reward history");return}
+    if reviewed{writeError(w,409,"This chore has reward history and cannot be deleted");return}
     tag,err:=s.db.Exec(r.Context(),"DELETE FROM chores WHERE id=$1",id)
     if err!=nil{writeError(w,500,"Could not delete chore");return}
     if tag.RowsAffected()==0{writeError(w,404,"Chore not found");return}

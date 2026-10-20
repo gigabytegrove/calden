@@ -29,7 +29,7 @@ const savedScrollNow=localStorage.getItem("calden_scroll_now")!=="false";
 const state={
   token:localStorage.getItem("calden_token")||"",
   me:null,settings:null,users:[],calendars:[],categories:[],events:[],chores:[],householdDevices:[],
-  dashboard:null,shopping:{lists:[],items:[],listID:null},routines:[],routineDate:dateInputValue(new Date()),
+  dashboard:null,shopping:{lists:[],items:[],listID:null},routines:[],rewards:null,routineDate:dateInputValue(new Date()),
   editingEvent:null,editingScope:"series",preserveRawRecurrence:false,editingCalendar:null,editingCategory:null,editingUser:null,
   setupStep:0,currentPage:"calendar",
   viewDays:[1,7,14,30].includes(savedDays)?savedDays:7,
@@ -321,6 +321,8 @@ function renderApp(){
   window.caldenFamily?.renderDashboard();
   window.caldenFamily?.renderShopping();
   window.caldenRoutines?.render();
+  window.caldenRewards?.render();
+  $(".rewards-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.rewards_enabled!==true));
   decorateNavigation();
   ensureNotificationPolling();
 }
@@ -352,7 +354,7 @@ function startCalDenVersionWatch(){
   document.addEventListener("visibilitychange",()=>{if(!document.hidden)checkCalDenClientVersion()});
 }
 
-const caldenPages=new Set(["dashboard","shopping","routines","calendar","bills","agenda","chores","people","calendars","categories","notifications","integrations","updates","backups","activity","settings"]);
+const caldenPages=new Set(["dashboard","shopping","routines","rewards","calendar","bills","agenda","chores","people","calendars","categories","notifications","integrations","updates","backups","activity","settings"]);
 function caldenPageURL(page){
   if(page==="calendar")return "/calendar?date="+dateInputValue(state.anchorDate)+"&days="+state.viewDays;
   if(page==="bills")return "/bills?month="+dateInputValue(state.billMonth).slice(0,7);
@@ -426,18 +428,20 @@ function navigate(page,load=true,writeURL=true){
   if(page==="chores"&&!state.settings?.chores_enabled&&!state.settings?.tasks_enabled)page="calendar";
   if(page==="shopping"&&state.settings?.shopping_enabled===false)page="calendar";
   if(page==="routines"&&state.settings?.routines_enabled!==true)page="calendar";
+  if(page==="rewards"&&state.settings?.rewards_enabled!==true)page="calendar";
   if(page==="agenda"&&state.settings?.agenda_enabled===false)page="calendar";
   if(page==="bills"&&state.settings?.bills_enabled===false)page="calendar";
   state.currentPage=page;
   if(writeURL)history.pushState({calden:true},"",caldenPageURL(page));
   $$(".app-page").forEach(el=>el.classList.toggle("hidden",el.id!==`page-${page}`));
   $$("[data-page]").forEach(el=>el.classList.toggle("active",el.dataset.page===page));
-  const titles={dashboard:"My home",shopping:"Shopping",routines:"Routines",calendar:"Calendar",bills:"Bill Pay",agenda:"Agenda",chores:"Tasks & Chores",people:"People",calendars:"Calendars",categories:"Categories",notifications:"Notifications",integrations:"Integrations",updates:"Updates",backups:"Backups & Restore",activity:"Activity",settings:"Settings"};
+  const titles={dashboard:"My home",shopping:"Shopping",routines:"Routines",rewards:"Rewards & Allowances",calendar:"Calendar",bills:"Bill Pay",agenda:"Agenda",chores:"Tasks & Chores",people:"People",calendars:"Calendars",categories:"Categories",notifications:"Notifications",integrations:"Integrations",updates:"Updates",backups:"Backups & Restore",activity:"Activity",settings:"Settings"};
   $("#page-title").textContent=titles[page]||"Calden";
   $("#new-event").classList.toggle("hidden",!["calendar","agenda"].includes(page));
   $("#sidebar").classList.remove("open");
   window.caldenFamily?.enter(page);
   window.caldenRoutines?.enter(page);
+  window.caldenRewards?.enter(page);
   if(!load)return;
   if(page==="notifications")loadNotifications(false).catch(()=>renderNotifications());
   if(page==="bills")loadBillMonth();
@@ -1264,6 +1268,7 @@ function ensureNotificationPolling(){
 function decorateNavigation(){
   const icons={
     dashboard:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10 12 3l9 7v11h-7v-7h-4v7H3V10Z"/></svg>',
+    rewards:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M7 7c0-2 10-2 10 1 0 4-10 2-10 6 0 3 10 4 10 0M4 12h16"/></svg>',
     routines:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7l2 2 4-4m3 2h7M4 15l2 2 4-4m3 2h7"/></svg>',
     shopping:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2 11h12l2-8H6m4 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm8 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/></svg>',
     calendar:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3v3m12-3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/></svg>',
@@ -1493,6 +1498,7 @@ function renderSettings(){
   $("#settings-chores-enabled").checked=!!state.settings?.chores_enabled;
   $("#settings-shopping-enabled").checked=state.settings?.shopping_enabled!==false;
   $("#settings-routines-enabled").checked=state.settings?.routines_enabled===true;
+  $("#settings-rewards-enabled").checked=state.settings?.rewards_enabled===true;
   $("#settings-bills-enabled").checked=state.settings?.bills_enabled!==false;
   $("#settings-agenda-enabled").checked=state.settings?.agenda_enabled!==false;
   const personalWeekStart=$("#settings-personal-week-start");
@@ -2967,7 +2973,7 @@ function renderChores(){
       return `<div class="chore-assignee-progress"><i class="avatar">${avatarMarkup(owner)}</i><strong>${escapeHTML(owner.display_name||p.name||"Household member")}</strong>${progress}</div>`;
     }).join("");
     const management=manage?`<div class="chore-actions"><button class="button secondary compact" data-chore-edit="${escapeAttr(t.id)}" type="button">Edit series</button><button class="button secondary compact" data-chore-delete="${escapeAttr(t.id)}" type="button">Delete series</button></div>`:"";
-    return `<article class="panel chore-card ${overdue?"chore-overdue":""}"><div><h3>${escapeHTML(t.title)} <span class="chore-repeat-tag">${t.kind==="task"?"Task":"Chore"}</span></h3><p class="muted">${escapeHTML(t.notes||"")}</p><div class="chore-meta"><span>Due ${escapeHTML(date)}</span><span class="chore-repeat-tag">${labels[t.recurrence_rule]||"One time"}</span>${overdue?'<span class="chore-state">Overdue</span>':""}</div><div class="chore-assignee-list">${personRows}</div>${management}</div></article>`;
+    return `<article class="panel chore-card ${overdue?"chore-overdue":""}"><div><h3>${escapeHTML(t.title)} <span class="chore-repeat-tag">${t.kind==="task"?"Task":"Chore"}</span></h3><p class="muted">${escapeHTML(t.notes||"")}</p><div class="chore-meta"><span>Due ${escapeHTML(date)}</span><span class="chore-repeat-tag">${labels[t.recurrence_rule]||"One time"}</span>${overdue?'<span class="chore-state">Overdue</span>':""}${state.settings?.rewards_enabled===true&&t.kind==="chore"&&t.reward_points>0?`<span class="chore-repeat-tag">${t.reward_points} points on approval</span>`:""}</div><div class="chore-assignee-list">${personRows}</div>${management}</div></article>`;
   }).join("");
 }
 async function loadChores(){
@@ -2990,11 +2996,13 @@ function openChoreEditor(chore=null){
   if(field("kind").selectedOptions[0]?.disabled)field("kind").value=state.settings?.tasks_enabled?"task":"chore";
   field("title").value=chore?.title||"";
   field("notes").value=chore?.notes||"";
+  field("reward_points").value=String(chore?.reward_points||0);
   const today=new Date(),day=[today.getFullYear(),String(today.getMonth()+1).padStart(2,"0"),String(today.getDate()).padStart(2,"0")].join("-");
   field("due_date").value=chore?.series_due_date||chore?.due_date||day;
   field("recurrence_rule").value=chore?.recurrence_rule||"none";
   field("recurrence_until").value=chore?.recurrence_until||"";
   updateChoreRepeat();
+  $("#chore-form").querySelector(".reward-chore-field").classList.toggle("hidden",field("kind").value!=="chore"||state.settings?.rewards_enabled!==true);
   const assigned=new Set(chore?.assignee_ids||[chore?.assigned_to||state.me?.id]);
   $("#chore-assignees").innerHTML=state.users.filter(u=>u.active!==false).map(u=>`<label class="chore-member-choice"><input type="checkbox" name="assignee_id" value="${escapeAttr(u.id)}" ${assigned.has(u.id)?"checked":""}><i class="avatar">${avatarMarkup(u)}</i><span>${escapeHTML(u.display_name)}</span></label>`).join("");
   $("#chore-editor-heading").textContent=chore?"Edit "+(chore.kind==="task"?"task":"chore"):state.settings?.tasks_enabled&&state.settings?.chores_enabled?"Add task or chore":state.settings?.tasks_enabled?"Add task":"Add chore";
@@ -3009,6 +3017,7 @@ $("#chore-refresh").addEventListener("click",loadChores);
 $("#chore-filter").addEventListener("change",renderChores);
 $("#chore-form").elements.namedItem("recurrence_rule").addEventListener("change",updateChoreRepeat);
 $("#chore-kind").addEventListener("change",()=>{
+  $("#chore-form").querySelector(".reward-chore-field").classList.toggle("hidden",$("#chore-kind").value!=="chore"||state.settings?.rewards_enabled!==true);
   $("#chore-form button[type=submit]").textContent="Save "+($("#chore-kind").value==="task"?"task":"chore");
 });
 $("#chore-form").addEventListener("submit",async event=>{
@@ -3016,7 +3025,7 @@ $("#chore-form").addEventListener("submit",async event=>{
   const form=event.currentTarget,field=name=>form.elements.namedItem(name),id=field("id").value;
   const assignee_ids=[...form.querySelectorAll('input[name="assignee_id"]:checked')].map(input=>input.value);
   if(!assignee_ids.length){$("#chore-form-status").textContent="Choose at least one person.";return}
-  const payload={kind:field("kind").value,title:field("title").value.trim(),notes:field("notes").value,due_date:field("due_date").value,assignee_ids,recurrence_rule:field("recurrence_rule").value,recurrence_until:field("recurrence_until").value};
+  const payload={kind:field("kind").value,title:field("title").value.trim(),notes:field("notes").value,due_date:field("due_date").value,assignee_ids,...(state.settings?.rewards_enabled===true?{reward_points:field("kind").value==="chore"?Number(field("reward_points").value):0}:{}),recurrence_rule:field("recurrence_rule").value,recurrence_until:field("recurrence_until").value};
   try{
     await api(id?"/api/chores/"+encodeURIComponent(id):"/api/chores",{method:id?"PUT":"POST",body:JSON.stringify(payload)});
     $("#chore-editor-panel").classList.add("hidden");await loadChores();
@@ -3041,7 +3050,7 @@ $("#chore-list").addEventListener("change",async event=>{
 });
 // Each checkbox saves only its own global setting. The API returns all four,
 // keeping the other three unchanged. This works for every household member.
-for(const [name,label] of [["bills","Bills"],["agenda","Agenda"],["tasks","Tasks"],["chores","Chores"],["shopping","Shopping"],["routines","Routines"]]){
+for(const [name,label] of [["bills","Bills"],["agenda","Agenda"],["tasks","Tasks"],["chores","Chores"],["shopping","Shopping"],["routines","Routines"],["rewards","Rewards & Allowances"]]){
   $("#settings-"+name+"-enabled").addEventListener("change",async event=>{
     if(state.me?.role!=="admin")return;
     const control=event.currentTarget,status=$("#settings-feature-status"),value=control.checked;
@@ -3054,6 +3063,8 @@ for(const [name,label] of [["bills","Bills"],["agenda","Agenda"],["tasks","Tasks
       $$(".routines-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.routines_enabled!==true));
       if(name==="shopping"&&state.settings.shopping_enabled===false&&state.currentPage==="shopping")navigate("calendar");
       if(name==="routines"&&state.settings.routines_enabled!==true&&state.currentPage==="routines")navigate("calendar");
+      $(".rewards-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.rewards_enabled!==true));
+      if(name==="rewards"&&state.settings.rewards_enabled!==true&&state.currentPage==="rewards")navigate("calendar");
       window.caldenFamily?.renderDashboard();
       if(!state.settings.chores_enabled&&!state.settings.tasks_enabled&&state.currentPage==="chores"){
         $("#chore-editor-panel").classList.add("hidden");navigate("calendar");
@@ -3080,7 +3091,7 @@ boot().catch(err=>{console.error("Calden failed before authentication",err);show
 ;(function familyUI() {
   // This controller is appended to the existing Calden web client.
   // All data-changing operations use the existing authenticated api() helper.
-  const labels={calendar:"Upcoming events",notifications:"My reminders",chores:"Chores",tasks:"Tasks",bills:"Bills",agenda:"Family agenda",shopping:"Shopping lists",routines:"My routines"};
+  const labels={calendar:"Upcoming events",notifications:"My reminders",chores:"Chores",tasks:"Tasks",bills:"Bills",agenda:"Family agenda",shopping:"Shopping lists",routines:"My routines",rewards:"My rewards"};
   const status=(id,value)=>{const el=$(id);if(el)el.textContent=value||""};
   const esc=value=>escapeHTML(value??"");
   const canShop=()=>state.me?.role!=="restricted";
@@ -3089,6 +3100,7 @@ boot().catch(err=>{console.error("Calden failed before authentication",err);show
     if(kind==="chores")return !!state.settings?.chores_enabled;
     if(kind==="shopping")return state.settings?.shopping_enabled!==false;
     if(kind==="routines")return state.settings?.routines_enabled===true;
+    if(kind==="rewards")return state.settings?.rewards_enabled===true;
     if(kind==="tasks")return !!state.settings?.tasks_enabled;
     if(kind==="bills")return state.settings?.bills_enabled!==false;
     if(kind==="agenda")return state.settings?.agenda_enabled!==false;
@@ -3122,6 +3134,10 @@ boot().catch(err=>{console.error("Calden failed before authentication",err);show
         &&(c.assignee_ids||[c.assigned_to]).includes(state.me?.id)).slice(0,6);
       return widgetList(own.map(c=>({title:c.title,detail:"Due "+(c.occurrence_date||c.due_date||"soon")})),"No assigned items right now.");
     }
+    if(kind==="rewards"){
+      const mine=(state.rewards?.balances||[]).find(x=>x.user_id===state.me?.id);
+      return widgetList([{title:String(mine?.points||0)+" points available",detail:"Rewards and allowance activity"},{title:"Allowance balance: "+money((mine?.allowance_balance_cents||0)/100),detail:"Recorded as due or paid"}],"No reward activity yet.");
+    }
     if(kind==="routines"){
       const rows=(state.routines||[]).filter(r=>r.due_today).slice(0,6);
       return widgetList(rows.map(r=>({title:r.title,detail:r.done+" of "+r.total+" steps · "+r.assignee_name})),"No routines for today.");
@@ -3143,7 +3159,7 @@ boot().catch(err=>{console.error("Calden failed before authentication",err);show
       .map(([kind,label])=>`<label><input type="checkbox" data-dashboard-choice="${kind}" ${pref.widgets.includes(kind)?"checked":""}>${esc(label)}</label>`).join("");
     const widgets=pref.widgets.filter(availableWidget);
     host.innerHTML=widgets.length?widgets.map((kind,index)=>{
-      const page=kind==="routines"?"routines":kind==="shopping"?"shopping":kind==="notifications"?"notifications":kind==="tasks"||kind==="chores"?"chores":kind==="bills"?"bills":kind==="agenda"?"agenda":"calendar";
+      const page=kind==="rewards"?"rewards":kind==="routines"?"routines":kind==="shopping"?"shopping":kind==="notifications"?"notifications":kind==="tasks"||kind==="chores"?"chores":kind==="bills"?"bills":kind==="agenda"?"agenda":"calendar";
       return `<article class="family-widget" data-dashboard-widget="${kind}"><div class="family-widget-title"><h3>${esc(labels[kind])}</h3>
           <div class="family-widget-tools"><button type="button" class="button secondary compact" data-dashboard-move="${kind}" data-direction="-1" ${index===0?"disabled":""} aria-label="Move ${esc(labels[kind])} up">↑</button>
           <button type="button" class="button secondary compact" data-dashboard-move="${kind}" data-direction="1" ${index===widgets.length-1?"disabled":""} aria-label="Move ${esc(labels[kind])} down">↓</button></div></div>
@@ -3368,6 +3384,7 @@ boot().catch(err=>{console.error("Calden failed before authentication",err);show
       }
       if(page==="shopping")loadShopping();
       if(page==="dashboard"&&state.settings?.routines_enabled===true)window.caldenRoutines?.load();
+      if(page==="dashboard"&&state.settings?.rewards_enabled===true)window.caldenRewards?.load();
     }
   };
 })();

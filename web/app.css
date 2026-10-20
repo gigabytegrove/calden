@@ -1006,3 +1006,32 @@ body.calden-family-dark .routine-card .muted{color:#bac5d6}
 @media(max-width:930px){.routine-cards{grid-template-columns:1fr}}
 @media(max-width:550px){.routine-toolbar{align-items:stretch}.routine-toolbar .muted{margin-left:0}.routine-edit-row{grid-template-columns:minmax(0,1fr) auto auto auto}.routine-edit-row .button{padding:7px 9px}}
 @media(prefers-reduced-motion:reduce){.routine-meter span{transition:none}}
+
+/* Household rewards & allowance ledger — integrated Calden surfaces. */
+.rewards-balance-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(225px,1fr));gap:12px;margin:0 0 20px}
+.rewards-balance-card{min-width:0;border-radius:12px}
+.rewards-balance-card .eyebrow{margin:0 0 8px}
+.rewards-balance-numbers{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.rewards-balance-numbers div{display:flex;flex-direction:column;gap:3px}
+.rewards-balance-numbers strong{font-size:1.65rem;font-variant-numeric:tabular-nums;color:#172b4a;overflow-wrap:anywhere}
+.rewards-balance-numbers span{color:#68768c;font-size:.82rem}
+.family-rewards-layout{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(290px,.85fr);gap:18px;align-items:start}
+.family-rewards-primary,.family-rewards-side{display:grid;gap:18px;min-width:0;align-content:start}
+.rewards-catalog,.rewards-stack{display:grid;gap:8px}
+.rewards-item{border:1px solid #e3e8ef;border-radius:9px;background:#fafbfd;padding:13px;display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0}
+.rewards-item>div:first-child{min-width:0}
+.rewards-item strong{display:block;font-size:.92rem;overflow-wrap:anywhere}
+.rewards-item .muted{display:block;margin-top:4px;font-size:.84rem}
+.rewards-item small{display:block;margin-top:5px;color:#66758a;overflow-wrap:anywhere}
+.rewards-amount{font-weight:750;color:#293e5c;font-size:.9rem;white-space:nowrap}
+.rewards-controls{display:flex;gap:7px;flex-wrap:wrap;align-items:center;justify-content:flex-end}
+.rewards-controls button{white-space:nowrap}
+.reward-manager .stack>label{min-width:0}
+.reward-manager input,.reward-manager select{max-width:100%}
+.reward-chore-field small{display:block;margin-top:4px}
+body.calden-family-dark .rewards-balance-card,body.calden-family-dark .family-rewards-layout .panel{background:#1d2738;color:#f1f5f9;border-color:#364258}
+body.calden-family-dark .rewards-item{background:#263347;color:#f1f5f9;border-color:#38475c}
+body.calden-family-dark .rewards-amount,body.calden-family-dark .rewards-balance-numbers strong{color:#e7efff}
+body.calden-family-dark .rewards-item small,body.calden-family-dark .rewards-balance-numbers span{color:#b9c5d5}
+@media(max-width:1000px){.family-rewards-layout{grid-template-columns:1fr}}
+@media(max-width:600px){.rewards-balance-grid{grid-template-columns:1fr}.rewards-item{align-items:flex-start;flex-direction:column}.rewards-controls{justify-content:flex-start}.rewards-balance-numbers strong{font-size:1.45rem}}
