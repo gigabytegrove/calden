@@ -43,7 +43,8 @@ const state={
   billEvents:[],billPaymentEvent:null,billPaymentEditingId:null,
   notifications:[],unreadNotifications:0,notificationKnown:new Set(),notificationPoll:null,
   googleImportFile:null,googleImportPreview:null,googleRepairFile:null,googleRepairPreview:null,
-  updateInfo:null,updatePoll:null,updatePrefsDirty:false,detailEvent:null,suppressDetailCloseRoute:false
+  updateInfo:null,updatePoll:null,updatePrefsDirty:false,detailEvent:null,suppressDetailCloseRoute:false,
+  familyFeatures:{},familyAppearance:null,dashboardPreferences:null
 };
 
 async function api(path,options={}){
@@ -254,6 +255,8 @@ async function boot(){
   try{
     state.me=await api("/api/me");
     state.settings=await api("/api/settings/general");
+    const [features,appearance,prefs]=await Promise.all([api("/api/household/features"),api("/api/household/appearance"),api("/api/me/dashboard")]);
+    state.familyFeatures=features.features||{};state.familyAppearance=appearance;state.dashboardPreferences=prefs;
     if(!localStorage.getItem("calden_view_days")&&[1,7,14,30].includes(Number(state.settings.default_view)))state.viewDays=Number(state.settings.default_view);
     await reloadSharedData();
     renderApp();
@@ -315,6 +318,7 @@ function renderApp(){
   renderSettings();
   renderChores();
   decorateNavigation();
+  updateFamilyNavigation();renderFamilySettings();familyModules.forEach(familyEditorFields);
   ensureNotificationPolling();
 }
 
@@ -345,7 +349,7 @@ function startCalDenVersionWatch(){
   document.addEventListener("visibilitychange",()=>{if(!document.hidden)checkCalDenClientVersion()});
 }
 
-const caldenPages=new Set(["calendar","bills","agenda","chores","people","calendars","categories","notifications","integrations","updates","backups","activity","settings"]);
+const caldenPages=new Set(["home","shopping","school","maintenance","pets","routines","calendar","bills","agenda","chores","people","calendars","categories","notifications","integrations","updates","backups","activity","settings"]);
 function caldenPageURL(page){
   if(page==="calendar")return "/calendar?date="+dateInputValue(state.anchorDate)+"&days="+state.viewDays;
   if(page==="bills")return "/bills?month="+dateInputValue(state.billMonth).slice(0,7);
@@ -368,7 +372,7 @@ function readCalDenRoute(){
   const date=day&&/^\d{4}-\d{2}-\d{2}$/.test(day)?calendarDate(day):occurrence&&!Number.isNaN(occurrence.getTime())?occurrence:null;
   const monthValue=params.get("month");
   const month=monthValue&&/^\d{4}-\d{2}$/.test(monthValue)?calendarDate(monthValue+"-01"):null;
-  const tab=page==="settings"&&["general","calendar","optional-features","account","integrations","updates","backups","devices"].includes(parts[1])?parts[1]:settingsAliases.has(parts[0])?parts[0]:null;
+  const tab=page==="settings"&&["general","calendar","optional-features","account","integrations","updates","backups","devices","personalize","household-style"].includes(parts[1])?parts[1]:settingsAliases.has(parts[0])?parts[0]:null;
   const days=Number(params.get("days"));
   return {page,detail,id:detail?parts[1]:null,kind:parts[0],at,date,month,tab,days};
 }
@@ -417,13 +421,14 @@ function navigate(page,load=true,writeURL=true){
   if(adminPages.has(page)&&state.me?.role!=="admin")page="calendar";
   if(["calendars","categories"].includes(page)&&!["admin","planner"].includes(state.me?.role))page="calendar";
   if(page==="chores"&&!state.settings?.chores_enabled&&!state.settings?.tasks_enabled)page="calendar";
+  if(familyModules.includes(page)&&!state.familyFeatures?.[page])page="calendar";
   if(page==="agenda"&&state.settings?.agenda_enabled===false)page="calendar";
   if(page==="bills"&&state.settings?.bills_enabled===false)page="calendar";
   state.currentPage=page;
   if(writeURL)history.pushState({calden:true},"",caldenPageURL(page));
   $$(".app-page").forEach(el=>el.classList.toggle("hidden",el.id!==`page-${page}`));
   $$("[data-page]").forEach(el=>el.classList.toggle("active",el.dataset.page===page));
-  const titles={calendar:"Calendar",bills:"Bill Pay",agenda:"Agenda",chores:"Tasks & Chores",people:"People",calendars:"Calendars",categories:"Categories",notifications:"Notifications",integrations:"Integrations",updates:"Updates",backups:"Backups & Restore",activity:"Activity",settings:"Settings"};
+  const titles={home:"My dashboard",shopping:familyName("shopping"),school:familyName("school"),maintenance:familyName("maintenance"),pets:familyName("pets"),routines:familyName("routines"),calendar:"Calendar",bills:"Bill Pay",agenda:"Agenda",chores:"Tasks & Chores",people:"People",calendars:"Calendars",categories:"Categories",notifications:"Notifications",integrations:"Integrations",updates:"Updates",backups:"Backups & Restore",activity:"Activity",settings:"Settings"};
   $("#page-title").textContent=titles[page]||"Calden";
   $("#new-event").classList.toggle("hidden",!["calendar","agenda"].includes(page));
   $("#sidebar").classList.remove("open");
@@ -434,6 +439,8 @@ function navigate(page,load=true,writeURL=true){
   if(page==="people")loadHouseholdDevices();
   if(page==="settings")activateSettingsTab(state.settingsTab);
   if(page==="activity")loadActivity();
+  if(page==="home")refreshFamilyDashboard();
+  if(familyModules.includes(page))loadFamilySection(page);
 }
 
 function renderEventControls(){
@@ -1455,8 +1462,8 @@ async function loadRegisteredDevices(){
   }catch(err){status.textContent="Could not load registered devices: "+err.message}
 }
 function activateSettingsTab(tab,writeURL=false){
-  if(!["general","calendar","optional-features","account","integrations","updates","backups","devices"].includes(tab))tab="calendar";
-  if(["general","optional-features","integrations","updates","backups"].includes(tab)&&state.me?.role!=="admin")tab="calendar";
+  if(!["general","calendar","optional-features","account","integrations","updates","backups","devices","personalize","household-style"].includes(tab))tab="calendar";
+  if(["general","optional-features","integrations","updates","backups","household-style"].includes(tab)&&state.me?.role!=="admin")tab="calendar";
   state.settingsTab=tab;
   if(writeURL&&state.currentPage==="settings")history.pushState({calden:true},"",caldenPageURL("settings"));
   $$(".settings-nav-item").forEach(button=>button.classList.toggle("active",button.dataset.settingsTab===tab));
@@ -1495,6 +1502,7 @@ function renderSettings(){
       renderCalendar();renderAgenda();
     }));
   }
+  renderFamilySettings();
   activateSettingsTab(state.settingsTab);
 }
 function updateRepeatUI(){
