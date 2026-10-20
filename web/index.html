@@ -87,6 +87,7 @@
       <a class="nav-item" data-page="dashboard" href="/dashboard">My home</a>
       <a class="nav-item active" data-page="calendar" href="/calendar">Calendar</a>
       <a class="nav-item shopping-nav" data-page="shopping" href="/shopping">Shopping</a>
+      <a class="nav-item routines-nav hidden" data-page="routines" href="/routines">Routines</a>
       <a class="nav-item bill-nav hidden" data-page="bills" href="/bills">Bills</a>
       <a class="nav-item agenda-nav" data-page="agenda" href="/agenda">Agenda</a>
       <a class="nav-item chore-nav hidden" data-page="chores" href="/chores"><span class="nav-label">Tasks &amp; Chores</span></a>
@@ -164,6 +165,50 @@
           </section>
         </div>
       </div>
+    </section>
+
+    <section id="page-routines" class="app-page hidden family-page">
+      <div class="page-header"><div><p class="eyebrow">Everyday moments</p><h2>Family routines</h2>
+        <p class="muted">Morning checklists, bedtime routines, and the little things that keep the day moving.</p></div>
+        <button class="button hidden" id="routine-new" type="button">+ New routine</button>
+      </div>
+      <div class="routine-toolbar panel">
+        <label>Show routines for <input type="date" id="routine-day" aria-label="Routine date"></label>
+        <button id="routine-today" class="button secondary compact" type="button">Today</button>
+        <button id="routine-refresh" class="button secondary compact" type="button">Refresh</button>
+        <span id="routine-progress-summary" class="muted" role="status"></span>
+      </div>
+      <p id="routine-status" class="status-line" role="status" aria-live="polite"></p>
+      <form id="routine-form" class="panel stack hidden">
+        <div class="family-sidebar-heading"><h3 id="routine-form-heading">New routine</h3>
+          <button type="button" class="button secondary compact" id="routine-cancel">Cancel</button></div>
+        <input type="hidden" name="id">
+        <div class="family-pref-grid">
+          <label>Routine name<input name="title" maxlength="120" required placeholder="Morning before school"></label>
+          <label>Who is this for?<select name="assigned_to" required></select></label>
+        </div>
+        <div class="family-pref-grid">
+          <label>When?<select name="time_of_day"><option value="morning">Morning</option><option value="evening">Evening</option><option value="anytime">Anytime</option></select></label>
+          <label>Notes<input name="notes" maxlength="2000" placeholder="Optional details"></label>
+        </div>
+        <fieldset class="routine-days">
+          <legend>Repeat on these days</legend>
+          <div class="routine-weekdays">
+            <label><input type="checkbox" name="routine_day" value="1" checked>Mon</label>
+            <label><input type="checkbox" name="routine_day" value="2" checked>Tue</label>
+            <label><input type="checkbox" name="routine_day" value="3" checked>Wed</label>
+            <label><input type="checkbox" name="routine_day" value="4" checked>Thu</label>
+            <label><input type="checkbox" name="routine_day" value="5" checked>Fri</label>
+            <label><input type="checkbox" name="routine_day" value="6" checked>Sat</label>
+            <label><input type="checkbox" name="routine_day" value="7" checked>Sun</label>
+          </div>
+        </fieldset>
+        <div class="family-sidebar-heading"><h4>Checklist steps</h4>
+          <button id="routine-add-step" type="button" class="button secondary compact">+ Add step</button></div>
+        <div id="routine-edit-steps" class="routine-edit-steps"></div>
+        <div class="form-actions"><button class="button" type="submit">Save routine</button></div>
+      </form>
+      <div id="routine-list" class="routine-cards" aria-live="polite"></div>
     </section>
 
     <section id="page-calendar" class="app-page">
@@ -549,6 +594,8 @@
               <p class="muted">Allow chores, including repeating chores. Existing chores remain saved when hidden.</p>
               <label class="toggle-row"><input id="settings-shopping-enabled" type="checkbox"><span>Enable Shopping</span></label>
               <p class="muted">Show or hide shared household shopping lists. All lists and items remain saved.</p>
+              <label class="toggle-row"><input id="settings-routines-enabled" type="checkbox"><span>Enable Family Routines</span></label>
+              <p class="muted">Create repeating personal checklists. Hiding routines preserves their completion history.</p>
               <p id="settings-feature-status" class="status-line" role="status" aria-live="polite">Each switch affects the whole household.</p>
             </section>
           </section>
@@ -804,5 +851,6 @@
 </dialog>
 
 <script src="/app.js?v=1.4.8" defer></script>
+<script src="/routines.js?v=1.4.8-family-routines" defer></script>
 </body>
 </html>

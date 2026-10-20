@@ -29,7 +29,7 @@ const savedScrollNow=localStorage.getItem("calden_scroll_now")!=="false";
 const state={
   token:localStorage.getItem("calden_token")||"",
   me:null,settings:null,users:[],calendars:[],categories:[],events:[],chores:[],householdDevices:[],
-  dashboard:null,shopping:{lists:[],items:[],listID:null},
+  dashboard:null,shopping:{lists:[],items:[],listID:null},routines:[],routineDate:dateInputValue(new Date()),
   editingEvent:null,editingScope:"series",preserveRawRecurrence:false,editingCalendar:null,editingCategory:null,editingUser:null,
   setupStep:0,currentPage:"calendar",
   viewDays:[1,7,14,30].includes(savedDays)?savedDays:7,
@@ -316,9 +316,11 @@ function renderApp(){
   renderNotifications();
   renderSettings();
   renderChores();
-  $(".shopping-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.shopping_enabled===false));
+  $$(".shopping-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.shopping_enabled===false));
+      $$(".routines-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.routines_enabled!==true));
   window.caldenFamily?.renderDashboard();
   window.caldenFamily?.renderShopping();
+  window.caldenRoutines?.render();
   decorateNavigation();
   ensureNotificationPolling();
 }
@@ -350,7 +352,7 @@ function startCalDenVersionWatch(){
   document.addEventListener("visibilitychange",()=>{if(!document.hidden)checkCalDenClientVersion()});
 }
 
-const caldenPages=new Set(["dashboard","shopping","calendar","bills","agenda","chores","people","calendars","categories","notifications","integrations","updates","backups","activity","settings"]);
+const caldenPages=new Set(["dashboard","shopping","routines","calendar","bills","agenda","chores","people","calendars","categories","notifications","integrations","updates","backups","activity","settings"]);
 function caldenPageURL(page){
   if(page==="calendar")return "/calendar?date="+dateInputValue(state.anchorDate)+"&days="+state.viewDays;
   if(page==="bills")return "/bills?month="+dateInputValue(state.billMonth).slice(0,7);
@@ -423,17 +425,19 @@ function navigate(page,load=true,writeURL=true){
   if(["calendars","categories"].includes(page)&&!["admin","planner"].includes(state.me?.role))page="calendar";
   if(page==="chores"&&!state.settings?.chores_enabled&&!state.settings?.tasks_enabled)page="calendar";
   if(page==="shopping"&&state.settings?.shopping_enabled===false)page="calendar";
+  if(page==="routines"&&state.settings?.routines_enabled!==true)page="calendar";
   if(page==="agenda"&&state.settings?.agenda_enabled===false)page="calendar";
   if(page==="bills"&&state.settings?.bills_enabled===false)page="calendar";
   state.currentPage=page;
   if(writeURL)history.pushState({calden:true},"",caldenPageURL(page));
   $$(".app-page").forEach(el=>el.classList.toggle("hidden",el.id!==`page-${page}`));
   $$("[data-page]").forEach(el=>el.classList.toggle("active",el.dataset.page===page));
-  const titles={dashboard:"My home",shopping:"Shopping",calendar:"Calendar",bills:"Bill Pay",agenda:"Agenda",chores:"Tasks & Chores",people:"People",calendars:"Calendars",categories:"Categories",notifications:"Notifications",integrations:"Integrations",updates:"Updates",backups:"Backups & Restore",activity:"Activity",settings:"Settings"};
+  const titles={dashboard:"My home",shopping:"Shopping",routines:"Routines",calendar:"Calendar",bills:"Bill Pay",agenda:"Agenda",chores:"Tasks & Chores",people:"People",calendars:"Calendars",categories:"Categories",notifications:"Notifications",integrations:"Integrations",updates:"Updates",backups:"Backups & Restore",activity:"Activity",settings:"Settings"};
   $("#page-title").textContent=titles[page]||"Calden";
   $("#new-event").classList.toggle("hidden",!["calendar","agenda"].includes(page));
   $("#sidebar").classList.remove("open");
   window.caldenFamily?.enter(page);
+  window.caldenRoutines?.enter(page);
   if(!load)return;
   if(page==="notifications")loadNotifications(false).catch(()=>renderNotifications());
   if(page==="bills")loadBillMonth();
@@ -1260,6 +1264,7 @@ function ensureNotificationPolling(){
 function decorateNavigation(){
   const icons={
     dashboard:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10 12 3l9 7v11h-7v-7h-4v7H3V10Z"/></svg>',
+    routines:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7l2 2 4-4m3 2h7M4 15l2 2 4-4m3 2h7"/></svg>',
     shopping:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2 11h12l2-8H6m4 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm8 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/></svg>',
     calendar:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3v3m12-3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/></svg>',
     bills:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Zm3 5h6m-6 4h6m-6 4h4"/></svg>',
@@ -1487,6 +1492,7 @@ function renderSettings(){
   $("#settings-tasks-enabled").checked=!!state.settings?.tasks_enabled;
   $("#settings-chores-enabled").checked=!!state.settings?.chores_enabled;
   $("#settings-shopping-enabled").checked=state.settings?.shopping_enabled!==false;
+  $("#settings-routines-enabled").checked=state.settings?.routines_enabled===true;
   $("#settings-bills-enabled").checked=state.settings?.bills_enabled!==false;
   $("#settings-agenda-enabled").checked=state.settings?.agenda_enabled!==false;
   const personalWeekStart=$("#settings-personal-week-start");
@@ -3035,7 +3041,7 @@ $("#chore-list").addEventListener("change",async event=>{
 });
 // Each checkbox saves only its own global setting. The API returns all four,
 // keeping the other three unchanged. This works for every household member.
-for(const [name,label] of [["bills","Bills"],["agenda","Agenda"],["tasks","Tasks"],["chores","Chores"],["shopping","Shopping"]]){
+for(const [name,label] of [["bills","Bills"],["agenda","Agenda"],["tasks","Tasks"],["chores","Chores"],["shopping","Shopping"],["routines","Routines"]]){
   $("#settings-"+name+"-enabled").addEventListener("change",async event=>{
     if(state.me?.role!=="admin")return;
     const control=event.currentTarget,status=$("#settings-feature-status"),value=control.checked;
@@ -3044,8 +3050,10 @@ for(const [name,label] of [["bills","Bills"],["agenda","Agenda"],["tasks","Tasks
       state.settings=await api("/api/settings/features",{method:"PUT",body:JSON.stringify({[name+"_enabled"]:value})});
       renderBillNavigation();
       renderChores();
-      $(".shopping-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.shopping_enabled===false));
+      $$(".shopping-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.shopping_enabled===false));
+      $$(".routines-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.routines_enabled!==true));
       if(name==="shopping"&&state.settings.shopping_enabled===false&&state.currentPage==="shopping")navigate("calendar");
+      if(name==="routines"&&state.settings.routines_enabled!==true&&state.currentPage==="routines")navigate("calendar");
       window.caldenFamily?.renderDashboard();
       if(!state.settings.chores_enabled&&!state.settings.tasks_enabled&&state.currentPage==="chores"){
         $("#chore-editor-panel").classList.add("hidden");navigate("calendar");
@@ -3072,7 +3080,7 @@ boot().catch(err=>{console.error("Calden failed before authentication",err);show
 ;(function familyUI() {
   // This controller is appended to the existing Calden web client.
   // All data-changing operations use the existing authenticated api() helper.
-  const labels={calendar:"Upcoming events",notifications:"My reminders",chores:"Chores",tasks:"Tasks",bills:"Bills",agenda:"Family agenda",shopping:"Shopping lists"};
+  const labels={calendar:"Upcoming events",notifications:"My reminders",chores:"Chores",tasks:"Tasks",bills:"Bills",agenda:"Family agenda",shopping:"Shopping lists",routines:"My routines"};
   const status=(id,value)=>{const el=$(id);if(el)el.textContent=value||""};
   const esc=value=>escapeHTML(value??"");
   const canShop=()=>state.me?.role!=="restricted";
@@ -3080,6 +3088,7 @@ boot().catch(err=>{console.error("Calden failed before authentication",err);show
   const availableWidget=kind=>{
     if(kind==="chores")return !!state.settings?.chores_enabled;
     if(kind==="shopping")return state.settings?.shopping_enabled!==false;
+    if(kind==="routines")return state.settings?.routines_enabled===true;
     if(kind==="tasks")return !!state.settings?.tasks_enabled;
     if(kind==="bills")return state.settings?.bills_enabled!==false;
     if(kind==="agenda")return state.settings?.agenda_enabled!==false;
@@ -3113,6 +3122,10 @@ boot().catch(err=>{console.error("Calden failed before authentication",err);show
         &&(c.assignee_ids||[c.assigned_to]).includes(state.me?.id)).slice(0,6);
       return widgetList(own.map(c=>({title:c.title,detail:"Due "+(c.occurrence_date||c.due_date||"soon")})),"No assigned items right now.");
     }
+    if(kind==="routines"){
+      const rows=(state.routines||[]).filter(r=>r.due_today).slice(0,6);
+      return widgetList(rows.map(r=>({title:r.title,detail:r.done+" of "+r.total+" steps · "+r.assignee_name})),"No routines for today.");
+    }
     if(kind==="shopping"){
       const lists=(state.shopping.lists||[]).filter(x=>!x.archived).slice(0,6);
       return widgetList(lists.map(l=>({title:l.name,detail:l.remaining+" still needed · "+(l.shared?"Shared":"Private")})),"No shopping lists yet.");
@@ -3130,7 +3143,7 @@ boot().catch(err=>{console.error("Calden failed before authentication",err);show
       .map(([kind,label])=>`<label><input type="checkbox" data-dashboard-choice="${kind}" ${pref.widgets.includes(kind)?"checked":""}>${esc(label)}</label>`).join("");
     const widgets=pref.widgets.filter(availableWidget);
     host.innerHTML=widgets.length?widgets.map((kind,index)=>{
-      const page=kind==="shopping"?"shopping":kind==="notifications"?"notifications":kind==="tasks"||kind==="chores"?"chores":kind==="bills"?"bills":kind==="agenda"?"agenda":"calendar";
+      const page=kind==="routines"?"routines":kind==="shopping"?"shopping":kind==="notifications"?"notifications":kind==="tasks"||kind==="chores"?"chores":kind==="bills"?"bills":kind==="agenda"?"agenda":"calendar";
       return `<article class="family-widget" data-dashboard-widget="${kind}"><div class="family-widget-title"><h3>${esc(labels[kind])}</h3>
           <div class="family-widget-tools"><button type="button" class="button secondary compact" data-dashboard-move="${kind}" data-direction="-1" ${index===0?"disabled":""} aria-label="Move ${esc(labels[kind])} up">↑</button>
           <button type="button" class="button secondary compact" data-dashboard-move="${kind}" data-direction="1" ${index===widgets.length-1?"disabled":""} aria-label="Move ${esc(labels[kind])} down">↓</button></div></div>
@@ -3354,6 +3367,7 @@ boot().catch(err=>{console.error("Calden failed before authentication",err);show
           loadChores().then(renderDashboard).catch(()=>{});
       }
       if(page==="shopping")loadShopping();
+      if(page==="dashboard"&&state.settings?.routines_enabled===true)window.caldenRoutines?.load();
     }
   };
 })();
