@@ -84,7 +84,9 @@
       <div class="sidebar-logo-surface"><img class="calden-official-mark" src="/assets/calden-logo.svg" alt="Calden"></div>
     </div>
     <nav class="primary-nav" aria-label="Main navigation">
+      <a class="nav-item" data-page="dashboard" href="/dashboard">My home</a>
       <a class="nav-item active" data-page="calendar" href="/calendar">Calendar</a>
+      <a class="nav-item shopping-nav" data-page="shopping" href="/shopping">Shopping</a>
       <a class="nav-item bill-nav hidden" data-page="bills" href="/bills">Bills</a>
       <a class="nav-item agenda-nav" data-page="agenda" href="/agenda">Agenda</a>
       <a class="nav-item chore-nav hidden" data-page="chores" href="/chores"><span class="nav-label">Tasks &amp; Chores</span></a>
@@ -108,6 +110,61 @@
       <div><p class="workspace-household" id="household-label"></p><h1 id="page-title">Calendar</h1></div>
       <button id="new-event" class="button bg-blue-600 border-blue-600 hover:bg-blue-700 shadow-sm">+ Add event</button>
     </header>
+
+    <section id="page-dashboard" class="app-page hidden family-page">
+      <div class="page-header"><div><p class="eyebrow">Your family, your way</p><h2>My home</h2>
+        <p class="muted">Your upcoming plans and the things that matter to you.</p></div>
+        <button id="dashboard-customize" class="button secondary" type="button" aria-expanded="false">Customize my home</button></div>
+      <div id="dashboard-config" class="panel stack hidden">
+        <h3>My home layout</h3>
+        <p class="muted">Choose what shows on your dashboard. Use the move buttons on each card to change its order.</p>
+        <div class="family-pref-grid">
+          <label>Appearance<select id="dashboard-appearance"><option value="system">Follow my device</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+          <label>Layout<select id="dashboard-layout"><option value="standard">Standard</option><option value="simple">Simple</option></select></label>
+        </div>
+        <div id="dashboard-widget-choices" class="family-choice-grid" aria-label="Dashboard widgets"></div>
+        <div class="form-actions"><button type="button" class="button" id="dashboard-save">Save my home</button>
+        <button type="button" class="button secondary" id="dashboard-cancel">Cancel</button></div>
+        <p id="dashboard-status" class="status-line" role="status"></p>
+      </div>
+      <div id="dashboard-widgets" class="family-widgets" aria-live="polite"></div>
+    </section>
+
+    <section id="page-shopping" class="app-page hidden family-page">
+      <div class="page-header"><div><p class="eyebrow">Household essentials</p><h2>Shopping &amp; supplies</h2>
+        <p class="muted">Keep track of what you need, what is in the cart, and what is already purchased.</p></div>
+        <button type="button" class="button" id="shopping-new-list">+ New list</button></div>
+      <p id="shopping-status" class="status-line" role="status"></p>
+      <div class="family-shopping-layout">
+        <aside class="panel family-list-sidebar">
+          <div class="family-sidebar-heading"><h3>Your lists</h3><button type="button" class="button secondary compact" id="shopping-refresh">Refresh</button></div>
+          <div id="shopping-list-picker" class="family-list-picker" aria-label="Shopping lists"></div>
+        </aside>
+        <div class="family-shopping-main">
+          <form class="panel stack hidden" id="shopping-list-form">
+            <h3 id="shopping-list-form-title">New shopping list</h3>
+            <input name="id" type="hidden">
+            <label>List name<input name="name" required maxlength="120" placeholder="Groceries"></label>
+            <label class="family-inline-check"><input type="checkbox" name="shared" checked> Share this list with everyone in the household</label>
+            <label class="family-inline-check"><input type="checkbox" name="archived"> Archive this list</label>
+            <div class="form-actions"><button class="button" type="submit">Save list</button><button type="button" id="shopping-list-cancel" class="button secondary">Cancel</button></div>
+          </form>
+          <section id="shopping-detail" class="panel stack">
+            <div class="family-sidebar-heading"><div><h3 id="shopping-detail-name">Choose a list</h3><p id="shopping-detail-caption" class="muted"></p></div>
+            <div class="form-actions"><button type="button" class="button secondary compact hidden" id="shopping-edit-list">Settings</button><button type="button" class="button danger compact hidden" id="shopping-delete-list">Delete</button></div></div>
+            <form id="shopping-item-form" class="family-item-form hidden">
+              <input type="hidden" name="id">
+              <label>Item<input name="name" placeholder="Milk" required maxlength="200"></label>
+              <label>Quantity<input name="quantity" type="number" min="0.001" max="1000000" step="0.001" value="1" required></label>
+              <label>Unit<select name="unit"><option value="each">Each</option><option value="pack">Pack</option><option value="box">Box</option><option value="bag">Bag</option><option value="lb">lb</option><option value="oz">oz</option><option value="kg">kg</option><option value="g">g</option><option value="L">L</option><option value="mL">mL</option></select></label>
+              <label class="family-notes">Notes<input name="notes" maxlength="2000" placeholder="Optional details"></label>
+              <div class="form-actions"><button type="submit" class="button" id="shopping-item-submit">Add item</button><button type="button" id="shopping-item-cancel" class="button secondary hidden">Cancel edit</button></div>
+            </form>
+            <div id="shopping-item-list" class="family-shopping-items" aria-live="polite"></div>
+          </section>
+        </div>
+      </div>
+    </section>
 
     <section id="page-calendar" class="app-page">
       <div class="calendar-toolbar">
@@ -490,6 +547,8 @@
               <p class="muted">Allow household tasks and their assigned progress.</p>
               <label class="toggle-row"><input id="settings-chores-enabled" type="checkbox"><span>Enable Chores</span></label>
               <p class="muted">Allow chores, including repeating chores. Existing chores remain saved when hidden.</p>
+              <label class="toggle-row"><input id="settings-shopping-enabled" type="checkbox"><span>Enable Shopping</span></label>
+              <p class="muted">Show or hide shared household shopping lists. All lists and items remain saved.</p>
               <p id="settings-feature-status" class="status-line" role="status" aria-live="polite">Each switch affects the whole household.</p>
             </section>
           </section>
