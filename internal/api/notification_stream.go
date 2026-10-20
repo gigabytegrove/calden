@@ -82,6 +82,13 @@ func (s *server) streamNotifications(w http.ResponseWriter, r *http.Request) {
             WHERE n.user_id=$1 AND n.dismissed_at IS NULL AND n.read_at IS NULL AND n.created_at >= $2
               AND (c.id IS NULL OR $4 IN ('admin','planner') OR COALESCE(p.can_view,false)=true)
               AND (NOT $3 OR c.id IS NULL OR c.calendar_type<>'bill_pay')
+              AND (NOT $3 OR EXISTS(
+                SELECT 1 FROM family_child_profiles cp
+                WHERE cp.user_id=$1 AND 'notifications'=ANY(cp.allowed_modules)))
+              AND (NOT $3 OR n.kind<>'bill_review')
+              AND (NOT $3 OR c.id IS NULL OR EXISTS(
+                SELECT 1 FROM family_child_profiles cp
+                WHERE cp.user_id=$1 AND 'calendar'=ANY(cp.allowed_modules)))
             ORDER BY n.created_at ASC,n.id ASC LIMIT 200`, person, cursor, liveChild,liveRole)
         if err != nil { cancel(); return }
         type notice struct {

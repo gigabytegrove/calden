@@ -2,7 +2,7 @@
  const form=$("#children-form"),field=n=>form.elements.namedItem(n);
  const status=t=>{$("#children-status").textContent=t||""};
  const moduleLabels={calendar:"Calendars & events",chores:"Assigned chores",tasks:"Assigned tasks",routines:"Daily routines",rewards:"Points & rewards",shopping:"View shared shopping lists",notifications:"Notifications",dashboard:"My home"};
- const defaults=["calendar","chores","routines","rewards"];
+ const defaults=["calendar","chores","routines","rewards","notifications"];
  let profiles=[];
  const manager=()=>state.me?.role==="admin";
  const isAdult=u=>u.active!==false&&!u.is_child&&u.role!=="restricted";
@@ -100,7 +100,7 @@
        agenda:modules.has("calendar")&&state.settings?.agenda_enabled!==false,
        chores:modules.has("chores")||modules.has("tasks"),
        routines:modules.has("routines"),rewards:modules.has("rewards"),
-       shopping:modules.has("shopping"),notifications:true
+       shopping:modules.has("shopping"),notifications:modules.has("notifications")
      };
      if(!permitted[page])link.classList.add("hidden");
    });

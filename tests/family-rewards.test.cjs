@@ -62,7 +62,9 @@ test("awarded chores and point movements retain their history and cannot be recr
 test("reward requests have a secure LAN-friendly ID and HTML-safe rendering",()=>{
  const client=source("web/rewards.js");
  assert.match(client,/getRandomValues/);
- assert.match(client,/request_id:idempotency\(form\)/);
+ assert.match(client,/request_id:requestId/);
+ assert.match(client,/idempotency\(form\)/);
+ assert.match(client,/requestIds\.set\(reward\.id,requestId\)/);
  assert.match(client,/escapeHTML\(reward\.title\)/);
  assert.match(client,/escapeHTML\(row\.description\)/);
  assert.doesNotMatch(client,/Math\.random/);

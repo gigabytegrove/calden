@@ -13,7 +13,7 @@ var childModuleNames=map[string]bool{
  "calendar":true,"chores":true,"tasks":true,"routines":true,
  "rewards":true,"shopping":true,"notifications":true,"dashboard":true,
 }
-var childDefaultModules=[]string{"calendar","chores","routines","rewards"}
+var childDefaultModules=[]string{"calendar","chores","routines","rewards","notifications"}
 type childProfileInput struct{
  DisplayMode string `json:"display_mode"`
  AllowedModules []string `json:"allowed_modules"`
@@ -49,22 +49,19 @@ func childRequestModule(method,path string)string{
   "GET /api/me":true,"GET /api/users":true,
   "GET /api/settings/general":true,
   "GET /api/me/dashboard":true,"PUT /api/me/dashboard":true,
-  "GET /api/notifications":true,
-  "GET /api/notifications/stream":true,
-  "GET /api/notifications/push-config":true,
-  "PUT /api/notifications/read-all":true,
   "GET /api/devices":true,"POST /api/devices":true,
   "POST /api/client-errors":true,
  }
  if base[method+" "+path]{return "base"}
+ if (method=="GET"&&(path=="/api/notifications"||path=="/api/notifications/stream"||path=="/api/notifications/push-config"))||(method=="PUT"&&path=="/api/notifications/read-all"){return "notifications"}
  parts:=strings.Split(strings.Trim(path,"/"),"/")
- if len(parts)==4&&parts[0]=="api"&&parts[1]=="notifications"&&parts[3]=="read"&&method=="PUT"{return "base"}
- if len(parts)==3&&parts[0]=="api"&&parts[1]=="notifications"&&method=="DELETE"{return "base"}
+ if len(parts)==4&&parts[0]=="api"&&parts[1]=="notifications"&&parts[3]=="read"&&method=="PUT"{return "notifications"}
+ if len(parts)==3&&parts[0]=="api"&&parts[1]=="notifications"&&method=="DELETE"{return "notifications"}
  if len(parts)==3&&parts[0]=="api"&&parts[1]=="devices"&&method=="DELETE"{return "base"}
  if method=="GET"&&(path=="/api/calendars"||path=="/api/categories"||path=="/api/events"){return "calendar"}
  if (method=="GET"&&path=="/api/events/confirmations"){return "calendar"}
- if method=="GET"&&path=="/api/chores"{return "chores"}
- if method=="PUT"&&strings.HasPrefix(path,"/api/chores/")&&strings.HasSuffix(path,"/status"){return "chores"}
+ if method=="GET"&&path=="/api/chores"{return "work"}
+ if method=="PUT"&&strings.HasPrefix(path,"/api/chores/")&&strings.HasSuffix(path,"/status"){return "work"}
  if method=="GET"&&path=="/api/routines"{return "routines"}
  if method=="PUT"&&strings.HasPrefix(path,"/api/routines/")&&strings.HasSuffix(path,"/status"){return "routines"}
  if method=="GET"&&path=="/api/rewards/overview"{return "rewards"}
@@ -75,6 +72,7 @@ func childRequestModule(method,path string)string{
 }
 func childModuleAllowed(modules []string,module string)bool{
  if module=="base"{return true}
+ if module=="work"{return childModuleAllowed(modules,"chores")||childModuleAllowed(modules,"tasks")}
  for _,m:=range modules{if m==module{return true}}
  return false
 }

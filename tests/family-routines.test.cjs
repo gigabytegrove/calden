@@ -32,7 +32,9 @@ test("routine API uses authenticated routes with server-side permissions",()=>{
 });
 test("shopping navigation uses querySelectorAll, not a single element",()=>{
  const app=file("web/app.js");
- assert.doesNotMatch(app,/\$\("\.shopping-nav"\)\.forEach/);
+ assert.doesNotMatch(app,/(?<!\$)\$\("\.shopping-nav"\)\.forEach/);
  assert.match(app,/\$\$\("\.shopping-nav"\)\.forEach/);
  assert.match(app,/\$\$\("\.routines-nav"\)\.forEach/);
+ assert.match(app,/\$\$\("\.rewards-nav"\)\.forEach/);
+ assert.doesNotMatch(app,/(?<!\$)\$\("\.rewards-nav"\)\.forEach/);
 });
