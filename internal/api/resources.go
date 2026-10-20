@@ -23,19 +23,24 @@ func (s *server) me(w http.ResponseWriter, r *http.Request) {
 		AvatarURL   *string   `json:"avatar_url"`
 		ConfirmationEnabled bool `json:"confirmation_enabled"`
 		WeekStart *string `json:"week_start"`
+        IsChild bool `json:"is_child"`
+        ChildModules []string `json:"child_modules,omitempty"`
+        ChildLayout string `json:"child_layout,omitempty"`
 	}
 	if err := s.db.QueryRow(r.Context(), `SELECT id,username,display_name,role,initials,avatar_url,confirmation_enabled,week_start FROM users WHERE id=$1`, a.ID).
 		Scan(&out.ID, &out.Username, &out.DisplayName, &out.Role, &out.Initials, &out.AvatarURL, &out.ConfirmationEnabled, &out.WeekStart); err != nil {
 		writeError(w, 500, "Could not load your account")
 		return
 	}
-	writeJSON(w, 200, out)
+	out.IsChild=a.IsChild
+    if a.IsChild {out.ChildModules=a.ChildModules;out.ChildLayout=a.ChildLayout}
+    writeJSON(w, 200, out)
 }
 
 func (s *server) listUsers(w http.ResponseWriter, r *http.Request) {
-	query := `SELECT id,username,display_name,role,initials,avatar_url,active FROM users WHERE active=true ORDER BY display_name`
+	query := `SELECT id,username,display_name,role,initials,avatar_url,active,is_child FROM users WHERE active=true ORDER BY display_name`
 	if currentActor(r).Role == "admin" {
-		query = `SELECT id,username,display_name,role,initials,avatar_url,active FROM users ORDER BY active DESC,display_name`
+		query = `SELECT id,username,display_name,role,initials,avatar_url,active,is_child FROM users ORDER BY active DESC,display_name`
 	}
 	rows, err := s.db.Query(r.Context(), query)
 	if err != nil {
@@ -48,11 +53,12 @@ func (s *server) listUsers(w http.ResponseWriter, r *http.Request) {
 		var id uuid.UUID
 		var username, name, role, ini string
 		var avatar *string
-		var active bool
-		if rows.Scan(&id, &username, &name, &role, &ini, &avatar, &active) == nil {
-			out = append(out, map[string]any{
-				"id": id, "username": username, "display_name": name, "role": role,
-				"initials": ini, "avatar_url": avatar, "active": active,
+		var active,child bool
+        if rows.Scan(&id, &username, &name, &role, &ini, &avatar, &active,&child) == nil {
+			if currentActor(r).IsChild {username=""}
+            out = append(out, map[string]any{
+                "id": id, "username": username, "display_name": name, "role": role,
+				"initials": ini, "avatar_url": avatar, "active": active, "is_child": child,
 			})
 		}
 	}
@@ -106,7 +112,9 @@ func (s *server) listCalendars(w http.ResponseWriter, r *http.Request) {
 		(SELECT count(*) FROM events e WHERE e.calendar_id=c.id AND e.recurrence_parent_id IS NULL)
 		FROM calendars c
 		LEFT JOIN calendar_permissions p ON p.calendar_id=c.id AND p.user_id=$1
-		WHERE $2 IN ('admin','planner') OR COALESCE(p.can_view,false)=true ORDER BY c.name`, a.ID, a.Role)
+		WHERE ($2 IN ('admin','planner') OR COALESCE(p.can_view,false)=true)
+        AND (NOT $3 OR c.calendar_type<>'bill_pay')
+        ORDER BY c.name`, a.ID, a.Role,a.IsChild)
 	if err != nil {
 		writeError(w, 500, "Could not load calendars")
 		return
@@ -275,12 +283,13 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 		LEFT JOIN event_recurrence er ON er.event_id=e.id
 		WHERE e.recurrence_parent_id IS NULL
 		  AND ($2 IN ('admin','planner') OR COALESCE(p.can_view,false)=true)
-		  AND (
+          AND (NOT $5 OR c.calendar_type<>'bill_pay')
+          AND (
 			(er.event_id IS NULL AND e.starts_at < $4 AND e.ends_at > $3)
 			OR
 			(er.event_id IS NOT NULL AND e.starts_at < $4 AND (er.until_at IS NULL OR er.until_at >= $3))
 		  )
-		ORDER BY e.starts_at`, a.ID, a.Role, from, to)
+		ORDER BY e.starts_at`, a.ID, a.Role, from, to,a.IsChild)
 	if err != nil {
 		writeError(w, 500, "Could not load events")
 		return
@@ -386,9 +395,10 @@ func (s *server) listEvents(w http.ResponseWriter, r *http.Request) {
 		LEFT JOIN calendar_permissions rp ON rp.calendar_id=rc.id AND rp.user_id=$1
 		WHERE replacement.recurrence_parent_id IS NOT NULL
 		  AND ($2 IN ('admin','planner') OR COALESCE(rp.can_view,false)=true)
-		  AND replacement.starts_at < $4
+          AND (NOT $5 OR (pc.calendar_type<>'bill_pay' AND rc.calendar_type<>'bill_pay'))
+          AND replacement.starts_at < $4
 		  AND replacement.ends_at > $3
-		ORDER BY replacement.starts_at`, a.ID, a.Role, from, to)
+		ORDER BY replacement.starts_at`, a.ID, a.Role, from, to,a.IsChild)
 	if err != nil {
 		writeError(w, 500, "Could not load changed recurring occurrences")
 		return

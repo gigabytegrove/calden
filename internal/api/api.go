@@ -53,6 +53,9 @@ type server struct {
 type actor struct {
 	ID   uuid.UUID
 	Role string
+    IsChild bool
+    ChildModules []string
+    ChildLayout string
 	ExpiresAt time.Time
 }
 
@@ -73,6 +76,9 @@ func New(cfg Config) http.Handler {
 	mux.HandleFunc("POST /api/setup", s.setup)
 	mux.HandleFunc("POST /api/login", s.login)
 	mux.Handle("GET /api/me", s.auth(http.HandlerFunc(s.me)))
+    mux.Handle("GET /api/family/children", s.auth(http.HandlerFunc(s.listChildren)))
+    mux.Handle("POST /api/family/children", s.auth(s.admin(http.HandlerFunc(s.createChild))))
+    mux.Handle("PUT /api/family/children/{id}", s.auth(s.admin(http.HandlerFunc(s.updateChild))))
 	mux.Handle("GET /api/me/dashboard", s.auth(http.HandlerFunc(s.getDashboardPreferences)))
 	mux.Handle("PUT /api/me/dashboard", s.auth(http.HandlerFunc(s.saveDashboardPreferences)))
 	mux.Handle("PUT /api/me/week-start", s.auth(http.HandlerFunc(s.savePersonalWeekStart)))
@@ -483,8 +489,8 @@ func (s *server) auth(next http.Handler) http.Handler {
 			return
 		}
 		var role string
-		var active bool
-		if err := s.db.QueryRow(r.Context(), "SELECT role,active FROM users WHERE id=$1", id).Scan(&role, &active); err != nil || !active {
+		var active,isChild bool
+		if err := s.db.QueryRow(r.Context(), "SELECT role,active,is_child FROM users WHERE id=$1", id).Scan(&role, &active,&isChild); err != nil || !active {
 			writeError(w, 401, "Please sign in")
 			return
 		}
@@ -493,7 +499,22 @@ func (s *server) auth(next http.Handler) http.Handler {
             writeError(w, 401, "Session expiration is missing")
             return
         }
-        ctx := withActor(r.Context(), actor{ID: id, Role: role, ExpiresAt: expiry.Time})
+        var childModules []string
+        var childLayout string
+        if isChild {
+            module:=childRequestModule(r.Method,r.URL.Path)
+            if module=="" {
+                writeError(w,403,"This action is not available for child accounts");return
+            }
+            err:=s.db.QueryRow(r.Context(),`SELECT allowed_modules,display_mode
+              FROM family_child_profiles WHERE user_id=$1`,id).Scan(&childModules,&childLayout)
+            if err!=nil {writeError(w,403,"Child account setup is incomplete");return}
+            if !childModuleAllowed(childModules,module) {
+                writeError(w,403,"A guardian has not enabled this feature");return
+            }
+        }
+        ctx := withActor(r.Context(), actor{ID: id, Role: role, IsChild:isChild,
+            ChildModules:childModules,ChildLayout:childLayout,ExpiresAt: expiry.Time})
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

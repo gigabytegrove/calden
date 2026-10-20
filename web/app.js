@@ -260,6 +260,9 @@ async function boot(){
     await reloadSharedData();
     renderApp();
     await applyCalDenRoute(false);
+    if(state.me?.is_child && !(state.me.child_modules||[]).includes("calendar") && location.pathname==="/"){
+      navigate("dashboard",true,true);
+    }
     caldenBooting=false;
     if(location.pathname==="/")history.replaceState({calden:true},"",caldenPageURL("calendar"));
     startCalDenVersionWatch();
@@ -278,13 +281,17 @@ async function boot(){
 
 async function reloadSharedData(){
   const [users,calendars,categories,notificationData]=await Promise.all([
-    api("/api/users"),api("/api/calendars"),api("/api/categories"),api("/api/notifications")
+    api("/api/users"),
+    (!state.me?.is_child||(state.me.child_modules||[]).includes("calendar"))?api("/api/calendars"):Promise.resolve([]),
+    (!state.me?.is_child||(state.me.child_modules||[]).includes("calendar"))?api("/api/categories"):Promise.resolve([]),
+    api("/api/notifications")
   ]);
   state.users=users;state.calendars=calendars;state.categories=categories;
   state.notifications=notificationData?.items||[];
   state.unreadNotifications=Number(notificationData?.unread)||0;
   state.notificationKnown=new Set(state.notifications.map(item=>item.id));
-  await loadEvents();
+  if(!state.me?.is_child||(state.me.child_modules||[]).includes("calendar"))await loadEvents();
+  else state.events=[];
 }
 async function loadEvents(){
   const from=startOfDay(addDays(state.anchorDate,-30)),to=addDays(from,365);
@@ -295,7 +302,7 @@ function renderApp(){
   hideBootStatus();$("#auth").classList.add("hidden");$("#app").classList.remove("hidden");
   $("#household-label").textContent=state.settings?.household_name||"";
   $("#sidebar-name").textContent=state.me.display_name;
-  $("#sidebar-role").textContent=roleLabel(state.me.role);
+  $("#sidebar-role").textContent=state.me.is_child?"Child account":roleLabel(state.me.role);
   $("#sidebar-avatar").innerHTML=state.me.avatar_url?`<img src="${escapeAttr(state.me.avatar_url)}" alt="">`:escapeHTML(state.me.initials||"?");
   $$(".admin-only").forEach(el=>el.classList.toggle("hidden",state.me.role!=="admin"));
   $$(".calendar-manager").forEach(el=>el.classList.toggle("hidden",!["admin","planner"].includes(state.me.role)));
@@ -323,6 +330,7 @@ function renderApp(){
   window.caldenRoutines?.render();
   window.caldenRewards?.render();
   $(".rewards-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.rewards_enabled!==true));
+  window.caldenChildren?.applyChildView();
   decorateNavigation();
   ensureNotificationPolling();
 }
@@ -431,17 +439,30 @@ function navigate(page,load=true,writeURL=true){
   if(page==="rewards"&&state.settings?.rewards_enabled!==true)page="calendar";
   if(page==="agenda"&&state.settings?.agenda_enabled===false)page="calendar";
   if(page==="bills"&&state.settings?.bills_enabled===false)page="calendar";
+  if(state.me?.is_child){
+    const allowed=new Set(state.me.child_modules||[]);
+    const permitted=page==="dashboard"||page==="notifications"||
+      (page==="calendar"&&allowed.has("calendar"))||
+      (page==="agenda"&&allowed.has("calendar"))||
+      (page==="chores"&&(allowed.has("chores")||allowed.has("tasks")))||
+      (page==="routines"&&allowed.has("routines"))||
+      (page==="rewards"&&allowed.has("rewards"))||
+      (page==="shopping"&&allowed.has("shopping"));
+    if(!permitted)page="dashboard";
+  }
   state.currentPage=page;
   if(writeURL)history.pushState({calden:true},"",caldenPageURL(page));
   $$(".app-page").forEach(el=>el.classList.toggle("hidden",el.id!==`page-${page}`));
   $$("[data-page]").forEach(el=>el.classList.toggle("active",el.dataset.page===page));
   const titles={dashboard:"My home",shopping:"Shopping",routines:"Routines",rewards:"Rewards & Allowances",calendar:"Calendar",bills:"Bill Pay",agenda:"Agenda",chores:"Tasks & Chores",people:"People",calendars:"Calendars",categories:"Categories",notifications:"Notifications",integrations:"Integrations",updates:"Updates",backups:"Backups & Restore",activity:"Activity",settings:"Settings"};
   $("#page-title").textContent=titles[page]||"Calden";
-  $("#new-event").classList.toggle("hidden",!["calendar","agenda"].includes(page));
+  $("#new-event").classList.toggle("hidden",state.me?.is_child||!["calendar","agenda"].includes(page));
   $("#sidebar").classList.remove("open");
+  window.caldenChildren?.applyChildView();
   window.caldenFamily?.enter(page);
   window.caldenRoutines?.enter(page);
   window.caldenRewards?.enter(page);
+  window.caldenChildren?.enter(page);
   if(!load)return;
   if(page==="notifications")loadNotifications(false).catch(()=>renderNotifications());
   if(page==="bills")loadBillMonth();
@@ -1342,6 +1363,7 @@ function renderNotifications(){
 function renderPeople(){
   if(state.me.role!=="admin")return;
   const devices=state.householdDevices||[];
+  window.caldenChildren?.render();
   $("#people-list").innerHTML=state.users.map(u=>{
     const owned=devices.filter(d=>d.user_id===u.id);
     const deviceRows=owned.length?owned.map(d=>
@@ -1349,7 +1371,7 @@ function renderPeople(){
     ).join(""):'<p class="muted">No registered devices</p>';
     return `<article class="management-card ${u.active===false?"inactive":""}">
       <div class="management-avatar">${avatarMarkup(u)}</div>
-      <div class="management-copy"><strong>${escapeHTML(u.display_name)}</strong><span>@${escapeHTML(u.username)}</span><small>${roleLabel(u.role)} · ${u.active===false?"Inactive":"Active"}</small></div>
+      <div class="management-copy"><strong>${escapeHTML(u.display_name)}</strong><span>@${escapeHTML(u.username)}</span><small>${u.is_child?"Child account":roleLabel(u.role)} · ${u.active===false?"Inactive":"Active"}</small></div>
       <button class="button secondary compact edit-person" type="button" data-user-id="${escapeAttr(u.id)}">Edit</button>
       <details class="person-devices"><summary>Registered devices (${owned.length})</summary>${deviceRows}</details>
     </article>`;
@@ -3097,6 +3119,11 @@ boot().catch(err=>{console.error("Calden failed before authentication",err);show
   const canShop=()=>state.me?.role!=="restricted";
   const selectedList=()=>state.shopping.lists.find(item=>item.id===state.shopping.listID);
   const availableWidget=kind=>{
+    if(state.me?.is_child){
+      const allowed=new Set(state.me.child_modules||[]);
+      const module=kind==="agenda"?"calendar":kind;
+      if(kind!=="notifications"&&!allowed.has(module))return false;
+    }
     if(kind==="chores")return !!state.settings?.chores_enabled;
     if(kind==="shopping")return state.settings?.shopping_enabled!==false;
     if(kind==="routines")return state.settings?.routines_enabled===true;
@@ -3154,7 +3181,8 @@ boot().catch(err=>{console.error("Calden failed before authentication",err);show
     const host=$("#dashboard-widgets");if(!host)return;
     const pref=preference();
     $("#dashboard-appearance").value=pref.appearance;
-    $("#dashboard-layout").value=pref.layout;
+    $("#dashboard-layout").value=state.me?.is_child?(state.me.child_layout||"simple"):pref.layout;
+    $("#dashboard-layout").disabled=!!state.me?.is_child;
     $("#dashboard-widget-choices").innerHTML=Object.entries(labels).filter(([kind])=>availableWidget(kind))
       .map(([kind,label])=>`<label><input type="checkbox" data-dashboard-choice="${kind}" ${pref.widgets.includes(kind)?"checked":""}>${esc(label)}</label>`).join("");
     const widgets=pref.widgets.filter(availableWidget);

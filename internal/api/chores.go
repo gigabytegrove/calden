@@ -213,6 +213,13 @@ func (s *server) listChores(w http.ResponseWriter,r *http.Request) {
             last=future
             if ch.Until!=nil&&ch.Until.Before(last){last=*ch.Until}
         }
+        if currentActor(r).IsChild {
+            assigned:=false
+            for _,person:=range members[ch.ID] {
+                if person.ID==currentActor(r).ID {assigned=true;break}
+            }
+            if !assigned && ch.Primary!=currentActor(r).ID {continue}
+        }
         for day:=first;!day.After(last);day=day.AddDate(0,0,1){
             if !choreDueOn(ch.Start,day,ch.Rule){continue}
             date:=day.Format("2006-01-02")

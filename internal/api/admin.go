@@ -35,6 +35,13 @@ func (s *server) updateUser(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "Choose a valid account type")
 		return
 	}
+    var isChild bool
+    if err:=s.db.QueryRow(r.Context(),"SELECT is_child FROM users WHERE id=$1",id).Scan(&isChild);err!=nil {
+      writeError(w,404,"Person not found");return
+    }
+    if isChild&&in.Role!="restricted" {
+      writeError(w,409,"Child accounts must remain restricted. Change guardian settings instead.");return
+    }
 	if id == currentActor(r).ID && in.Active != nil && !*in.Active {
 		writeError(w, 400, "You cannot deactivate your own account")
 		return

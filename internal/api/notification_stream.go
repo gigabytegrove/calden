@@ -66,16 +66,23 @@ func (s *server) streamNotifications(w http.ResponseWriter, r *http.Request) {
     for {
         if !session.ExpiresAt.IsZero() && !time.Now().Before(session.ExpiresAt) { return }
         ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-        var active bool
-        authErr := s.db.QueryRow(ctx, "SELECT active FROM users WHERE id=$1", person).Scan(&active)
+        var active,liveChild bool
+        var liveRole string
+        authErr := s.db.QueryRow(ctx, "SELECT active,role,is_child FROM users WHERE id=$1", person).
+            Scan(&active,&liveRole,&liveChild)
         cancel()
         if authErr != nil || !active { return }
 
         ctx, cancel = context.WithTimeout(r.Context(), 5*time.Second)
-        rows, err := s.db.Query(ctx, `SELECT id,event_id,calendar_id,kind,title,message,occurrence_start,created_at
-            FROM notifications
-            WHERE user_id=$1 AND dismissed_at IS NULL AND read_at IS NULL AND created_at >= $2
-            ORDER BY created_at ASC, id ASC LIMIT 200`, person, cursor)
+        rows, err := s.db.Query(ctx, `SELECT n.id,n.event_id,n.calendar_id,n.kind,n.title,n.message,n.occurrence_start,n.created_at
+            FROM notifications n
+            LEFT JOIN events e ON e.id=n.event_id
+            LEFT JOIN calendars c ON c.id=COALESCE(n.calendar_id,e.calendar_id)
+            LEFT JOIN calendar_permissions p ON p.calendar_id=c.id AND p.user_id=$1
+            WHERE n.user_id=$1 AND n.dismissed_at IS NULL AND n.read_at IS NULL AND n.created_at >= $2
+              AND (c.id IS NULL OR $4 IN ('admin','planner') OR COALESCE(p.can_view,false)=true)
+              AND (NOT $3 OR c.id IS NULL OR c.calendar_type<>'bill_pay')
+            ORDER BY n.created_at ASC,n.id ASC LIMIT 200`, person, cursor, liveChild,liveRole)
         if err != nil { cancel(); return }
         type notice struct {
             ID uuid.UUID `json:"id"`
