@@ -3,6 +3,9 @@ package api
 import (
     "encoding/json"
     "net/http"
+    "errors"
+
+    "github.com/jackc/pgx/v5"
 )
 
 type dashboardPreferences struct {
@@ -39,17 +42,10 @@ func (s *server) getDashboardPreferences(w http.ResponseWriter,r *http.Request) 
     err:=s.db.QueryRow(r.Context(),
         "SELECT appearance,layout,widgets FROM member_dashboard_preferences WHERE user_id=$1",
         currentActor(r).ID).Scan(&out.Appearance,&out.Layout,&raw)
-    if err!=nil {
-        // Distinguish an absent preference row from an unhealthy database.
-        var exists bool
-        checkErr:=s.db.QueryRow(r.Context(),
-            "SELECT EXISTS(SELECT 1 FROM member_dashboard_preferences WHERE user_id=$1)",
-            currentActor(r).ID).Scan(&exists)
-        if checkErr!=nil || exists {
-            writeError(w,500,"Could not load your dashboard");return
-        }
+    if errors.Is(err,pgx.ErrNoRows) {
         writeJSON(w,200,defaultDashboardPreferences());return
     }
+    if err!=nil {writeError(w,500,"Could not load your dashboard");return}
     if json.Unmarshal(raw,&out.Widgets)!=nil || !validateDashboardPreferences(out) {
         writeError(w,500,"Could not load your dashboard");return
     }
