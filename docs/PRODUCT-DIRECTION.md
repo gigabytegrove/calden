@@ -36,3 +36,7 @@ Meal Planning in Calden should optionally connect to **RecipeCove** (https://git
 
 ## Delivery discipline
 Document and test module enable/disable persistence, administrator permissions, web/Android parity, themes, reminder delivery, upgrades and data preservation. Feature work should preserve existing release behavior. Product-direction approval is **not** a claim of implementation or production acceptance.
+
+## Approved family platform expansion (2026-10-20)
+
+The additional 18 approved family capabilities, detailed acceptance criteria, permission/privacy requirements, interoperability rules and phased implementation gates are specified in [Family Platform Expansion](FAMILY-PLATFORM-EXPANSION.md). This document is additive: every original requirement above remains in force. Approval does not indicate that these capabilities have shipped.
