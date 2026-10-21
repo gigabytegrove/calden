@@ -218,6 +218,7 @@ func (s *server) listNotifications(w http.ResponseWriter, r *http.Request) {
           AND (NOT $4 OR c.id IS NULL OR c.calendar_type<>'bill_pay')
           AND ($5 OR c.id IS NULL)
           AND (NOT $4 OR n.kind<>'bill_review')
+          AND (n.kind<>'care_due' OR calden_can_view_care_notification(n.care_item_id,n.user_id))
 		ORDER BY n.created_at DESC
 		LIMIT $2`, a.ID, limit,a.Role,a.IsChild,!a.IsChild||childModuleAllowed(a.ChildModules,"calendar")
 	if err != nil {
@@ -264,7 +265,8 @@ func (s *server) listNotifications(w http.ResponseWriter, r *http.Request) {
        AND (c.id IS NULL OR $2 IN ('admin','planner') OR COALESCE(p.can_view,false)=true)
        AND (NOT $3 OR c.id IS NULL OR c.calendar_type<>'bill_pay')
        AND ($4 OR c.id IS NULL)
-       AND (NOT $3 OR n.kind<>'bill_review')`, a.ID,a.Role,a.IsChild,!a.IsChild||childModuleAllowed(a.ChildModules,"calendar")).Scan(&unread); err != nil {
+       AND (NOT $3 OR n.kind<>'bill_review')
+       AND (n.kind<>'care_due' OR calden_can_view_care_notification(n.care_item_id,n.user_id))`, a.ID,a.Role,a.IsChild,!a.IsChild||childModuleAllowed(a.ChildModules,"calendar")).Scan(&unread); err != nil {
 		writeError(w, 500, "Could not count unread notifications")
 		return
 	}

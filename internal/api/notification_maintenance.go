@@ -35,6 +35,7 @@ func runNotificationMaintenance(ctx context.Context,db *pgxpool.Pool){
    if rows.Scan(&person.id,&person.role)==nil{people=append(people,person)}}
  err=rows.Err();rows.Close()
  if err!=nil{log.Printf("Calden notification maintenance: scan failed: %v",err);return}
+ generateCareNotifications(scoped,db)
  engine:=&server{db:db}
  for _,person:=range people {
    if scoped.Err()!=nil{return}
