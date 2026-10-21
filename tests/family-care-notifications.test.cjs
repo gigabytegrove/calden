@@ -27,4 +27,8 @@ test("care opt-in is connected to personal notification preferences",()=>{
  assert.match(html,/name="kind" value="care_due"/);
  assert.match(migration,/notification_care_occurrence_once/);
  assert.match(migration,/enabled_kinds/);
+ for(const kind of ["event_confirmation","event_change_requested","event_confirmation_request","event_schedule_changed","event_cancelled"]){
+   assert.ok(migration.includes("'"+kind+"'"),"lost pre-existing kind "+kind);
+   assert.ok(read("internal/store/migrations/038_notification_kind_compatibility.sql").includes("'"+kind+"'"),"forward fix missing "+kind);
+ }
 });
