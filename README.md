@@ -2,6 +2,8 @@
   <img src="web/calden-logo-official.webp" alt="Calden" width="520">
 </p>
 
+[RecipeCove meal planning](docs/releases/recipecove-meal-integration-candidate.md) is implemented in unreleased development source as an optional family integration. Calden reads and updates RecipeCove's authoritative meal schedule through a server-side key.
+
 <h1 align="center">Calden</h1>
 
 <p align="center"><strong>A family calendar and scheduling system you control.</strong></p>

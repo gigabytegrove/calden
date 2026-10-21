@@ -364,7 +364,7 @@ function startCalDenVersionWatch(){
   document.addEventListener("visibilitychange",()=>{if(!document.hidden)checkCalDenClientVersion()});
 }
 
-const caldenPages=new Set(["dashboard","shopping","routines","rewards","school","maintenance","pets","calendar","bills","agenda","chores","people","calendars","categories","notifications","integrations","updates","backups","activity","settings"]);
+const caldenPages=new Set(["dashboard","shopping","meals","routines","rewards","school","maintenance","pets","calendar","bills","agenda","chores","people","calendars","categories","notifications","integrations","updates","backups","activity","settings"]);
 function caldenPageURL(page){
   if(page==="calendar")return "/calendar?date="+dateInputValue(state.anchorDate)+"&days="+state.viewDays;
   if(page==="bills")return "/bills?month="+dateInputValue(state.billMonth).slice(0,7);
@@ -437,6 +437,7 @@ function navigate(page,load=true,writeURL=true){
   if(["calendars","categories"].includes(page)&&!["admin","planner"].includes(state.me?.role))page="calendar";
   if(page==="chores"&&!state.settings?.chores_enabled&&!state.settings?.tasks_enabled)page="calendar";
   if(page==="shopping"&&state.settings?.shopping_enabled===false)page="calendar";
+  if(page==="meals"&&(state.me?.is_child||state.me?.role==="restricted"))page="dashboard";
   if(page==="routines"&&state.settings?.routines_enabled!==true)page="calendar";
   if(page==="rewards"&&state.settings?.rewards_enabled!==true)page="calendar";
   if(["school","maintenance","pets"].includes(page)&&state.settings?.[page+"_enabled"]!==true)page="calendar";
@@ -467,6 +468,7 @@ function navigate(page,load=true,writeURL=true){
   window.caldenRewards?.enter(page);
   window.caldenChildren?.enter(page);
   window.caldenCare?.enter(page);
+  window.caldenMeals?.enter(page);
   if(!load)return;
   if(page==="notifications")loadNotifications(false).catch(()=>renderNotifications());
   if(page==="bills")loadBillMonth();

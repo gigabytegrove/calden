@@ -87,6 +87,7 @@
       <a class="nav-item" data-page="dashboard" href="/dashboard">My home</a>
       <a class="nav-item active" data-page="calendar" href="/calendar">Calendar</a>
       <a class="nav-item shopping-nav" data-page="shopping" href="/shopping">Shopping</a>
+      <a class="nav-item" data-page="meals" href="/meals">Meal planning</a>
       <a class="nav-item routines-nav hidden" data-page="routines" href="/routines">Routines</a>
       <a class="nav-item rewards-nav hidden" data-page="rewards" href="/rewards">Rewards &amp; Allowances</a>
       <a class="nav-item care-nav care-school-nav hidden" data-page="school" href="/school">School</a>
@@ -133,6 +134,37 @@
         <p id="dashboard-status" class="status-line" role="status"></p>
       </div>
       <div id="dashboard-widgets" class="family-widgets" aria-live="polite"></div>
+    </section>
+
+    <section id="page-meals" class="app-page hidden family-page">
+      <div class="page-header"><div><p class="eyebrow">Your family kitchen</p><h2>Meal planning</h2>
+        <p class="muted">Plan meals together with RecipeCove. Changes saved here appear in RecipeCove, and changes made there appear here on refresh.</p>
+      </div><button type="button" class="button secondary" id="meals-refresh">Refresh</button></div>
+      <p id="meals-status" class="status-line" role="status" aria-live="polite"></p>
+      <div class="family-meals-layout">
+        <section class="panel stack" aria-label="Meal schedule">
+          <div class="family-sidebar-heading"><h3>Upcoming meals</h3>
+            <label>From <input id="meals-start" type="date"></label></div>
+          <div id="meals-schedule" class="meals-schedule"></div>
+        </section>
+        <form id="meals-form" class="panel stack">
+          <h3 id="meals-form-title">Plan a meal</h3>
+          <input name="id" type="hidden">
+          <label>Day <input name="day" type="date" required></label>
+          <label>Meal <select name="meal">
+            <option value="breakfast">Breakfast</option><option value="lunch">Lunch</option>
+            <option value="dinner" selected>Dinner</option><option value="snack">Snack</option>
+            <option value="anytime">Anytime</option></select></label>
+          <label>Recipe <select name="recipe_id" required><option value="">Select a RecipeCove recipe</option></select></label>
+          <label>Servings <input name="servings" type="number" min="0.25" max="100" step="0.25" value="4" required></label>
+          <label>Notes <textarea name="note" rows="2" maxlength="500" placeholder="Optional notes for your family"></textarea></label>
+          <div class="form-actions">
+            <button type="submit" class="button" id="meals-save">Save meal</button>
+            <button type="button" class="button secondary" id="meals-clear">Clear</button>
+          </div>
+          <p class="muted">Calden keeps no duplicate meal database. RecipeCove controls recipe availability and meal-plan history.</p>
+        </form>
+      </div>
     </section>
 
     <section id="page-shopping" class="app-page hidden family-page">
@@ -1164,6 +1196,7 @@
 <script src="/routines.js?v=1.4.8-family-routines" defer></script>
 <script src="/rewards.js?v=1.4.8-family-rewards" defer></script>
 <script src="/children.js?v=1.4.8-family-children" defer></script>
+<script src="/meals.js?v=1.4.8-recipecove-meals" defer></script>
 <script src="/family-care.js?v=1.4.8-family-care" defer></script>
 <script src="/family-appearance.js?v=1.4.8-family-appearance" defer></script>
 <script src="/notification-preferences.js?v=1.4.8-user-alerts" defer></script>
