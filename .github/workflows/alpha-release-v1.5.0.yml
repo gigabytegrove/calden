@@ -1,11 +1,11 @@
-name: Publish Calden 1.5.0 Alpha Two UI Fix One-Time
+name: Publish Calden 1.5.0 Alpha Three UI Fix One-Time
 
 # Temporary single-version release build; does not change stable publishing.
 # It only runs on this alpha branch when THIS workflow is introduced/edited.
 on:
   push:
     branches:
-      - alpha/v1.5.0-alpha.2
+      - alpha/v1.5.0-alpha.3
     paths:
       - .github/workflows/alpha-release-v1.5.0.yml
       - web/**
@@ -17,7 +17,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: calden-v1.5.0-alpha.2-release
+  group: calden-v1.5.0-alpha.3-release
   cancel-in-progress: false
 
 jobs:
@@ -34,8 +34,8 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          test "$GITHUB_REF_NAME" = "alpha/v1.5.0-alpha.2"
-          test "$(tr -d '[:space:]' < VERSION)" = "1.5.0-alpha.2"
+          test "$GITHUB_REF_NAME" = "alpha/v1.5.0-alpha.3"
+          test "$(tr -d '[:space:]' < VERSION)" = "1.5.0-alpha.3"
 
       - name: Set up Go 1.24 from go.mod
         uses: actions/setup-go@v5
@@ -57,7 +57,7 @@ jobs:
           node --check web/app.js
           node --check web/family-care.js
           test -s web/styles.css
-          grep -Fq 'name="calden-version" content="1.5.0-alpha.2"' web/index.html
+          grep -Fq 'name="calden-version" content="1.5.0-alpha.3"' web/index.html
 
       - name: Run Go test suite
         shell: bash
@@ -74,7 +74,7 @@ jobs:
             WORK="stage/$ARCH"
             mkdir -p "$WORK"
             CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" go build -trimpath \
-              -ldflags="-s -w -X main.version=1.5.0-alpha.2" \
+              -ldflags="-s -w -X main.version=1.5.0-alpha.3" \
               -o "$WORK/calden" ./cmd/calden
             chmod 0755 "$WORK/calden"
             cp -a web "$WORK/web"
@@ -93,7 +93,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          TAG="v1.5.0-alpha.2"
+          TAG="v1.5.0-alpha.3"
           if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Release $TAG already exists. Refusing to overwrite."
             exit 1
@@ -107,8 +107,8 @@ jobs:
             dist/calden-linux-arm64.tar.gz \
             dist/SHA256SUMS \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "Calden 1.5.0-alpha.2" \
-            --notes-file docs/releases/v1.5.0-alpha.2.md \
+            --title "Calden 1.5.0-alpha.3" \
+            --notes-file docs/releases/v1.5.0-alpha.3.md \
             --prerelease --latest=false
 
       - name: Re-download and verify public updater assets
@@ -118,10 +118,10 @@ jobs:
         run: |
           set -Eeuo pipefail
           mkdir -p published
-          gh release download v1.5.0-alpha.2 -R "$GITHUB_REPOSITORY" -D published \
+          gh release download v1.5.0-alpha.3 -R "$GITHUB_REPOSITORY" -D published \
             --pattern 'calden-linux-amd64.tar.gz' \
             --pattern 'calden-linux-arm64.tar.gz' \
             --pattern 'SHA256SUMS'
           (cd published && sha256sum -c SHA256SUMS)
-          test "$(gh release view v1.5.0-alpha.2 -R "$GITHUB_REPOSITORY" --json isPrerelease --jq '.isPrerelease')" = true
-          test "$(gh release view v1.5.0-alpha.2 -R "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft')" = false
+          test "$(gh release view v1.5.0-alpha.3 -R "$GITHUB_REPOSITORY" --json isPrerelease --jq '.isPrerelease')" = true
+          test "$(gh release view v1.5.0-alpha.3 -R "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft')" = false
