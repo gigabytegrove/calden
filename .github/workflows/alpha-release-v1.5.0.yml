@@ -8,6 +8,10 @@ on:
       - alpha/v1.5.0-alpha.1
     paths:
       - .github/workflows/alpha-release-v1.5.0.yml
+      - tests/**
+      - internal/**
+      - web/**
+      - VERSION
 
 permissions:
   contents: write
