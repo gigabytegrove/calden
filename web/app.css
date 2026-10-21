@@ -1100,3 +1100,19 @@ body[data-family-theme] select:focus-visible{outline:3px solid var(--family-acce
 .primary-nav .nav-item .family-nav-label{min-width:0;overflow-wrap:anywhere}
 @media(max-width:850px){.family-appearance-modules{grid-template-columns:1fr}}
 @media(max-width:520px){.family-appearance-row{grid-template-columns:1fr}}
+
+/* Native Calden meal planning backed by RecipeCove's authoritative plan. */
+.family-meals-layout{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(280px,.85fr);gap:18px;align-items:start}
+.family-meals-layout>section,.family-meals-layout>form{min-width:0}
+.meals-schedule{display:grid;gap:10px}
+.meals-entry{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid #e2e8f0;background:#fafbfd;border-radius:12px;padding:14px;min-width:0}
+.meals-entry>div:first-child{min-width:0}
+.meals-entry strong,.meals-entry small,.meals-entry span{display:block;overflow-wrap:anywhere}
+.meals-entry small{font-size:.81rem;color:#64748b;margin:5px 0}
+.meals-actions{display:flex;gap:7px;flex-wrap:wrap}
+.family-meals-layout label{display:grid;gap:6px}
+.family-meals-layout input,.family-meals-layout select{max-width:100%}
+body.calden-family-dark .meals-entry{background:#263347;color:#eff5ff;border-color:#3a4a61}
+body.calden-family-dark .meals-entry small{color:#b9c5d5}
+@media(max-width:1000px){.family-meals-layout{grid-template-columns:1fr}}
+@media(max-width:600px){.meals-entry{flex-direction:column;align-items:flex-start}.meals-actions{width:100%}}
