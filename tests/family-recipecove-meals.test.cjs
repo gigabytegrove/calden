@@ -31,3 +31,17 @@ test("RecipeCove secrets are confined to the Go service",()=>{
  assert.match(ui,/form\.dataset\.requestId/);
  assert.match(ui,/getRandomValues/);
 });
+
+test("meal planner protects stale responses and multiple simultaneous writes",()=>{
+ const ui=file("web/meals.js"),html=file("web/index.html");
+ for(const id of ["meals-previous","meals-next","meals-range-title"])
+  assert.ok(html.includes('id="'+id+'"'),"missing navigation "+id);
+ assert.match(ui,/if\(run!==revision\)return/);
+ assert.match(ui,/if\(busy\)return/);
+ assert.match(ui,/\+\+revision;setBusy\(true\)/);
+ assert.match(ui,/schedule\.replaceChildren\(\)/);
+ assert.match(ui,/document\.createElement\("article"\)/);
+ assert.match(ui,/new Option\(/);
+ assert.doesNotMatch(ui,/schedule\.innerHTML=/);
+ assert.doesNotThrow(()=>new vm.Script(ui,{filename:"meals.js"}));
+});
