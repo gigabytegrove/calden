@@ -5,8 +5,13 @@ FROM --platform=$BUILDPLATFORM node:22-alpine AS webbuild
 WORKDIR /src
 COPY package.json ./
 RUN npm install --no-audit --no-fund
-COPY web ./web
+COPY . .
+# Source-contract web tests also read internal Go code, VERSION and test fixtures.
 RUN npm run build:css
+
+# For isolated alpha builds, make browser tests a build gate.
+ARG CALDEN_RUN_TESTS=0
+RUN if [ "$CALDEN_RUN_TESTS" = "1" ]; then npm run test:web; fi
 
 FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS build
 
@@ -20,6 +25,10 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
 
 COPY . .
+
+# Alpha testing fails closed if Go unit/contract tests do not pass.
+ARG CALDEN_RUN_TESTS=0
+RUN if [ "$CALDEN_RUN_TESTS" = "1" ]; then go test ./...; fi
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
