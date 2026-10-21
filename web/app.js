@@ -329,6 +329,7 @@ function renderApp(){
   window.caldenFamily?.renderShopping();
   window.caldenRoutines?.render();
   window.caldenRewards?.render();
+  window.caldenCare?.renderNav();
   $$(".rewards-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.rewards_enabled!==true));
   window.caldenChildren?.applyChildView();
   decorateNavigation();
@@ -362,7 +363,7 @@ function startCalDenVersionWatch(){
   document.addEventListener("visibilitychange",()=>{if(!document.hidden)checkCalDenClientVersion()});
 }
 
-const caldenPages=new Set(["dashboard","shopping","routines","rewards","calendar","bills","agenda","chores","people","calendars","categories","notifications","integrations","updates","backups","activity","settings"]);
+const caldenPages=new Set(["dashboard","shopping","routines","rewards","school","maintenance","pets","calendar","bills","agenda","chores","people","calendars","categories","notifications","integrations","updates","backups","activity","settings"]);
 function caldenPageURL(page){
   if(page==="calendar")return "/calendar?date="+dateInputValue(state.anchorDate)+"&days="+state.viewDays;
   if(page==="bills")return "/bills?month="+dateInputValue(state.billMonth).slice(0,7);
@@ -437,6 +438,7 @@ function navigate(page,load=true,writeURL=true){
   if(page==="shopping"&&state.settings?.shopping_enabled===false)page="calendar";
   if(page==="routines"&&state.settings?.routines_enabled!==true)page="calendar";
   if(page==="rewards"&&state.settings?.rewards_enabled!==true)page="calendar";
+  if(["school","maintenance","pets"].includes(page)&&state.settings?.[page+"_enabled"]!==true)page="calendar";
   if(page==="agenda"&&state.settings?.agenda_enabled===false)page="calendar";
   if(page==="bills"&&state.settings?.bills_enabled===false)page="calendar";
   if(state.me?.is_child){
@@ -454,7 +456,7 @@ function navigate(page,load=true,writeURL=true){
   if(writeURL)history.pushState({calden:true},"",caldenPageURL(page));
   $$(".app-page").forEach(el=>el.classList.toggle("hidden",el.id!==`page-${page}`));
   $$("[data-page]").forEach(el=>el.classList.toggle("active",el.dataset.page===page));
-  const titles={dashboard:"My home",shopping:"Shopping",routines:"Routines",rewards:"Rewards & Allowances",calendar:"Calendar",bills:"Bill Pay",agenda:"Agenda",chores:"Tasks & Chores",people:"People",calendars:"Calendars",categories:"Categories",notifications:"Notifications",integrations:"Integrations",updates:"Updates",backups:"Backups & Restore",activity:"Activity",settings:"Settings"};
+  const titles={dashboard:"My home",shopping:"Shopping",routines:"Routines",rewards:"Rewards & Allowances",school:"School",maintenance:"Home upkeep",pets:"Pets",calendar:"Calendar",bills:"Bill Pay",agenda:"Agenda",chores:"Tasks & Chores",people:"People",calendars:"Calendars",categories:"Categories",notifications:"Notifications",integrations:"Integrations",updates:"Updates",backups:"Backups & Restore",activity:"Activity",settings:"Settings"};
   $("#page-title").textContent=titles[page]||"Calden";
   $("#new-event").classList.toggle("hidden",state.me?.is_child||!["calendar","agenda"].includes(page));
   $("#sidebar").classList.remove("open");
@@ -463,6 +465,7 @@ function navigate(page,load=true,writeURL=true){
   window.caldenRoutines?.enter(page);
   window.caldenRewards?.enter(page);
   window.caldenChildren?.enter(page);
+  window.caldenCare?.enter(page);
   if(!load)return;
   if(page==="notifications")loadNotifications(false).catch(()=>renderNotifications());
   if(page==="bills")loadBillMonth();
@@ -1522,6 +1525,9 @@ function renderSettings(){
   $("#settings-shopping-enabled").checked=state.settings?.shopping_enabled!==false;
   $("#settings-routines-enabled").checked=state.settings?.routines_enabled===true;
   $("#settings-rewards-enabled").checked=state.settings?.rewards_enabled===true;
+  for(const kind of ["school","maintenance","pets"]){
+    $("#settings-"+kind+"-enabled").checked=state.settings?.[kind+"_enabled"]===true;
+  }
   $("#settings-bills-enabled").checked=state.settings?.bills_enabled!==false;
   $("#settings-agenda-enabled").checked=state.settings?.agenda_enabled!==false;
   const personalWeekStart=$("#settings-personal-week-start");
@@ -3073,7 +3079,7 @@ $("#chore-list").addEventListener("change",async event=>{
 });
 // Each checkbox saves only its own global setting. The API returns all four,
 // keeping the other three unchanged. This works for every household member.
-for(const [name,label] of [["bills","Bills"],["agenda","Agenda"],["tasks","Tasks"],["chores","Chores"],["shopping","Shopping"],["routines","Routines"],["rewards","Rewards & Allowances"]]){
+for(const [name,label] of [["bills","Bills"],["agenda","Agenda"],["tasks","Tasks"],["chores","Chores"],["shopping","Shopping"],["routines","Routines"],["rewards","Rewards & Allowances"],["school","School"],["maintenance","Home upkeep"],["pets","Pets"]]){
   $("#settings-"+name+"-enabled").addEventListener("change",async event=>{
     if(state.me?.role!=="admin")return;
     const control=event.currentTarget,status=$("#settings-feature-status"),value=control.checked;
@@ -3086,7 +3092,9 @@ for(const [name,label] of [["bills","Bills"],["agenda","Agenda"],["tasks","Tasks
       $$(".routines-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.routines_enabled!==true));
       if(name==="shopping"&&state.settings.shopping_enabled===false&&state.currentPage==="shopping")navigate("calendar");
       if(name==="routines"&&state.settings.routines_enabled!==true&&state.currentPage==="routines")navigate("calendar");
-      $$(".rewards-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.rewards_enabled!==true));
+      $(".rewards-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.rewards_enabled!==true));
+      window.caldenCare?.renderNav();
+      if(["school","maintenance","pets"].includes(name)&&!state.settings[name+"_enabled"]&&state.currentPage===name)navigate("calendar");
       if(name==="rewards"&&state.settings.rewards_enabled!==true&&state.currentPage==="rewards")navigate("calendar");
       window.caldenFamily?.renderDashboard();
       if(!state.settings.chores_enabled&&!state.settings.tasks_enabled&&state.currentPage==="chores"){

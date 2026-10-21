@@ -1060,3 +1060,23 @@ body.calden-family-dark .family-child-entry{background:#263347;color:#f1f5f9;bor
 body.calden-family-dark .family-child-choice{border-color:#485873}
 @media(max-width:920px){.family-child-grid{grid-template-columns:1fr}}
 @media(max-width:600px){.family-child-choices{grid-template-columns:1fr}.family-child-entry{align-items:flex-start;flex-wrap:wrap}}
+
+/* Approved school, maintenance and pet-care pages. Reuse existing Calden cards. */
+.family-care-page .family-shopping-main {align-content:start}
+.family-care-page .family-school-terms{display:grid;gap:10px;padding:10px 0;border-top:1px solid #e1e6ef}
+.family-care-page .family-item-form{grid-template-columns:repeat(3,minmax(0,1fr))}
+.family-care-page .family-item-form button{align-self:end}
+.family-care-page h4{font-size:.92rem;margin:8px 0}
+.family-care-page [data-care-subject-form],.family-care-page [data-care-item-form]{border:1px solid #e1e6ef;border-radius:10px;padding:15px}
+.family-care-page [data-care-detail]{min-height:200px}
+.family-care-item{align-items:flex-start}
+.family-care-item .rewards-controls{align-self:center}
+.family-care-item .muted{overflow-wrap:anywhere}
+.family-care-page [data-care-subjects] .family-list-choice:focus-visible,
+.family-care-page button:focus-visible{outline:3px solid #2563eb;outline-offset:2px}
+body.calden-family-dark .family-care-page [data-care-subject-form],
+body.calden-family-dark .family-care-page [data-care-item-form]{border-color:#43536b}
+body.calden-family-dark .family-care-page .family-school-terms{border-color:#43536b}
+@media(max-width:700px){.family-care-page .family-item-form{grid-template-columns:1fr}
+ .family-care-page .family-care-item{flex-direction:column}
+ .family-care-page .family-care-item .rewards-controls{align-self:flex-start}}
