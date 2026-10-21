@@ -76,3 +76,51 @@ func TestRecipeCoveProxyNeverFollowsRedirects(t *testing.T){
  if recorder.Code!=502{t.Fatalf("redirect should fail, got %d",recorder.Code)}
  if followed!=0{t.Fatal("redirect leaked request to a different host")}
 }
+
+func TestRecipeCoveRejectsOversizedJSONResponse(t *testing.T){
+ provider:=httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
+  // A valid JSON value in the first 2 MiB must not conceal surplus bytes.
+  _,_=w.Write([]byte(`{"ok":true}`+strings.Repeat(" ",2<<20)))
+ }))
+ defer provider.Close()
+ t.Setenv("RECIPECOVE_URL",provider.URL)
+ t.Setenv("RECIPECOVE_SYNC_KEY","fnk_local-test-secret")
+ t.Setenv("RECIPECOVE_ALLOW_HTTP","true")
+ recorder:=httptest.NewRecorder()
+ recipeCoveProxy(recorder,httptest.NewRequest("GET","/meals",nil),"GET","/recipes",nil)
+ if recorder.Code!=502{t.Fatalf("oversized response accepted: %d",recorder.Code)}
+}
+
+func TestRecipeCoveRejectsInvalidJSONAndNoContent(t *testing.T){
+ for _,tc:=range []struct{name string;status int;body string}{
+  {"malformed JSON",200,`{"items":`},
+  {"no content",204,""},
+  {"provider error",500,`{"secret":"must not leak"}`},
+ }{
+  t.Run(tc.name,func(t *testing.T){
+   provider:=httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
+    w.WriteHeader(tc.status);_,_=w.Write([]byte(tc.body))
+   }))
+   defer provider.Close()
+   t.Setenv("RECIPECOVE_URL",provider.URL)
+   t.Setenv("RECIPECOVE_SYNC_KEY","fnk_local-test-secret")
+   t.Setenv("RECIPECOVE_ALLOW_HTTP","true")
+   recorder:=httptest.NewRecorder()
+   recipeCoveProxy(recorder,httptest.NewRequest("GET","/meals",nil),"GET","/recipes",nil)
+   if recorder.Code!=502{t.Fatalf("unexpected status: %d, body=%s",recorder.Code,recorder.Body.String())}
+   if strings.Contains(recorder.Body.String(),"must not leak"){t.Fatal("provider error leaked to browser")}
+  })
+ }
+}
+
+func TestRecipeCoveRejectsUnsafeConfiguration(t *testing.T){
+ t.Setenv("RECIPECOVE_SYNC_KEY","fnk_local-test-secret")
+ t.Setenv("RECIPECOVE_ALLOW_HTTP","false")
+ for _,origin:=range []string{
+  "http://example.com","https://user:pass@example.com","https://example.com/path",
+  "https://example.com?token=secret","ftp://example.com",
+ }{
+  t.Setenv("RECIPECOVE_URL",origin)
+  if _,_,err:=recipeCoveConfig();err==nil{t.Errorf("accepted invalid origin %q",origin)}
+ }
+}

@@ -49,7 +49,7 @@ func recipeCoveProxy(w http.ResponseWriter,r *http.Request,method,route string,p
  response,err:=client.Do(req)
  if err!=nil {writeError(w,502,"RecipeCove is not reachable");return}
  defer response.Body.Close()
- if response.StatusCode>=300 {
+ if response.StatusCode<200||response.StatusCode>=300 {
   switch response.StatusCode{
   case 401,403:writeError(w,502,"RecipeCove rejected the integration key")
   case 404:writeError(w,404,"RecipeCove meal or recipe was not found")
@@ -59,8 +59,12 @@ func recipeCoveProxy(w http.ResponseWriter,r *http.Request,method,route string,p
   }
   return
  }
- data,err:=io.ReadAll(io.LimitReader(response.Body,2<<20))
- if err!=nil||!json.Valid(data){writeError(w,502,"RecipeCove returned an invalid response");return}
+ // Read one byte beyond the permitted size: a truncated JSON prefix is not a valid response.
+ constMax:=int64(2<<20)
+ data,err:=io.ReadAll(io.LimitReader(response.Body,constMax+1))
+ if err!=nil||int64(len(data))>constMax||!json.Valid(data){
+  writeError(w,502,"RecipeCove returned an invalid or oversized response");return
+ }
  w.Header().Set("Content-Type","application/json; charset=utf-8")
  w.Header().Set("Cache-Control","no-store")
  w.WriteHeader(response.StatusCode)
