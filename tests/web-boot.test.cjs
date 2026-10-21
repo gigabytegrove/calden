@@ -28,6 +28,7 @@ function fixture(url){
     const results={
       "/api/setup/status":{needs_setup:false},
       "/api/me":person,
+      "/api/me/dashboard":{appearance:"system",layout:"standard",widgets:["calendar","notifications"]},
       "/api/settings/general":settings,
       "/api/users":[person],
       "/api/calendars":[{id:"00000000-0000-4000-8000-000000000002",name:"Bills",calendar_type:"bill_pay",can_edit:true,color:"#2266aa",event_count:0}],

@@ -12,7 +12,7 @@ test("family routine client parses and loads only when enabled",()=>{
  assert.match(html,/src="\/routines\.js\?/);
  for(const id of ["page-routines","routine-form","routine-edit-steps","routine-list","routine-day","settings-routines-enabled"])
    assert.ok(html.includes('id="'+id+'"'),"Missing "+id);
- assert.match(app,/caldenPages=new Set\(\["dashboard","shopping","routines"/);
+ assert.match(app,/caldenPages=new Set\(\[[^\]]*"routines"/);
  assert.match(app,/state\.settings\?\.routines_enabled!==true/);
  assert.match(js,/window\.caldenRoutines=\{render,load,enter/);
 });
