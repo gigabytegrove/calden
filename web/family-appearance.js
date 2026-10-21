@@ -33,24 +33,32 @@
   const appearance=state.familyAppearance;
   if(!appearance)return;
   document.body.dataset.familyTheme=appearance.theme||"classic";
+  // Respect stored module icon/label choices without creating a second label
+  // beside the existing Tasks & Chores (or any other) label.
   for(const module of appearance.modules||[]){
    if(!defaults[module.module_id])continue;
    document.querySelectorAll('.primary-nav .nav-item[data-page="'+module.module_id+'"]').forEach(node=>{
     let glyph=node.querySelector(".nav-icon");
     if(!glyph){glyph=document.createElement("span");glyph.className="nav-icon";node.prepend(glyph)}
     glyph.innerHTML=icon(module.icon);
-    let title=node.querySelector(".family-nav-label");
-    if(!title){
-     title=document.createElement("span");title.className="family-nav-label";
-     for(const text of [...node.childNodes]){
-      if(text.nodeType===3)text.remove();
-     }
-     node.appendChild(title);
-    }
-    title.textContent=module.label;
+    const labels=[...node.querySelectorAll(".nav-label,.family-nav-label")];
+    let title=labels[0];
+    if(!title){title=document.createElement("span");glyph.after(title)}
+    title.className="nav-label";
+    // The stock "Chores" label becomes "Tasks & Chores" when both tools are
+    // enabled, but a household's own customized name always wins.
+    const defaultChoreName=state.settings?.tasks_enabled&&state.settings?.chores_enabled?
+       "Tasks & Chores":state.settings?.tasks_enabled?"Tasks":"Chores";
+    title.textContent=module.module_id==="chores"&&module.label==="Chores"?
+       defaultChoreName:module.label;
+    for(const extra of labels.slice(1))extra.remove();
+    // Never keep a second label as a loose text node.
+    for(const item of [...node.childNodes])if(item.nodeType===3)item.remove();
+    glyph.after(title);
+    const badge=node.querySelector(".nav-badge");
+    if(badge)node.append(badge);
    });
   }
-  // Widget titles can reuse the same stable module IDs; user-specific order remains private.
   window.caldenFamily?.renderDashboard();
  }
  function renderForm(){

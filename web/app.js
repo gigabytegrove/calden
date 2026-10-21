@@ -1310,30 +1310,53 @@ function ensureNotificationPolling(){
 }
 
 function decorateNavigation(){
+  // All routes use exactly one icon, one label, and optional trailing badge.
+  // Module customization updates these same elements instead of appending copies.
   const icons={
-    dashboard:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10 12 3l9 7v11h-7v-7h-4v7H3V10Z"/></svg>',
-    rewards:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M7 7c0-2 10-2 10 1 0 4-10 2-10 6 0 3 10 4 10 0M4 12h16"/></svg>',
-    routines:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7l2 2 4-4m3 2h7M4 15l2 2 4-4m3 2h7"/></svg>',
-    shopping:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2 11h12l2-8H6m4 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm8 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/></svg>',
-    calendar:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3v3m12-3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/></svg>',
-    bills:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Zm3 5h6m-6 4h6m-6 4h4"/></svg>',
-    agenda:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>',
-    chores:'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 2 2 3-4m2 3h4M7 16l2 2 3-4m2 3h4"/></svg>',
-    people:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 20v-1.5A3.5 3.5 0 0 0 12.5 15h-5A3.5 3.5 0 0 0 4 18.5V20m5.5-8A3.5 3.5 0 1 0 9.5 5a3.5 3.5 0 0 0 0 7Zm7-5a3 3 0 0 1 0 5.8M19 20v-1.5a3.5 3.5 0 0 0-2.1-3.2"/></svg>',
-    calendars:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h12a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Zm-3 4v10a2 2 0 0 0 2 2m3-9h8m-8 4h5"/></svg>',
-    categories:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 12 8-8h7v7l-8 8L4 12Zm11-4h.01"/></svg>',
-    notifications:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Zm-8 12h4"/></svg>',
-    integrations:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 12h8m-4-4v8M7 3v4m10-4v4M7 17v4m10-4v4M3 7h4m10 0h4M3 17h4m10 0h4"/></svg>',
-    updates:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5m-5 5 5-5 5 5M5 21h14"/></svg>',
-    backups:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v13H4V7Zm3-4h10v4H7V3Zm2 9h6m-3-3v6"/></svg>',
-    activity:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8v5l3 2m6-3a9 9 0 1 1-3-6.7M18 2v4h4"/></svg>',
-    settings:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm7-3.5 2-1-2-3-2 .5-1.5-1L15 5h-6l-.5 2.5-1.5 1L5 8l-2 3 2 1v2l-2 1 2 3 2-.5 1.5 1L9 21h6l.5-2.5 1.5-1 2 .5 2-3-2-1v-2Z"/></svg>'
+    dashboard:'<path d="M3 10 12 3l9 7v11h-7v-7h-4v7H3V10Z"/>',
+    calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18"/>',
+    shopping:'<path d="M3 4h2l2 11h12l2-8H6m4 13h.01M18 20h.01"/>',
+    meals:'<path d="M4 3v7m4-7v7M6 3v18M3 10h6m9-7v18m0-18c-5 2-5 10 0 11"/>',
+    routines:'<path d="m3 7 2 2 4-4m3 2h9M3 17l2 2 4-4m3 2h9"/>',
+    rewards:'<rect x="3" y="9" width="18" height="12" rx="2"/><path d="M2 9h20M12 9v12M12 9C8 9 5 7 7 4s5 1 5 5Zm0 0c4 0 7-2 5-5s-5 1-5 5Z"/>',
+    school:'<path d="m2 9 10-5 10 5-10 5L2 9Zm4 3v5c4 3 8 3 12 0v-5M22 9v8"/>',
+    maintenance:'<path d="M21 7a7 7 0 0 1-9 8L5 22l-3-3 7-7A7 7 0 0 1 17 3l-4 4 4 4 4-4Z"/>',
+    pets:'<path d="M12 13c-3-4-8 1-6 4 2 2 4 2 6 2s4 0 6-2c2-3-3-8-6-4ZM5 9v.01M9 5v.01M15 5v.01M19 9v.01"/>',
+    bills:'<rect x="2" y="5" width="20" height="15" rx="2"/><path d="M3 9h19m-7 6h4"/>',
+    agenda:'<rect x="5" y="4" width="14" height="18" rx="2"/><path d="M9 4V2h6v2M9 10h6m-6 5h6"/>',
+    chores:'<path d="m3 7 2 2 4-4m3 2h9M3 17l2 2 4-4m3 2h9"/>',
+    people:'<path d="M16 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2m6-10a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm9 4a4 4 0 0 1 3 4v2m-4-18a4 4 0 0 1 0 8"/>',
+    calendars:'<rect x="7" y="4" width="12" height="16" rx="2"/><path d="M4 8v10a2 2 0 0 0 2 2M9 10h8m-8 4h6"/>',
+    categories:'<path d="m4 12 8-8h7v7l-8 8L4 12Zm11-4h.01"/>',
+    notifications:'<path d="M18 9a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Zm-8 12h4"/>',
+    activity:'<path d="M12 8v5l3 2m6-3a9 9 0 1 1-3-6.7M18 2v4h4"/>',
+    settings:'<path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm7-3.5 2-1-2-3-2 .5-1.5-1L15 5H9l-.5 2.5-1.5 1L5 8l-2 3 2 1v2l-2 1 2 3 2-.5 1.5 1L9 21h6l.5-2.5 1.5-1 2 .5 2-3-2-1v-2Z"/>',
+    integrations:'<path d="M8 12h8m-4-4v8M7 3v4m10-4v4M7 17v4m10-4v4M3 7h4m10 0h4M3 17h4m10 0h4"/>',
+    updates:'<path d="M12 19V5m-5 5 5-5 5 5M5 21h14"/>',
+    backups:'<path d="M4 7h16v13H4V7Zm3-4h10v4H7V3Zm2 9h6m-3-3v6"/>'
   };
-  document.querySelectorAll(".primary-nav .nav-item").forEach(button=>{
-    if(button.querySelector(".nav-icon"))return;
-    const icon=icons[button.dataset.page];
-    if(!icon)return;
-    button.insertAdjacentHTML("afterbegin",`<span class="nav-icon">${icon}</span>`);
+  document.querySelectorAll(".primary-nav .nav-item").forEach(link=>{
+    const badge=link.querySelector(".nav-badge");
+    let glyph=link.querySelector(".nav-icon");
+    if(!glyph){
+      glyph=document.createElement("span");
+      glyph.className="nav-icon";
+      link.prepend(glyph);
+    }
+    if(!glyph.querySelector("svg")){
+      glyph.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(icons[link.dataset.page]||icons.calendar)+'</svg>';
+    }
+    const titles=[...link.querySelectorAll(".nav-label,.family-nav-label")];
+    let label=titles[0];
+    if(!label){
+      label=document.createElement("span");
+      label.textContent=[...link.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent).join("").trim()||link.dataset.page;
+    }
+    label.className="nav-label";
+    for(const extra of titles.slice(1))extra.remove();
+    for(const node of [...link.childNodes])if(node.nodeType===3)node.remove();
+    glyph.after(label);
+    if(badge)link.append(badge);
   });
 }
 
@@ -2991,7 +3014,9 @@ function renderChores(){
     // Preserve the SVG added by decorateNavigation. textContent on the link
     // would remove the icon whenever feature visibility changes.
     const label=el.querySelector(".nav-label");
-    if(label)label.textContent=tasksEnabled&&choresEnabled?"Tasks & Chores":tasksEnabled?"Tasks":"Chores";
+    const defaultName=tasksEnabled&&choresEnabled?"Tasks & Chores":tasksEnabled?"Tasks":"Chores";
+    const configured=window.caldenAppearance?.label("chores","Chores")||"Chores";
+    if(label)label.textContent=configured==="Chores"?defaultName:configured;
   });
   document.querySelectorAll(".chore-manager").forEach(el=>el.classList.toggle("hidden",!["admin","planner"].includes(state.me?.role)));
   $("#chore-page-title").textContent=tasksEnabled&&choresEnabled?"Tasks & Chores":tasksEnabled?"Tasks":"Chores";
