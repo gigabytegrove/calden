@@ -1,6 +1,6 @@
 name: calden-alpha
 
-# v1.5.0-alpha.1: completely separate Compose project, PostgreSQL database,
+# v1.5.0-alpha.2: completely separate Compose project, PostgreSQL database,
 # credentials and application data from an installed stable Calden.
 # NEVER reuse stable named volumes or an external production database.
 services:

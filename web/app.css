@@ -1134,3 +1134,159 @@ body.calden-family-dark .family-history-entry{border-color:#38475c}
 .family-shopping-filter label{font-size:.82rem;font-weight:700;color:var(--muted)}
 .family-shopping-filter select{margin-left:6px;min-width:145px;max-width:230px}
 @media(max-width:650px){.family-shopping-filter{justify-content:stretch}.family-shopping-filter label,.family-shopping-filter select{display:block;width:100%;max-width:none;margin:4px 0 0}}
+
+
+/* Alpha 1.5.0.2 — one coherent shell across light, dark and household themes.
+   The intentionally dark primary sidebar remains dark in both appearances;
+   opting into dark also styles the actual workspace, not only family cards. */
+
+/* Unified navigation: one icon, one label, optional badge. The full set of
+   permitted routes must remain reachable with the account card visible. */
+.sidebar{min-height:0}
+.sidebar-brand{flex:none}
+.primary-nav{
+  display:grid;align-content:start;grid-auto-rows:minmax(40px,auto);
+  overflow-y:auto;overflow-x:hidden;min-height:0;flex:1 1 auto;
+  overscroll-behavior:contain;padding:1px 3px 10px 0;
+  scrollbar-width:thin;scrollbar-color:#43516a transparent
+}
+.primary-nav .nav-item{min-width:0;gap:11px;text-decoration:none!important}
+.primary-nav .nav-item .nav-icon{
+  width:20px;height:20px;min-width:20px;display:grid;place-items:center;
+  flex:0 0 20px
+}
+.primary-nav .nav-item .nav-icon svg{width:19px;height:19px;display:block}
+.primary-nav .nav-item .nav-label{
+  display:block;min-width:0;flex:1 1 auto;overflow-wrap:break-word;
+  line-height:1.32;font-weight:inherit
+}
+.primary-nav .nav-badge{flex:0 0 auto;position:static;margin-left:auto}
+.sidebar-account{flex:none;min-width:0;margin-top:10px}
+.sidebar-account .account-copy{min-width:0}
+.sidebar-account .text-button{min-width:0}
+.notification-tools{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.notification-tools select{min-width:172px;max-width:260px;flex:1 1 180px}
+.notification-tools .button{white-space:nowrap;min-width:max-content;line-height:1.2}
+.notification-inbox-actions{flex-wrap:wrap;justify-content:flex-end}
+.notification-inbox-side time{white-space:nowrap}
+.notification-inbox-main{min-width:0}
+.notification-inbox-row{min-width:0}
+.notification-inbox-main strong,.notification-inbox-main small{white-space:normal;overflow-wrap:anywhere}
+@media(max-width:720px){
+  .notification-tools{width:100%;display:flex;justify-content:flex-start}
+  .notification-tools select{min-width:140px;flex:1 1 140px}
+  .notification-tools .button{white-space:normal}
+  .notification-schedule-head{flex-wrap:wrap}
+  .notification-inbox-row{grid-template-columns:38px minmax(0,1fr);gap:10px;padding:12px}
+  .notification-inbox-side{grid-column:2}
+}
+
+/* The user-selected light/dark appearance governs ALL pages and popups.
+   Theme palette only controls accents, not the foreground contrast of dark UI. */
+body.calden-family-dark{
+  color-scheme:dark;
+  --page:#101827;--panel:#1a2638;--soft:#172234;
+  --ink:#eaf2ff;--muted:#b0bfd3;--line:#34445b;
+  --panel-border:#34465f;--family-accent:#60a5fa;
+  --panel-shadow:0 4px 18px rgba(0,0,0,.16);
+  --panel-shadow-hover:0 7px 22px rgba(0,0,0,.22);
+  background:#101827;color:#eaf2ff
+}
+body.calden-family-dark[data-family-theme]{
+  --ink:#eaf2ff;--muted:#b0bfd3;--line:#34445b;
+  --panel:#1a2638;--family-accent:#60a5fa
+}
+body.calden-family-dark .app-shell{
+  color:#eaf2ff;
+  background:radial-gradient(circle at 80% -20%,rgba(59,130,246,.10),transparent 30rem),#101827
+}
+body.calden-family-dark .workspace{background:transparent;color:#eaf2ff}
+body.calden-family-dark .workspace-topbar{
+  background:rgba(23,34,51,.96);border-bottom-color:#35465c;
+  box-shadow:0 2px 10px rgba(0,0,0,.12)
+}
+body.calden-family-dark .workspace-topbar h1,
+body.calden-family-dark .page-header h2,
+body.calden-family-dark .app-page h2,
+body.calden-family-dark .app-page h3,
+body.calden-family-dark .app-page h4{color:#f4f7ff}
+body.calden-family-dark .workspace-household,
+body.calden-family-dark .muted,
+body.calden-family-dark .eyebrow,
+body.calden-family-dark .status-line,
+body.calden-family-dark .notification-inbox-actions{color:#b0bfd3}
+body.calden-family-dark .workspace :is(.panel,.management-card,.family-widget,
+  .calendar-toolbar,.notification-stat,.calendar-view,.calendar-grid,
+  .bill-summary,.bill-stat,.settings-card,.settings-section,.family-appearance-row,
+  .notification-schedule,.routine-card,.agenda-event,.saved-backup-card){
+  background:#1a2638;color:#eaf2ff;border-color:#34465f;box-shadow:none
+}
+body.calden-family-dark .workspace :is(.management-copy strong,.agenda-date strong,
+  .agenda-main strong,.notification-stat strong,.notification-inbox-main strong,
+  .family-widget-title h3,.bill-stat strong){color:#f4f7ff}
+body.calden-family-dark .workspace :is(.management-copy span,.management-copy small,
+  .agenda-date small,.agenda-main small,.notification-inbox-main small,
+  .notification-inbox-kicker,.notification-inbox-side,.family-widget-list li span){
+  color:#b0bfd3
+}
+body.calden-family-dark .workspace :is(input,select,textarea){
+  background:#111d2d;color:#f0f6ff;border-color:#53647c;
+  box-shadow:none
+}
+body.calden-family-dark .workspace :is(input,select,textarea)::placeholder{color:#91a3ba;opacity:1}
+body.calden-family-dark .workspace :is(input,select,textarea):focus{
+  border-color:#93c5fd;outline:2px solid rgba(96,165,250,.35);outline-offset:1px
+}
+body.calden-family-dark .workspace label,
+body.calden-family-dark .workspace legend,
+body.calden-family-dark .workspace .field-help{color:#d4e0f2}
+body.calden-family-dark .workspace .button:not(.secondary):not(.danger){
+  background:#2563eb!important;border-color:#3b82f6!important;color:#fff!important
+}
+body.calden-family-dark .workspace .button.secondary{
+  color:#eaf2ff;background:#25354b;border-color:#52647d
+}
+body.calden-family-dark .workspace .button.secondary:hover{background:#304563;border-color:#8ba2c0}
+body.calden-family-dark .workspace .button.danger{
+  background:#4c252a;color:#fecaca;border-color:#93434c
+}
+body.calden-family-dark .workspace :is(.notification-schedule-head,.notification-inbox-entry,
+  .notification-inbox-row,.scheduled-reminder,.notification-stat,
+  .agenda-event,.family-shopping-row,.family-list-choice,.family-widget-list li,
+  .routine-toolbar,.routine-step,.rewards-item,.meals-entry){
+  background:#1c2a3e;color:#edf4ff;border-color:#34465f
+}
+body.calden-family-dark .workspace .notification-inbox-row.unread{
+  background:#1a3353;color:#f0f6ff
+}
+body.calden-family-dark .workspace .notification-inbox-row:hover,
+body.calden-family-dark .workspace .scheduled-reminder:hover{background:#2a405c}
+body.calden-family-dark .workspace .notification-dismiss{background:transparent;color:#c1cee0}
+body.calden-family-dark .workspace .notification-dismiss:hover{background:#50313a;color:#fecaca}
+body.calden-family-dark .workspace :is(.calendar-event,.date-nav,.view-switcher,
+  .view-switcher button,.calendar-day,.calendar-cell,.day-column,
+  .event-editor,.repeat-editor,.detail-section,.settings-pane,
+  .activity-item,.saved-backup-row,.empty-state){
+  background:#1c2a3e;color:#edf4ff;border-color:#34465f
+}
+body.calden-family-dark .workspace :is(.view-switcher button.active,.calendar-event:hover,
+  .family-list-choice.active){background:#244467;color:#fff;border-color:#6099d5}
+body.calden-family-dark .workspace :is(.calendar-event,.notification-inbox-row,
+  .notification-schedule-head,.notification-inbox-entry,.settings-grid,
+  .family-shopping-history){border-color:#34465f}
+body.calden-family-dark .workspace :is(.notification-inbox-icon.assigned,
+  .notification-inbox-icon.family,.notification-inbox-icon.bill){filter:brightness(.94)}
+body.calden-family-dark .workspace .nav-badge{color:#fff}
+body.calden-family-dark dialog{
+  color:#eaf2ff;background:#1a2638;border-color:#53647c
+}
+body.calden-family-dark dialog :is(h2,h3,label,legend){color:#f4f7ff}
+body.calden-family-dark dialog :is(input,select,textarea){
+  background:#111d2d;color:#f0f6ff;border-color:#53647c
+}
+body.calden-family-dark dialog .button.secondary{
+  background:#25354b;color:#eaf2ff;border-color:#52647d
+}
+@media(prefers-reduced-motion:reduce){
+  .primary-nav .nav-item{transition:none!important;transform:none!important}
+}
