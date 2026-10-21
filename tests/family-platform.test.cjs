@@ -45,3 +45,31 @@ test("shopping endpoints, ownership, and household feature controls are wired",(
   assert.match(settings,/shopping_enabled/);
   assert.match(read("internal/store/migrations/030_household_shopping.sql"),/ON CONFLICT\(key\) DO NOTHING/);
 });
+
+test("supply metadata, assignment, change history and feature-gated UI are connected",()=>{
+  const js=read("web/app.js"),html=read("web/index.html"),go=read("internal/api/shopping.go");
+  const sql=read("internal/store/migrations/039_shopping_supplies_history.sql");
+  const routes=read("internal/api/api.go"),child=read("internal/api/children.go");
+  assert.doesNotThrow(()=>new vm.Script(js,{filename:"web/app.js"}));
+  for(const name of ["category","assigned_to","stock_on_hand","reorder_at"])
+    assert.match(html,new RegExp('name="'+name+'"'));
+  for(const id of ["shopping-history-toggle","shopping-history-list","shopping-category-filter"])
+    assert.ok(html.includes('id="'+id+'"'));
+  assert.match(js,/function renderShoppingHistory/);
+  assert.match(js,/item\.low_stock/);
+  assert.match(js,/function populateShoppingAssignees/);
+  assert.match(js,/const visibleItems=state\.shopping\.items\.filter/);
+  assert.match(go,/low_stock":lowStock/);
+  assert.match(js,/function populateShoppingAssignees/);
+  assert.match(go,/CASE WHEN \$13 THEN \$14::numeric ELSE stock_on_hand END/);
+  assert.match(go,/allowedShoppingAssignee/);
+  assert.match(go,/unrecognized shopping field/);
+  assert.match(go,/shoppingListAccess\(w,r,false\)/);
+  assert.match(routes,/GET \/api\/shopping\/lists\/\{id\}\/history/);
+  assert.match(child,/Suffix\(path,"\/history"\)/);
+  assert.match(sql,/household_shopping_history/);
+  assert.match(sql,/AFTER INSERT OR UPDATE ON household_shopping_items/);
+  assert.match(go,/WITH deleted AS/);
+  assert.match(go,/FROM deleted RETURNING item_id/);
+  assert.match(sql,/ON DELETE CASCADE/);
+});

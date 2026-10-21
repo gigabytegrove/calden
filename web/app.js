@@ -3270,10 +3270,54 @@ boot().catch(err=>{console.error("Calden failed before authentication",err);show
       status("#shopping-status","");
       await loadShoppingLists();
       await loadShoppingItems();
+      await loadShoppingHistory();
     }catch(err){status("#shopping-status","Couldn't load shopping lists: "+err.message)}
   }
   function itemPayload(item,purchased=item.purchased){
+    // Legacy-shaped updates preserve supply metadata on the server.
     return {name:item.name,quantity:Number(item.quantity),unit:item.unit,notes:item.notes||"",purchased:!!purchased};
+  }
+  function shoppingAssigneeName(id){
+    return state.users.find(user=>user.id===id)?.display_name||"Unassigned member";
+  }
+  function populateShoppingAssignees(list){
+    const select=$("#shopping-item-form").elements.namedItem("assigned_to");
+    const current=select.value;
+    const candidates=state.users.filter(u=>u.active!==false&&(list?.shared||u.id===list?.created_by));
+    select.innerHTML='<option value="">Anyone in the household</option>'+
+      candidates.map(u=>'<option value="'+esc(u.id)+'">'+esc(u.display_name)+'</option>').join("");
+    if(candidates.some(u=>u.id===current))select.value=current;
+  }
+  function renderShoppingHistory(rows){
+    const host=$("#shopping-history-list");
+    if(!rows?.length){
+      host.innerHTML='<p class="family-widget-empty">No changes recorded yet.</p>';return;
+    }
+    const names={added:"Added",updated:"Updated",purchased:"Purchased",needed:"Marked needed",removed:"Removed"};
+    host.innerHTML=rows.map(entry=>{
+      const when=new Date(entry.created_at);
+      const date=Number.isNaN(when.getTime())?"Unknown date":when.toLocaleString();
+      const actor=entry.performed_by?shoppingAssigneeName(entry.performed_by):"";
+      const item=entry.item||{};
+      return '<div class="family-history-entry"><strong>'+esc(names[entry.action]||"Changed")+
+        ' · '+esc(item.name||"Shopping item")+'</strong><small>'+esc(date)+
+        (actor?' · '+esc(actor):'')+'</small><span class="muted">'+
+        esc([item.category,item.quantity&&item.unit?Number(item.quantity)+" "+item.unit:""].filter(Boolean).join(" · "))+
+        '</span></div>';
+    }).join("");
+  }
+  async function loadShoppingHistory(){
+    const list=selectedList(),host=$("#shopping-history-list");
+    if(!list||host.classList.contains("hidden"))return;
+    const id=list.id;
+    host.textContent="Loading list history…";
+    try{
+      const data=await api("/api/shopping/lists/"+encodeURIComponent(id)+"/history");
+      if(selectedList()?.id!==id||host.classList.contains("hidden"))return;
+      renderShoppingHistory(data.items||[]);
+    }catch(err){
+      if(selectedList()?.id===id)host.textContent="Could not load history: "+err.message;
+    }
   }
   function renderShopping(){
     const picker=$("#shopping-list-picker"),host=$("#shopping-item-list");
@@ -3282,20 +3326,31 @@ boot().catch(err=>{console.error("Calden failed before authentication",err);show
     picker.innerHTML=state.shopping.lists.length?state.shopping.lists.map(l=>
       `<button type="button" class="family-list-choice ${l.id===state.shopping.listID?"active":""}"
         data-shopping-select="${esc(l.id)}" aria-current="${l.id===state.shopping.listID?"true":"false"}">
-        <strong>${esc(l.name)}</strong><small>${l.archived?"Archived · ":""}${esc(String(l.remaining))} needed · ${l.shared?"Shared":"Private"}</small></button>`).join("")
+        <strong>${esc(l.name)}</strong><small>${l.archived?"Archived · ":""}${esc(String(l.remaining))} needed${Number(l.low_stock)>0?" · "+esc(String(l.low_stock))+" low stock":""} · ${l.shared?"Shared":"Private"}</small></button>`).join("")
       :`<p class="family-widget-empty">No lists yet. Add one to get started.</p>`;
     const list=selectedList();
+    populateShoppingAssignees(list);
+    $("#shopping-history-toggle").disabled=!list;
     $("#shopping-detail-name").textContent=list?.name||"Choose or create a list";
     $("#shopping-detail-caption").textContent=list?(list.shared?"Visible to everyone in the household":"Only visible to you"):"Shopping lists keep your family's purchases organized.";
     $("#shopping-edit-list").classList.toggle("hidden",!list?.can_manage);
     $("#shopping-delete-list").classList.toggle("hidden",!list?.can_manage);
     $("#shopping-item-form").classList.toggle("hidden",!list||!canShop()||list.archived);
     if(!list){host.innerHTML='<p class="family-widget-empty">Create a list to add items.</p>';return}
-    const groups=[{label:"Still needed",items:state.shopping.items.filter(x=>!x.purchased)},{label:"Purchased",items:state.shopping.items.filter(x=>x.purchased)}];
+    const categoryControl=$("#shopping-category-filter");
+    const currentCategory=categoryControl.value;
+    const categories=[...new Set(state.shopping.items.map(x=>x.category||"").filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+    categoryControl.innerHTML='<option value="">All categories</option>'+
+      categories.map(name=>'<option value="'+esc(name)+'">'+esc(name)+'</option>').join("");
+    categoryControl.value=categories.includes(currentCategory)?currentCategory:"";
+    const visibleItems=state.shopping.items.filter(x=>!categoryControl.value||x.category===categoryControl.value);
+    const groups=[{label:"Still needed",items:visibleItems.filter(x=>!x.purchased)},{label:"Purchased",items:visibleItems.filter(x=>x.purchased)}];
     host.innerHTML=groups.map(group=>`<div class="family-section-title">${group.label} (${group.items.length})</div>`
       +(group.items.length?group.items.map(item=>`<div class="family-shopping-row ${item.purchased?"is-purchased":""}">
          <input type="checkbox" data-shopping-toggle="${esc(item.id)}" ${item.purchased?"checked":""} ${!canShop()||list.archived?"disabled":""} aria-label="Mark ${esc(item.name)} ${item.purchased?"needed":"purchased"}">
-         <div><span class="family-shopping-name">${esc(item.name)}</span><span class="family-shopping-meta">${esc(Number(item.quantity).toString())} ${esc(item.unit)}${item.notes?" · "+esc(item.notes):""}</span></div>
+         <div><span class="family-shopping-name">${esc(item.name)}</span><span class="family-shopping-meta">${esc(Number(item.quantity).toString())} ${esc(item.unit)}${item.category?" · "+esc(item.category):""}${item.assigned_to?" · "+esc(shoppingAssigneeName(item.assigned_to)):""}${item.notes?" · "+esc(item.notes):""}</span>
+         ${item.stock_on_hand!==null&&item.stock_on_hand!==undefined?'<span class="family-shopping-meta">In stock: '+esc(Number(item.stock_on_hand).toString())+` ${esc(item.unit)}`+(item.reorder_at!==null&&item.reorder_at!==undefined?' · Reorder at '+esc(Number(item.reorder_at).toString()):'')+'</span>':""}
+         ${item.low_stock?'<span class="family-low-stock" aria-label="Supply running low">Running low</span>':""}</div>
          <div class="family-shopping-actions">${canShop()&&!list.archived?`<button class="button secondary compact" data-shopping-edit="${esc(item.id)}" type="button">Edit</button><button class="button secondary compact" data-shopping-delete="${esc(item.id)}" type="button">Remove</button>`:""}</div>
         </div>`).join(""):`<p class="family-widget-empty">No items here.</p>`)).join("");
   }
@@ -3317,6 +3372,14 @@ boot().catch(err=>{console.error("Calden failed before authentication",err);show
     $("#shopping-item-submit").textContent="Add item";
     $("#shopping-item-cancel").classList.add("hidden");
   }
+  $("#shopping-category-filter").addEventListener("change",renderShopping);
+  $("#shopping-history-toggle").addEventListener("click",async()=>{
+    const host=$("#shopping-history-list"),button=$("#shopping-history-toggle");
+    const visible=host.classList.toggle("hidden")===false;
+    button.setAttribute("aria-expanded",String(visible));
+    button.textContent=visible?"Hide changes":"Show changes";
+    if(visible)await loadShoppingHistory();
+  });
   $("#shopping-refresh").addEventListener("click",loadShopping);
   $("#shopping-new-list").addEventListener("click",()=>openShoppingListForm());
   $("#shopping-edit-list").addEventListener("click",()=>{const list=selectedList();if(list?.can_manage)openShoppingListForm(list)});
@@ -3327,6 +3390,10 @@ boot().catch(err=>{console.error("Calden failed before authentication",err);show
     state.shopping.listID=button.dataset.shoppingSelect;
     state.shopping.items=[];
     resetShoppingItemForm();
+    $("#shopping-category-filter").value="";
+    $("#shopping-history-list").classList.add("hidden");
+    $("#shopping-history-toggle").setAttribute("aria-expanded","false");
+    $("#shopping-history-toggle").textContent="Show changes";
     renderShopping();
     try{await loadShoppingItems()}catch(err){status("#shopping-status",err.message)}
   });
@@ -3367,13 +3434,20 @@ boot().catch(err=>{console.error("Calden failed before authentication",err);show
       quantity:Number(form.elements.namedItem("quantity").value),
       unit:form.elements.namedItem("unit").value,
       notes:form.elements.namedItem("notes").value.trim(),
+      category:form.elements.namedItem("category").value.trim(),
+      assigned_to:form.elements.namedItem("assigned_to").value||null,
+      stock_on_hand:form.elements.namedItem("stock_on_hand").value===""?null:Number(form.elements.namedItem("stock_on_hand").value),
+      reorder_at:form.elements.namedItem("reorder_at").value===""?null:Number(form.elements.namedItem("reorder_at").value),
       purchased:previous?.purchased||false
     };
+    if(payload.reorder_at!==null&&payload.stock_on_hand===null){
+      status("#shopping-status","Enter the amount in stock before setting a reorder level.");return;
+    }
     try{
       const base="/api/shopping/lists/"+encodeURIComponent(list.id)+"/items";
       await api(id?base+"/"+encodeURIComponent(id):base,{method:id?"PUT":"POST",body:JSON.stringify(payload)});
       resetShoppingItemForm();
-      await loadShoppingLists();await loadShoppingItems();
+      await loadShoppingLists();await loadShoppingItems();await loadShoppingHistory();
       status("#shopping-status",id?"Item saved.":"Item added.");
     }catch(err){status("#shopping-status","Couldn't save item: "+err.message)}
   });
@@ -3387,7 +3461,10 @@ boot().catch(err=>{console.error("Calden failed before authentication",err);show
     const item=state.shopping.items.find(x=>x.id===id);if(!item)return;
     if(edit){
       const form=$("#shopping-item-form");
-      for(const name of ["name","quantity","unit","notes"])form.elements.namedItem(name).value=item[name]??"";
+      for(const name of ["name","quantity","unit","notes","category"])form.elements.namedItem(name).value=item[name]??"";
+      form.elements.namedItem("assigned_to").value=item.assigned_to||"";
+      form.elements.namedItem("stock_on_hand").value=item.stock_on_hand??"";
+      form.elements.namedItem("reorder_at").value=item.reorder_at??"";
       form.elements.namedItem("id").value=item.id;
       $("#shopping-item-submit").textContent="Save item";
       $("#shopping-item-cancel").classList.remove("hidden");
@@ -3397,7 +3474,7 @@ boot().catch(err=>{console.error("Calden failed before authentication",err);show
     if(!confirm('Remove "'+item.name+'" from this list?'))return;
     try{
       await api("/api/shopping/lists/"+encodeURIComponent(list.id)+"/items/"+encodeURIComponent(id),{method:"DELETE"});
-      await loadShoppingLists();await loadShoppingItems();
+      await loadShoppingLists();await loadShoppingItems();await loadShoppingHistory();
       status("#shopping-status","Item removed.");
     }catch(err){status("#shopping-status","Couldn't remove item: "+err.message)}
   });
@@ -3410,7 +3487,7 @@ boot().catch(err=>{console.error("Calden failed before authentication",err);show
     try{
       await api("/api/shopping/lists/"+encodeURIComponent(list.id)+"/items/"+encodeURIComponent(item.id),
         {method:"PUT",body:JSON.stringify(itemPayload(item,control.checked))});
-      await loadShoppingLists();await loadShoppingItems();
+      await loadShoppingLists();await loadShoppingItems();await loadShoppingHistory();
     }catch(err){status("#shopping-status","Couldn't update item: "+err.message);renderShopping()}
   });
   // Used by existing routing and initial application rendering.
