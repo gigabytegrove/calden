@@ -29,7 +29,8 @@ test("module customization cannot change canonical IDs or bypass permission chec
 test("custom icons are fixed local SVG and labels are escaped",()=>{
  const client=read("web/family-appearance.js");
  assert.match(client,/const shapes=\{/);
- assert.match(client,/title\.textContent=module\.label/);
+ assert.match(client,/title\\.textContent=module\\.module_id===\"chores\"&&module\\.label===\"Chores\"/);
+ assert.match(client,/defaultChoreName:module\\.label/);
  assert.match(client,/escapeAttr\(m\.label\)/);
  assert.doesNotMatch(client,/eval\(/);
 });
