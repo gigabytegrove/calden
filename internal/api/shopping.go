@@ -46,8 +46,8 @@ func normalizeShoppingItem(in shoppingItemInput) (shoppingItemInput,bool) {
     if len(in.Name)==0||len(in.Name)>200||len(in.Notes)>2000||len(in.Category)>80 {return in,false}
     if in.AssignedTo!=nil&&*in.AssignedTo==uuid.Nil{return in,false}
     if in.StockOnHand!=nil&&(!shoppingFinite(*in.StockOnHand)||*in.StockOnHand<0||*in.StockOnHand>1000000){return in,false}
-    if in.ReorderAt!=nil&&(!shoppingFinite(*in.ReorderAt)||*in.ReorderAt<=0||*in.ReorderAt>1000000){return in,false}
-    if !shoppingFinite(in.Quantity)||in.Quantity<=0||in.Quantity>1000000||!shoppingUnits[in.Unit] {return in,false}
+    if in.ReorderAt!=nil&&(!shoppingFinite(*in.ReorderAt)||*in.ReorderAt<0.001||*in.ReorderAt>1000000){return in,false}
+    if !shoppingFinite(in.Quantity)||in.Quantity<0.001||in.Quantity>1000000||!shoppingUnits[in.Unit] {return in,false}
     return in,true
 }
 func shoppingFinite(v float64)bool{return !math.IsNaN(v)&&!math.IsInf(v,0)}

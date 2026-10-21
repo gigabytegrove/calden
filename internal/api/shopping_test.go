@@ -24,6 +24,7 @@ func TestShoppingItemValidation(t *testing.T) {
     {"valid",shoppingItemInput{Name:" Milk ",Quantity:2},true},
     {"zero",shoppingItemInput{Name:"Milk",Quantity:0},false},
     {"negative",shoppingItemInput{Name:"Milk",Quantity:-1},false},
+    {"too small to represent",shoppingItemInput{Name:"Milk",Quantity:0.0001},false},
     {"too big",shoppingItemInput{Name:"Milk",Quantity:1000001},false},
     {"invalid unit",shoppingItemInput{Name:"Milk",Quantity:1,Unit:"javascript"},false},
     {"missing name",shoppingItemInput{Name:" ",Quantity:1},false},
@@ -43,6 +44,7 @@ func TestShoppingSupplyMetadataValidation(t *testing.T){
   {Name:"A",Quantity:math.Inf(1)},
   {Name:"A",Quantity:1,StockOnHand:ptrFloat(-1)},
   {Name:"A",Quantity:1,ReorderAt:ptrFloat(0)},
+  {Name:"A",Quantity:1,ReorderAt:ptrFloat(0.0001)},
   {Name:"A",Quantity:1,ReorderAt:ptrFloat(math.Inf(1))},
  }{
   if _,ok:=normalizeShoppingItem(tc);ok{t.Fatalf("accepted invalid supply item: %+v",tc)}

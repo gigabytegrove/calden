@@ -21,7 +21,7 @@ Source-level JavaScript unit/contract assertions across eight family test files 
 | RecipeCove two-way meals | **Blocked on actual scoped API contract** | RecipeCove 2.3.9 provides meal-plan routes for interactive sessions, but current API keys are limited to `recipes:read`. A revocable meal-plan write scope, revision/conflict handling and both sides of the sync must be built |
 | Chores/rewards/allowances | Substantial web/Go development | Evidence/photo, guardian approval nuances, history and concurrency tests, Android |
 | School activities | Student/term/schedule sources implemented | Calendar linkage, subscribed ICS intake, real reminders and privacy export |
-| Shopping/supplies | Shared/private list and item operations | Categories, assignees, inventory thresholds, RecipeCove ingredient preview |
+| Shopping/supplies | Shared/private lists, categories, permitted assignees, manual stock/reorder thresholds, change history, and filterable web UI (migration 039) | Migration/ACL integration acceptance, Android parity, inventory adjustment workflows, RecipeCove ingredient preview |
 | Home maintenance | Equipment, service schedule and history source | Attachments, reminders and detailed service workflows |
 | Pets/vet care | Profiles, appointment/vaccine/medication schedule and history source | Permission granularity, reminders, care attachments |
 | Routines | Ordered recurrence/completion foundation | Exceptions/streaks/guardian approval, real notification scheduling |
@@ -47,3 +47,10 @@ Source-level JavaScript unit/contract assertions across eight family test files 
 Direct GitHub DNS access is blocked from the local container, the available Go runtime is **1.23.2** while Calden requests **1.24**, and Gradle/Android sources are absent from this repository. GitHub connector can inspect/edit/commit source but cannot substitute compiled builds or database/real device acceptance.
 
 **Completion judgment:** Several newly approved areas now have substantive, but incomplete server+web implementations. The full 18-capability expansion is **not 90% source-complete**, even after excluding end-user testing. No stable version bump or deployment is justified solely by these commits. Keep 1.4.8 as last declared stable version until full platform acceptance.
+
+## 21 October 2026 follow-up — Shopping & Supplies
+
+- `c2cf1e33`: extended Shopping & Supplies across Go APIs, migration 039, browser UI and unit/source tests with categories, permitted member assignments, low-stock summary counts, durable snapshots and private/shared history access.
+- Preserves old clients' category/stock/assignment data when they omit the new keys; does not create a separate inventory service or require an external component.
+- A dedicated PostgreSQL migration/trigger lifecycle test is included for future database-backed acceptance. The connected GitHub environment can inspect and commit source but cannot execute the required Go 1.24/PostgreSQL integration suite or Android tests here.
+- This pass improves one approved feature. It does not independently establish 90% completion for the platform-wide expansion.

@@ -60,3 +60,5 @@ Go compilation and full test suite, real PostgreSQL migration rehearsal on a res
 The shopping interface also includes category filtering and low-stock counts in list summaries. Filters are only a view choice; changing categories never deletes or edits items.
 
 When the stocked quantity is explicitly cleared, the reorder threshold is also cleared. Setting a new reorder threshold requires the client to send a current stock value in the same request. Legacy clients that omit both keys retain both existing values.
+
+Quantities below 0.001 are rejected, matching the database's three-decimal storage precision and preventing a positive user value from silently rounding to zero.
