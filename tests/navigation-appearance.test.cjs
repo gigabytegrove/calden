@@ -84,3 +84,13 @@ test("light/dark appearance has whole-shell contrast, not just family widget sty
  assert.match(css,/\.primary-nav \.nav-item \.nav-label/);
  assert.match(css,/\.notification-tools \.button\{white-space:nowrap/);
 });
+
+test("the light sidebar and dark full application are separate complete appearances",()=>{
+ assert.match(css,/body:not\(\.calden-family-dark\) \.sidebar\{/);
+ assert.match(css,/body:not\(\.calden-family-dark\) \.sidebar \.primary-nav \.nav-item\.active/);
+ assert.match(css,/body:not\(\.calden-family-dark\) \.sidebar-account/);
+ assert.match(css,/body\.calden-family-dark \.app-shell/);
+ assert.match(css,/body\.calden-family-dark \.workspace-topbar/);
+ assert.match(css,/body\.calden-family-dark \.workspace \.notification-inbox-row\.unread/);
+ assert.match(css,/body\.calden-family-dark dialog/);
+});

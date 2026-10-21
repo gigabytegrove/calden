@@ -1290,3 +1290,46 @@ body.calden-family-dark dialog .button.secondary{
 @media(prefers-reduced-motion:reduce){
   .primary-nav .nav-item{transition:none!important;transform:none!important}
 }
+
+
+/* Complete appearance contract: the sidebar follows Light/Dark just like the
+   main workspace. It is not a permanently dark decorative side panel. */
+body:not(.calden-family-dark) .sidebar{
+  background:#ffffff!important;color:#24334c;
+  border-right-color:#dbe4ef;box-shadow:4px 0 16px rgba(18,35,58,.04)
+}
+body:not(.calden-family-dark) .sidebar-brand{border-bottom-color:#e2e8f0}
+body:not(.calden-family-dark) .sidebar-logo-surface{
+  background:#eef5ff;border-color:#dce8f8;box-shadow:none
+}
+body:not(.calden-family-dark) .sidebar .primary-nav .nav-item{
+  color:#40516a!important;background:transparent!important
+}
+body:not(.calden-family-dark) .sidebar .primary-nav .nav-item:hover{
+  background:#eaf1f9!important;color:#15263e!important
+}
+body:not(.calden-family-dark) .sidebar .primary-nav .nav-item.active{
+  background:#e5efff!important;color:#163d77!important;
+  box-shadow:inset 0 0 0 1px #c8dcfd
+}
+body:not(.calden-family-dark) .sidebar .primary-nav .nav-item.active::before{
+  background:#2563eb;box-shadow:none
+}
+body:not(.calden-family-dark) .sidebar .nav-icon{color:#53657f}
+body:not(.calden-family-dark) .sidebar .nav-item.active .nav-icon{color:#2563eb}
+body:not(.calden-family-dark) .sidebar-account{
+  background:#f6f9fd;color:#1e293b;border-color:#e0e7f0;box-shadow:none
+}
+body:not(.calden-family-dark) .sidebar-account .account-copy strong{color:#19273e}
+body:not(.calden-family-dark) .sidebar-account .account-copy span{color:#64748b}
+body:not(.calden-family-dark) .sidebar-account .text-button{color:#334155}
+body:not(.calden-family-dark) .sidebar-account .text-button:hover{color:#1d4ed8}
+body:not(.calden-family-dark) .sidebar-account .account-badge{
+  background:#e8f2ff;border-color:#c8ddf5;color:#1e3a5f
+}
+body:not(.calden-family-dark) .primary-nav{
+  scrollbar-color:#c2d0e0 transparent
+}
+body:not(.calden-family-dark) .sidebar .nav-badge{
+  color:#fff;background:#2563eb;box-shadow:0 0 0 2px #fff
+}
