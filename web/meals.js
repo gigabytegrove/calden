@@ -58,7 +58,7 @@
    if(current)field("recipe_id").value=current;
    render();status("");
    initialized=true;
-  }catch(err){status("Could not load RecipeCove: "+err.message)}
+  }catch(err){clearPlan();status("Could not load RecipeCove: "+err.message)}
  }
  form.addEventListener("submit",async event=>{
   event.preventDefault();
