@@ -83,6 +83,7 @@ func (s *server) streamNotifications(w http.ResponseWriter, r *http.Request) {
             WHERE n.user_id=$1 AND n.dismissed_at IS NULL AND n.read_at IS NULL AND n.created_at >= $2
               AND COALESCE(pref.live_enabled,true)
               AND (pref.user_id IS NULL OR n.kind=ANY(pref.enabled_kinds))
+              AND (n.kind<>'care_due' OR calden_can_view_care_notification(n.care_item_id,n.user_id))
               AND (pref.quiet_start IS NULL OR NOT (
                 CASE WHEN pref.quiet_start<pref.quiet_end THEN
                   to_char(timezone(COALESCE((SELECT value FROM app_settings WHERE key='timezone'),'UTC'),now()),'HH24:MI')>=pref.quiet_start

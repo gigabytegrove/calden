@@ -15,7 +15,7 @@ type memberNotificationPreferences struct{
  QuietEnd *string `json:"quiet_end"`
 }
 var allowedNotificationKinds=map[string]bool{
- "event_assigned":true,"event_family":true,"bill_review":true,
+ "event_assigned":true,"event_family":true,"bill_review":true,"care_due":true,
 }
 var clockTime=regexp.MustCompile(`^([01][0-9]|2[0-3]):[0-5][0-9]$`)
 func validateMemberNotificationPreferences(in memberNotificationPreferences)bool{
@@ -33,7 +33,7 @@ func validateMemberNotificationPreferences(in memberNotificationPreferences)bool
 func defaultMemberNotificationPreferences()memberNotificationPreferences{
  return memberNotificationPreferences{
   PushEnabled:true,LiveEnabled:true,
-  EnabledKinds:[]string{"event_assigned","event_family","bill_review"},
+  EnabledKinds:[]string{"event_assigned","event_family","bill_review","care_due"},
  }
 }
 func (s *server) getPersonalNotificationPreferences(w http.ResponseWriter,r *http.Request){

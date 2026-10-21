@@ -139,6 +139,7 @@ func (d *dispatcher) lease(ctx context.Context) (delivery,error){
          AND usr.active=true
          AND COALESCE(pref.push_enabled,true)
          AND (pref.user_id IS NULL OR n.kind=ANY(pref.enabled_kinds))
+         AND (n.kind<>'care_due' OR calden_can_view_care_notification(n.care_item_id,n.user_id))
          AND (pref.quiet_start IS NULL OR NOT (
            CASE WHEN pref.quiet_start<pref.quiet_end THEN
              to_char(timezone(COALESCE((SELECT value FROM app_settings WHERE key='timezone'),'UTC'),now()),'HH24:MI')
