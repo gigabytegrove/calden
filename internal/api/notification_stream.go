@@ -79,7 +79,17 @@ func (s *server) streamNotifications(w http.ResponseWriter, r *http.Request) {
             LEFT JOIN events e ON e.id=n.event_id
             LEFT JOIN calendars c ON c.id=COALESCE(n.calendar_id,e.calendar_id)
             LEFT JOIN calendar_permissions p ON p.calendar_id=c.id AND p.user_id=$1
+            LEFT JOIN member_notification_preferences pref ON pref.user_id=n.user_id
             WHERE n.user_id=$1 AND n.dismissed_at IS NULL AND n.read_at IS NULL AND n.created_at >= $2
+              AND COALESCE(pref.live_enabled,true)
+              AND (pref.user_id IS NULL OR n.kind=ANY(pref.enabled_kinds))
+              AND (pref.quiet_start IS NULL OR NOT (
+                CASE WHEN pref.quiet_start<pref.quiet_end THEN
+                  to_char(timezone(COALESCE((SELECT value FROM app_settings WHERE key='timezone'),'UTC'),now()),'HH24:MI')>=pref.quiet_start
+                  AND to_char(timezone(COALESCE((SELECT value FROM app_settings WHERE key='timezone'),'UTC'),now()),'HH24:MI')<pref.quiet_end
+                ELSE
+                  to_char(timezone(COALESCE((SELECT value FROM app_settings WHERE key='timezone'),'UTC'),now()),'HH24:MI')>=pref.quiet_start
+                  OR to_char(timezone(COALESCE((SELECT value FROM app_settings WHERE key='timezone'),'UTC'),now()),'HH24:MI')<pref.quiet_end END))
               AND (c.id IS NULL OR $4 IN ('admin','planner') OR COALESCE(p.can_view,false)=true)
               AND (NOT $3 OR c.id IS NULL OR c.calendar_type<>'bill_pay')
               AND (NOT $3 OR EXISTS(

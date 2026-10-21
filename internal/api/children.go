@@ -54,6 +54,7 @@ func childRequestModule(method,path string)string{
   "POST /api/client-errors":true,
  }
  if base[method+" "+path]{return "base"}
+ if (method=="GET"||method=="PUT")&&path=="/api/me/notification-preferences"{return "notifications"}
  if (method=="GET"&&(path=="/api/notifications"||path=="/api/notifications/stream"||path=="/api/notifications/push-config"))||(method=="PUT"&&path=="/api/notifications/read-all"){return "notifications"}
  parts:=strings.Split(strings.Trim(path,"/"),"/")
  if len(parts)==4&&parts[0]=="api"&&parts[1]=="notifications"&&parts[3]=="read"&&method=="PUT"{return "notifications"}

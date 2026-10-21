@@ -472,7 +472,7 @@ function navigate(page,load=true,writeURL=true){
   if(page==="bills")loadBillMonth();
   if(page==="chores")loadChores();
   if(page==="people")loadHouseholdDevices();
-  if(page==="settings")activateSettingsTab(state.settingsTab);
+  if(page==="settings"){activateSettingsTab(state.settingsTab);window.caldenPersonalNotifications?.load()}
   if(page==="activity")loadActivity();
 }
 

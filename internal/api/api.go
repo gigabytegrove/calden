@@ -91,6 +91,8 @@ func New(cfg Config) http.Handler {
     mux.Handle("GET /api/family/children", s.auth(http.HandlerFunc(s.listChildren)))
     mux.Handle("POST /api/family/children", s.auth(s.admin(http.HandlerFunc(s.createChild))))
     mux.Handle("PUT /api/family/children/{id}", s.auth(s.admin(http.HandlerFunc(s.updateChild))))
+    mux.Handle("GET /api/me/notification-preferences", s.auth(http.HandlerFunc(s.getPersonalNotificationPreferences)))
+    mux.Handle("PUT /api/me/notification-preferences", s.auth(http.HandlerFunc(s.savePersonalNotificationPreferences)))
 	mux.Handle("GET /api/me/dashboard", s.auth(http.HandlerFunc(s.getDashboardPreferences)))
 	mux.Handle("PUT /api/me/dashboard", s.auth(http.HandlerFunc(s.saveDashboardPreferences)))
 	mux.Handle("PUT /api/me/week-start", s.auth(http.HandlerFunc(s.savePersonalWeekStart)))
