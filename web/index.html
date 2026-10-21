@@ -89,6 +89,9 @@
       <a class="nav-item shopping-nav" data-page="shopping" href="/shopping">Shopping</a>
       <a class="nav-item routines-nav hidden" data-page="routines" href="/routines">Routines</a>
       <a class="nav-item rewards-nav hidden" data-page="rewards" href="/rewards">Rewards &amp; Allowances</a>
+      <a class="nav-item care-nav care-school-nav hidden" data-page="school" href="/school">School</a>
+      <a class="nav-item care-nav care-maintenance-nav hidden" data-page="maintenance" href="/maintenance">Home upkeep</a>
+      <a class="nav-item care-nav care-pets-nav hidden" data-page="pets" href="/pets">Pets</a>
       <a class="nav-item bill-nav hidden" data-page="bills" href="/bills">Bills</a>
       <a class="nav-item agenda-nav" data-page="agenda" href="/agenda">Agenda</a>
       <a class="nav-item chore-nav hidden" data-page="chores" href="/chores"><span class="nav-label">Tasks &amp; Chores</span></a>
@@ -212,6 +215,154 @@
       <div id="routine-list" class="routine-cards" aria-live="polite"></div>
     </section>
 
+
+    <section id="page-school" class="app-page hidden family-page family-care-page" data-care-kind="school">
+      <div class="page-header"><div><p class="eyebrow">Family organizer</p><h2>School</h2><p class="muted">Students, academic terms, important school dates.</p></div>
+      <button type="button" class="button" data-care-new-subject>Add student</button></div>
+      <p class="status-line" role="status" data-care-status></p>
+      <div class="family-shopping-layout">
+        <aside class="panel family-list-sidebar">
+          <div class="family-sidebar-heading"><h3>Students</h3><button type="button" class="button secondary compact" data-care-refresh>Refresh</button></div>
+          <div data-care-subjects class="family-list-picker"></div>
+        </aside>
+        <div class="family-shopping-main">
+          <form data-care-subject-form class="panel stack hidden">
+            <h3 data-care-subject-form-title>New record</h3>
+            <input name="id" type="hidden">
+            <label>Name<input name="name" required maxlength="140" placeholder="Student name"></label>
+            <label>Details<textarea name="details" rows="2" maxlength="4000"></textarea></label>
+            <div class="family-pref-grid"><label>School<input name="school_name" maxlength="140"></label><label>Grade<input name="grade" maxlength="80"></label></div>
+              <label>Link to child account (optional)<select name="child_user_id"><option value="">No linked account</option></select></label>
+            <label class="family-inline-check"><input type="checkbox" name="archived"> Archive this record without deleting its history</label>
+            <div class="form-actions"><button class="button" type="submit">Save</button><button class="button secondary" type="button" data-care-cancel-subject>Cancel</button></div>
+          </form>
+          <div class="panel stack" data-care-detail>
+            <div class="family-sidebar-heading"><div><h3 data-care-subject-name>Select a record</h3><p class="muted" data-care-subject-info></p></div>
+              <div class="form-actions"><button class="button secondary compact hidden" data-care-edit-subject type="button">Edit</button>
+              <button class="button compact hidden" data-care-new-item type="button">Add scheduled item</button></div>
+            </div>
+            <div class="family-school-terms"><div class="family-sidebar-heading"><h4>Academic terms</h4></div>
+              <form data-care-term-form class="family-item-form hidden">
+                <label>Term name<input name="title" maxlength="120" required placeholder="Fall semester"></label>
+                <label>Begins<input name="begins_on" type="date" required></label>
+                <label>Ends<input name="ends_on" type="date" required></label>
+                <button class="button compact" type="submit">Add term</button>
+              </form>
+              <div data-care-terms class="rewards-stack"></div></div>
+            <form data-care-item-form class="stack hidden">
+              <h4 data-care-item-form-title>Schedule an item</h4><input type="hidden" name="id">
+              <div class="family-pref-grid"><label>Activity type<select name="kind" required></select></label><label>Name<input name="title" maxlength="180" required></label></div>
+              <div class="family-pref-grid"><label>First date<input name="starts_on" type="date" required></label><label>Repeat<select name="repeat_rule">
+                <option value="none">Does not repeat</option><option value="daily">Every day</option><option value="weekly">Every week</option>
+                <option value="monthly">Every month</option><option value="yearly">Every year</option></select></label></div>
+              <div class="family-pref-grid"><label>Place<input name="place" maxlength="180"></label><label>Contact / teacher / vet<input name="contact" maxlength="180"></label></div>
+              <label>Notes<textarea name="details" maxlength="4000" rows="2"></textarea></label>
+              <div class="family-pref-grid"><label>Responsible person<select name="assigned_to"><option value="">Not assigned</option></select></label>
+               <label>Academic term<select name="term_id"><option value="">Not set</option></select></label></div>
+              <label class="family-inline-check"><input type="checkbox" name="archived"> Archive this schedule (keep history)</label>
+              <div class="form-actions"><button class="button" type="submit">Save schedule</button><button class="button secondary" type="button" data-care-cancel-item>Cancel</button></div>
+            </form>
+            <div data-care-items class="rewards-stack" aria-live="polite"></div>
+            <h4>Completed and skipped history</h4>
+            <div data-care-history class="rewards-stack"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <section id="page-maintenance" class="app-page hidden family-page family-care-page" data-care-kind="maintenance">
+      <div class="page-header"><div><p class="eyebrow">Family organizer</p><h2>Home upkeep</h2><p class="muted">Equipment, service history, recurring maintenance.</p></div>
+      <button type="button" class="button" data-care-new-subject>Add asset</button></div>
+      <p class="status-line" role="status" data-care-status></p>
+      <div class="family-shopping-layout">
+        <aside class="panel family-list-sidebar">
+          <div class="family-sidebar-heading"><h3>Equipment</h3><button type="button" class="button secondary compact" data-care-refresh>Refresh</button></div>
+          <div data-care-subjects class="family-list-picker"></div>
+        </aside>
+        <div class="family-shopping-main">
+          <form data-care-subject-form class="panel stack hidden">
+            <h3 data-care-subject-form-title>New record</h3>
+            <input name="id" type="hidden">
+            <label>Name<input name="name" required maxlength="140" placeholder="Equipment or asset"></label>
+            <label>Details<textarea name="details" rows="2" maxlength="4000"></textarea></label>
+            
+            <label class="family-inline-check"><input type="checkbox" name="archived"> Archive this record without deleting its history</label>
+            <div class="form-actions"><button class="button" type="submit">Save</button><button class="button secondary" type="button" data-care-cancel-subject>Cancel</button></div>
+          </form>
+          <div class="panel stack" data-care-detail>
+            <div class="family-sidebar-heading"><div><h3 data-care-subject-name>Select a record</h3><p class="muted" data-care-subject-info></p></div>
+              <div class="form-actions"><button class="button secondary compact hidden" data-care-edit-subject type="button">Edit</button>
+              <button class="button compact hidden" data-care-new-item type="button">Add scheduled item</button></div>
+            </div>
+            
+            <form data-care-item-form class="stack hidden">
+              <h4 data-care-item-form-title>Schedule an item</h4><input type="hidden" name="id">
+              <div class="family-pref-grid"><label>Activity type<select name="kind" required></select></label><label>Name<input name="title" maxlength="180" required></label></div>
+              <div class="family-pref-grid"><label>First date<input name="starts_on" type="date" required></label><label>Repeat<select name="repeat_rule">
+                <option value="none">Does not repeat</option><option value="daily">Every day</option><option value="weekly">Every week</option>
+                <option value="monthly">Every month</option><option value="yearly">Every year</option></select></label></div>
+              <div class="family-pref-grid"><label>Place<input name="place" maxlength="180"></label><label>Contact / teacher / vet<input name="contact" maxlength="180"></label></div>
+              <label>Notes<textarea name="details" maxlength="4000" rows="2"></textarea></label>
+              <div class="family-pref-grid"><label>Responsible person<select name="assigned_to"><option value="">Not assigned</option></select></label>
+               <div></div></div>
+              <label class="family-inline-check"><input type="checkbox" name="archived"> Archive this schedule (keep history)</label>
+              <div class="form-actions"><button class="button" type="submit">Save schedule</button><button class="button secondary" type="button" data-care-cancel-item>Cancel</button></div>
+            </form>
+            <div data-care-items class="rewards-stack" aria-live="polite"></div>
+            <h4>Completed and skipped history</h4>
+            <div data-care-history class="rewards-stack"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <section id="page-pets" class="app-page hidden family-page family-care-page" data-care-kind="pets">
+      <div class="page-header"><div><p class="eyebrow">Family organizer</p><h2>Pets</h2><p class="muted">Pet profiles, veterinary and care schedules.</p></div>
+      <button type="button" class="button" data-care-new-subject>Add pet</button></div>
+      <p class="status-line" role="status" data-care-status></p>
+      <div class="family-shopping-layout">
+        <aside class="panel family-list-sidebar">
+          <div class="family-sidebar-heading"><h3>Pets</h3><button type="button" class="button secondary compact" data-care-refresh>Refresh</button></div>
+          <div data-care-subjects class="family-list-picker"></div>
+        </aside>
+        <div class="family-shopping-main">
+          <form data-care-subject-form class="panel stack hidden">
+            <h3 data-care-subject-form-title>New record</h3>
+            <input name="id" type="hidden">
+            <label>Name<input name="name" required maxlength="140" placeholder="Pet name"></label>
+            <label>Details<textarea name="details" rows="2" maxlength="4000"></textarea></label>
+            
+            <label class="family-inline-check"><input type="checkbox" name="archived"> Archive this record without deleting its history</label>
+            <div class="form-actions"><button class="button" type="submit">Save</button><button class="button secondary" type="button" data-care-cancel-subject>Cancel</button></div>
+          </form>
+          <div class="panel stack" data-care-detail>
+            <div class="family-sidebar-heading"><div><h3 data-care-subject-name>Select a record</h3><p class="muted" data-care-subject-info></p></div>
+              <div class="form-actions"><button class="button secondary compact hidden" data-care-edit-subject type="button">Edit</button>
+              <button class="button compact hidden" data-care-new-item type="button">Add scheduled item</button></div>
+            </div>
+            
+            <form data-care-item-form class="stack hidden">
+              <h4 data-care-item-form-title>Schedule an item</h4><input type="hidden" name="id">
+              <div class="family-pref-grid"><label>Activity type<select name="kind" required></select></label><label>Name<input name="title" maxlength="180" required></label></div>
+              <div class="family-pref-grid"><label>First date<input name="starts_on" type="date" required></label><label>Repeat<select name="repeat_rule">
+                <option value="none">Does not repeat</option><option value="daily">Every day</option><option value="weekly">Every week</option>
+                <option value="monthly">Every month</option><option value="yearly">Every year</option></select></label></div>
+              <div class="family-pref-grid"><label>Place<input name="place" maxlength="180"></label><label>Contact / teacher / vet<input name="contact" maxlength="180"></label></div>
+              <label>Notes<textarea name="details" maxlength="4000" rows="2"></textarea></label>
+              <div class="family-pref-grid"><label>Responsible person<select name="assigned_to"><option value="">Not assigned</option></select></label>
+               <div></div></div>
+              <label class="family-inline-check"><input type="checkbox" name="archived"> Archive this schedule (keep history)</label>
+              <div class="form-actions"><button class="button" type="submit">Save schedule</button><button class="button secondary" type="button" data-care-cancel-item>Cancel</button></div>
+            </form>
+            <div data-care-items class="rewards-stack" aria-live="polite"></div>
+            <h4>Completed and skipped history</h4>
+            <div data-care-history class="rewards-stack"></div>
+          </div>
+        </div>
+      </div>
+    </section>
     <section id="page-calendar" class="app-page">
       <div class="calendar-toolbar">
         <div class="date-nav">
@@ -713,6 +864,12 @@
               <p class="muted">Create repeating personal checklists. Hiding routines preserves their completion history.</p>
               <label class="toggle-row"><input id="settings-rewards-enabled" type="checkbox"><span>Enable Rewards &amp; Allowances</span></label>
               <p class="muted">Allow family points, reward requests and allowance tracking. Turning this off never deletes prior transactions.</p>
+              <label class="toggle-row"><input type="checkbox" id="settings-school-enabled"><span>Enable School</span></label>
+              <p class="muted">Household-wide, optional. Disabling preserves saved records and histories.</p>
+              <label class="toggle-row"><input type="checkbox" id="settings-maintenance-enabled"><span>Enable Home upkeep</span></label>
+              <p class="muted">Household-wide, optional. Disabling preserves saved records and histories.</p>
+              <label class="toggle-row"><input type="checkbox" id="settings-pets-enabled"><span>Enable Pets</span></label>
+              <p class="muted">Household-wide, optional. Disabling preserves saved records and histories.</p>
               <p id="settings-feature-status" class="status-line" role="status" aria-live="polite">Each switch affects the whole household.</p>
             </section>
           </section>
@@ -971,5 +1128,6 @@
 <script src="/routines.js?v=1.4.8-family-routines" defer></script>
 <script src="/rewards.js?v=1.4.8-family-rewards" defer></script>
 <script src="/children.js?v=1.4.8-family-children" defer></script>
+<script src="/family-care.js?v=1.4.8-family-care" defer></script>
 </body>
 </html>
