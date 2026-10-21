@@ -48,6 +48,7 @@ func childRequestModule(method,path string)string{
  base:=map[string]bool{
   "GET /api/me":true,"GET /api/users":true,
   "GET /api/settings/general":true,
+  "GET /api/family/appearance":true,
   "GET /api/me/dashboard":true,"PUT /api/me/dashboard":true,
   "GET /api/devices":true,"POST /api/devices":true,
   "POST /api/client-errors":true,

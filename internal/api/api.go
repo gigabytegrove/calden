@@ -76,6 +76,8 @@ func New(cfg Config) http.Handler {
 	mux.HandleFunc("POST /api/setup", s.setup)
 	mux.HandleFunc("POST /api/login", s.login)
 	mux.Handle("GET /api/me", s.auth(http.HandlerFunc(s.me)))
+    mux.Handle("GET /api/family/appearance", s.auth(http.HandlerFunc(s.loadFamilyAppearance)))
+    mux.Handle("PUT /api/family/appearance", s.auth(s.admin(http.HandlerFunc(s.saveFamilyAppearance))))
     mux.Handle("GET /api/family/care/{kind}", s.auth(http.HandlerFunc(s.listCareSubjects)))
     mux.Handle("POST /api/family/care/{kind}", s.auth(http.HandlerFunc(s.saveCareSubject)))
     mux.Handle("PUT /api/family/care/{kind}/{id}", s.auth(http.HandlerFunc(s.saveCareSubject)))
