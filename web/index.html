@@ -145,6 +145,11 @@
         <section class="panel stack" aria-label="Meal schedule">
           <div class="family-sidebar-heading"><h3>Upcoming meals</h3>
             <label>From <input id="meals-start" type="date"></label></div>
+          <div class="meals-range-controls" aria-label="Browse meal planning weeks">
+            <button type="button" class="button secondary compact" id="meals-previous" aria-label="Previous two weeks">← Previous</button>
+            <span id="meals-range-title" class="muted" aria-live="polite"></span>
+            <button type="button" class="button secondary compact" id="meals-next" aria-label="Next two weeks">Next →</button>
+          </div>
           <div id="meals-schedule" class="meals-schedule"></div>
         </section>
         <form id="meals-form" class="panel stack">

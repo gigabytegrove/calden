@@ -27,3 +27,9 @@ Create the key in the RecipeCove administrator UI using the new **Calden meal pl
 - RecipeCove API/Calden Go test files and browser assertions are added. Browser syntax/route assertions can be executed in the assistant's isolated JavaScript harness; full pytest, Go/PostgreSQL, running browser and native Android acceptance are still required.
 - Native Kotlin implementation uses Retrofit and Jetpack Compose, not WebView. Native parity still needs a compiled APK and real device testing.
 - The integration is optional; an unconfigured deployment preserves Calden's previous behavior, aside from showing a connection prompt on the meal-planning page.
+
+## Follow-up: meal-planning usability and concurrency hardening
+
+The two-week view now provides forward/back navigation, date-grouped meals, accessible live range labels and a clear empty state. Meal entries and recipe options use DOM text nodes instead of HTML templates, preventing provider-controlled recipe names or notes from being interpreted as markup. Browser fetch sequence IDs prevent an older overlapping refresh from overwriting newer results. Writes disable competing actions, preserving request IDs for safe retries on failure. The UI clears records after a failed read instead of showing stale data and validates the provider's expected list payloads.
+
+This remains an unreleased candidate; server and browser integration tests must pass before production use.
