@@ -16,7 +16,7 @@
 - Notices fire on the **due date**, not configurable lead-time reminders. That is still an outstanding requirement for a fully complete scheduling/reminder experience.
 - A deactivated/cancelled notification may remain as an inaccessible historical row; queued delivery is blocked by current ACLs.
 - This is not a guarantee of push arrival. OS restrictions and native Android acceptance remain to be tested.
-- Migration 037 must be run on a restored database and verified before production. Web mobile behavior, accessibility and Go integration tests are outstanding.
+- Migrations 037 and 038 must be run on a restored database and verified before production. Migration 038 preserves all existing event-confirmation, change-request and cancellation notification kinds even on a development database that applied the earlier 037 candidate. Web mobile behavior, accessibility and Go integration tests are outstanding.
 
 ## Verified RecipeCove contract, no invented integration
 The RecipeCove repository currently implements `GET /api/v2/recipes`, `GET /api/v2/meal-plan`, `POST /api/v2/meal-plan` and `DELETE /api/v2/meal-plan/{id}`. The one-time administrator-issued API key, however, has scope **recipes:read** and is accepted only by the separately secured public recipe endpoint; the meal-plan endpoints require user session bearer authorization. Calden must **not** pretend that key permits two-way meal placement operations. A separately approved scoped API contract and idempotent sync protocol must exist on both services before any production two-way integration is represented as complete.
