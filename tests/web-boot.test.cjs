@@ -64,3 +64,8 @@ test("no single element querySelector forEach calls",()=>{
   const broken=script.split("\n").filter(line=>/^\s*\$\("[^"]+"\)\.forEach/.test(line));
   assert.deepEqual(broken,[]);
 });
+
+test("runtime does not call an undefined triple-dollar selector helper",()=>{
+  assert.doesNotMatch(script,/\$\$\$\(/);
+  assert.match(script,/\$\$\("\.rewards-nav"\)\.forEach/);
+});

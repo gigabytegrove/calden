@@ -330,7 +330,7 @@ function renderApp(){
   window.caldenRoutines?.render();
   window.caldenRewards?.render();
   window.caldenCare?.renderNav();
-  $$$(".rewards-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.rewards_enabled!==true));
+  $(".rewards-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.rewards_enabled!==true));
   window.caldenChildren?.applyChildView();
   decorateNavigation();
   window.caldenAppearance?.load();
