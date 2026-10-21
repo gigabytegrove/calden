@@ -1118,3 +1118,19 @@ body.calden-family-dark .meals-entry small{color:#b9c5d5}
 @media(max-width:600px){.meals-entry{flex-direction:column;align-items:flex-start}.meals-actions{width:100%}}
 
 .meals-range-controls{display:flex;gap:.75rem;justify-content:space-between;align-items:center;flex-wrap:wrap;margin:.6rem 0 1rem}.meals-day+.meals-day{margin-top:1.25rem}.meals-day-heading{font-size:.9rem;font-weight:800;margin:0 0 .6rem;color:var(--ink)}.meals-range-controls .muted{flex:1;text-align:center;min-width:11rem}
+
+/* Shopping & supplies — approved household controls */
+.family-item-form .family-supply-help{grid-column:1/-1;margin:0}
+.family-shopping-history{margin-top:16px;border-top:1px solid var(--line);padding-top:14px}
+.family-history-entry{padding:10px 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:3px}
+.family-history-entry small{color:var(--muted)}
+.family-low-stock{display:inline-flex;margin-top:5px;padding:3px 8px;border-radius:6px;background:#fff1cc;color:#854d0e;font-size:.76rem;font-weight:700}
+body.calden-family-dark .family-low-stock{background:#4a371d;color:#ffe5a3}
+body.calden-family-dark .family-history-entry{border-color:#38475c}
+@media(max-width:950px){.family-item-form{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){.family-item-form{grid-template-columns:minmax(0,1fr)}}
+
+.family-shopping-filter{display:flex;justify-content:flex-end;margin:4px 0 12px}
+.family-shopping-filter label{font-size:.82rem;font-weight:700;color:var(--muted)}
+.family-shopping-filter select{margin-left:6px;min-width:145px;max-width:230px}
+@media(max-width:650px){.family-shopping-filter{justify-content:stretch}.family-shopping-filter label,.family-shopping-filter select{display:block;width:100%;max-width:none;margin:4px 0 0}}

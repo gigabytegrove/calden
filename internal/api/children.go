@@ -70,6 +70,7 @@ func childRequestModule(method,path string)string{
  if method=="POST"&&strings.HasPrefix(path,"/api/rewards/catalog/")&&strings.HasSuffix(path,"/claim"){return "rewards"}
  if method=="GET"&&path=="/api/shopping/lists"{return "shopping"}
  if method=="GET"&&strings.HasPrefix(path,"/api/shopping/lists/")&&strings.HasSuffix(path,"/items"){return "shopping"}
+ if method=="GET"&&strings.HasPrefix(path,"/api/shopping/lists/")&&strings.HasSuffix(path,"/history"){return "shopping"}
  return ""
 }
 func childModuleAllowed(modules []string,module string)bool{

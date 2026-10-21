@@ -126,6 +126,7 @@ func New(cfg Config) http.Handler {
     mux.Handle("POST /api/shopping/lists", s.auth(http.HandlerFunc(s.createShoppingList)))
     mux.Handle("PUT /api/shopping/lists/{id}", s.auth(http.HandlerFunc(s.saveShoppingList)))
     mux.Handle("DELETE /api/shopping/lists/{id}", s.auth(http.HandlerFunc(s.deleteShoppingList)))
+    mux.Handle("GET /api/shopping/lists/{id}/history", s.auth(http.HandlerFunc(s.listShoppingHistory)))
     mux.Handle("GET /api/shopping/lists/{id}/items", s.auth(http.HandlerFunc(s.listShoppingItems)))
     mux.Handle("POST /api/shopping/lists/{id}/items", s.auth(http.HandlerFunc(s.createShoppingItem)))
     mux.Handle("PUT /api/shopping/lists/{id}/items/{item_id}", s.auth(http.HandlerFunc(s.saveShoppingItem)))

@@ -199,10 +199,21 @@
               <label>Item<input name="name" placeholder="Milk" required maxlength="200"></label>
               <label>Quantity<input name="quantity" type="number" min="0.001" max="1000000" step="0.001" value="1" required></label>
               <label>Unit<select name="unit"><option value="each">Each</option><option value="pack">Pack</option><option value="box">Box</option><option value="bag">Bag</option><option value="lb">lb</option><option value="oz">oz</option><option value="kg">kg</option><option value="g">g</option><option value="L">L</option><option value="mL">mL</option></select></label>
+              <label>Category<input name="category" maxlength="80" placeholder="Groceries, cleaning, pets…"></label>
+              <label>Assigned to<select name="assigned_to"><option value="">Anyone in the household</option></select></label>
+              <label>In stock<input name="stock_on_hand" type="number" min="0" max="1000000" step="0.001" placeholder="Optional"></label>
+              <label>Reorder at<input name="reorder_at" type="number" min="0.001" max="1000000" step="0.001" placeholder="Optional"></label>
+              <p class="family-supply-help muted">Optional supply tracking: enter an amount in stock and a reorder level to flag things running low.</p>
               <label class="family-notes">Notes<input name="notes" maxlength="2000" placeholder="Optional details"></label>
               <div class="form-actions"><button type="submit" class="button" id="shopping-item-submit">Add item</button><button type="button" id="shopping-item-cancel" class="button secondary hidden">Cancel edit</button></div>
             </form>
+            <div class="family-shopping-filter"><label>Show category<select id="shopping-category-filter"><option value="">All categories</option></select></label></div>
             <div id="shopping-item-list" class="family-shopping-items" aria-live="polite"></div>
+            <section class="family-shopping-history" aria-label="Shopping changes">
+              <div class="family-sidebar-heading"><h3>List history</h3>
+                <button type="button" class="button secondary compact" id="shopping-history-toggle" aria-controls="shopping-history-list" aria-expanded="false">Show changes</button></div>
+              <div class="hidden" id="shopping-history-list" aria-live="polite"></div>
+            </section>
           </section>
         </div>
       </div>
