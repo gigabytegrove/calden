@@ -12,11 +12,15 @@ Calden is a self-hosted family calendar built for normal people, not calendar ad
 
 A calendar has its own color. A person has their own identity. The two never compete with each other.
 
-Calden 1.2.0 is the first stable release. Development continues on the existing web application, with compatible in-place updates.
+Calden 1.2.0 was the first stable release. **Calden 1.4.8 remains the latest declared stable release.** The 1.5.0 alpha branch is isolated development software; do not deploy it over a stable database.
 
 ## Unreleased family expansion development
 
 The approved family platform expansion is now being implemented on the existing application. A development candidate adds personal dashboard configuration and household shopping lists with shared/private access, persistent items, feature visibility and a responsive browser interface. A subsequent integrated candidate adds editable recurring family routines, per-person checklist completion and archived history; see [Family Routines candidate notes](docs/releases/family-routines-candidate.md). A further development candidate adds manager-approved chore points, a reward catalog with redemption history, and recorded recurring allowances; see [Rewards and Allowances candidate notes](docs/releases/family-rewards-candidate.md). The family-safety candidate adds explicitly restricted child accounts, assigned guardians, server-side feature permissions and child-specific layouts; see [Child and Guardian candidate notes](docs/releases/family-children-candidate.md). More recent candidate commits implement [school, home upkeep and pet care](docs/releases/family-care-candidate.md), [household appearance](docs/releases/family-appearance-candidate.md) and [personal notification delivery preferences](docs/releases/personal-notification-preferences-candidate.md). An additional development candidate adds configurable [advance school, maintenance and pet reminders](docs/releases/family-care-reminders-candidate.md) using the existing notification pipeline (migration 040). See the [90%-target gap audit](docs/releases/family-expansion-90-percent-gap.md) for remaining unimplemented requirements and unverified acceptance gates. **These changes are not part of the 1.4.8 stable release and are not yet production accepted.** See [implementation and acceptance notes](docs/releases/family-home-shopping-candidate.md) and [the full approved scope](docs/FAMILY-PLATFORM-EXPANSION.md). Android parity, integration tests and remaining family modules are still required before announcing the full expansion as released.
+
+## Calden 1.5.0-alpha.1 — isolated local testing
+
+This source-only alpha branch contains unreleased family expansion work; it is **not a stable release** and has **not passed local PostgreSQL or native Android acceptance tests**. Run it using the separate `docker-compose.alpha.yml` file (default URL `http://localhost:18787`) with a new test database and data volume. The alpha image build runs `go test ./...` and `npm run test:web` as build gates. A failure blocks launch. See [alpha test plan](docs/releases/v1.5.0-alpha.1.md). Production remains on 1.4.8.
 
 ## Product direction
 
