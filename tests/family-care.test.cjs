@@ -52,6 +52,7 @@ test("care history is preserved and modules default to off",()=>{
  assert.match(sql,/\('maintenance_enabled','false'\)/);
  assert.match(sql,/\('pets_enabled','false'\)/);
  assert.match(go,/careOccurrenceValid\(first,date,rule\)/);
+ assert.match(go,/Archived records cannot accept new completions/);
  assert.match(go,/ON CONFLICT\(item_id,occurrence_date\) DO UPDATE/);
  assert.ok(go.includes("archived=$6"));
 });
