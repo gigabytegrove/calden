@@ -1080,3 +1080,23 @@ body.calden-family-dark .family-care-page .family-school-terms{border-color:#435
 @media(max-width:700px){.family-care-page .family-item-form{grid-template-columns:1fr}
  .family-care-page .family-care-item{flex-direction:column}
  .family-care-page .family-care-item .rewards-controls{align-self:flex-start}}
+
+/* Household theme palettes: presentation only, feature/permission IDs unchanged. */
+body[data-family-theme="ocean"]{--ink:#134f75;--muted:#526c7e;--line:#cadce7;--panel:#fff;--family-accent:#135f91}
+body[data-family-theme="forest"]{--ink:#225740;--muted:#527566;--line:#cadfce;--panel:#fff;--family-accent:#26754c}
+body[data-family-theme="sunset"]{--ink:#813c48;--muted:#805d63;--line:#ead4d8;--panel:#fff;--family-accent:#a34a58}
+body[data-family-theme="charcoal"]{--ink:#273247;--muted:#5b687f;--line:#cdd3df;--panel:#fff;--family-accent:#344865}
+body[data-family-theme] .button:not(.secondary):not(.danger){background:var(--ink);border-color:var(--ink)}
+body[data-family-theme] a:focus-visible,
+body[data-family-theme] button:focus-visible,
+body[data-family-theme] input:focus-visible,
+body[data-family-theme] select:focus-visible{outline:3px solid var(--family-accent,#2563eb);outline-offset:2px}
+.family-appearance-form{border-top:1px solid var(--line);margin-top:20px;padding-top:18px}
+.family-appearance-modules{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.family-appearance-row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:12px;
+ border:1px solid var(--line);border-radius:10px;padding:12px;background:var(--panel)}
+.family-appearance-row label{display:grid;gap:5px;font-weight:650;min-width:0}
+.family-appearance-row input,.family-appearance-row select{min-width:0;width:100%}
+.primary-nav .nav-item .family-nav-label{min-width:0;overflow-wrap:anywhere}
+@media(max-width:850px){.family-appearance-modules{grid-template-columns:1fr}}
+@media(max-width:520px){.family-appearance-row{grid-template-columns:1fr}}

@@ -871,6 +871,18 @@
               <label class="toggle-row"><input type="checkbox" id="settings-pets-enabled"><span>Enable Pets</span></label>
               <p class="muted">Household-wide, optional. Disabling preserves saved records and histories.</p>
               <p id="settings-feature-status" class="status-line" role="status" aria-live="polite">Each switch affects the whole household.</p>
+              <form id="family-appearance-form" class="family-appearance-form stack">
+                <div><p class="eyebrow">Family appearance</p><h3>Household themes and names</h3>
+                 <p class="muted">Choose a family-wide theme and friendly names/icons. This changes presentation only—not access, calendar identity, or the data behind a feature.</p></div>
+                <label>Household theme
+                  <select name="theme"><option value="classic">Classic</option><option value="ocean">Ocean</option>
+                  <option value="forest">Forest</option><option value="sunset">Sunset</option><option value="charcoal">Charcoal</option></select>
+                </label>
+                <div id="family-appearance-modules" class="family-appearance-modules" aria-label="Feature names and icons"></div>
+                <div class="form-actions"><button type="submit" class="button">Save family appearance</button>
+                <button type="button" id="family-appearance-reset" class="button secondary">Restore suggested names</button></div>
+                <p id="family-appearance-status" class="status-line" role="status"></p>
+              </form>
             </section>
           </section>
 
@@ -1129,5 +1141,6 @@
 <script src="/rewards.js?v=1.4.8-family-rewards" defer></script>
 <script src="/children.js?v=1.4.8-family-children" defer></script>
 <script src="/family-care.js?v=1.4.8-family-care" defer></script>
+<script src="/family-appearance.js?v=1.4.8-family-appearance" defer></script>
 </body>
 </html>

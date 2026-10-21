@@ -333,6 +333,7 @@ function renderApp(){
   $$(".rewards-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.rewards_enabled!==true));
   window.caldenChildren?.applyChildView();
   decorateNavigation();
+  window.caldenAppearance?.load();
   ensureNotificationPolling();
 }
 
@@ -457,7 +458,7 @@ function navigate(page,load=true,writeURL=true){
   $$(".app-page").forEach(el=>el.classList.toggle("hidden",el.id!==`page-${page}`));
   $$("[data-page]").forEach(el=>el.classList.toggle("active",el.dataset.page===page));
   const titles={dashboard:"My home",shopping:"Shopping",routines:"Routines",rewards:"Rewards & Allowances",school:"School",maintenance:"Home upkeep",pets:"Pets",calendar:"Calendar",bills:"Bill Pay",agenda:"Agenda",chores:"Tasks & Chores",people:"People",calendars:"Calendars",categories:"Categories",notifications:"Notifications",integrations:"Integrations",updates:"Updates",backups:"Backups & Restore",activity:"Activity",settings:"Settings"};
-  $("#page-title").textContent=titles[page]||"Calden";
+  $("#page-title").textContent=window.caldenAppearance?.label(page,titles[page]||"Calden")||titles[page]||"Calden";
   $("#new-event").classList.toggle("hidden",state.me?.is_child||!["calendar","agenda"].includes(page));
   $("#sidebar").classList.remove("open");
   window.caldenChildren?.applyChildView();
@@ -3123,6 +3124,7 @@ boot().catch(err=>{console.error("Calden failed before authentication",err);show
   // This controller is appended to the existing Calden web client.
   // All data-changing operations use the existing authenticated api() helper.
   const labels={calendar:"Upcoming events",notifications:"My reminders",chores:"Chores",tasks:"Tasks",bills:"Bills",agenda:"Family agenda",shopping:"Shopping lists",routines:"My routines",rewards:"My rewards"};
+  const titleOf=kind=>window.caldenAppearance?.label(kind,labels[kind])||labels[kind];
   const status=(id,value)=>{const el=$(id);if(el)el.textContent=value||""};
   const esc=value=>escapeHTML(value??"");
   const canShop=()=>state.me?.role!=="restricted";
@@ -3197,11 +3199,11 @@ boot().catch(err=>{console.error("Calden failed before authentication",err);show
     const widgets=pref.widgets.filter(availableWidget);
     host.innerHTML=widgets.length?widgets.map((kind,index)=>{
       const page=kind==="rewards"?"rewards":kind==="routines"?"routines":kind==="shopping"?"shopping":kind==="notifications"?"notifications":kind==="tasks"||kind==="chores"?"chores":kind==="bills"?"bills":kind==="agenda"?"agenda":"calendar";
-      return `<article class="family-widget" data-dashboard-widget="${kind}"><div class="family-widget-title"><h3>${esc(labels[kind])}</h3>
-          <div class="family-widget-tools"><button type="button" class="button secondary compact" data-dashboard-move="${kind}" data-direction="-1" ${index===0?"disabled":""} aria-label="Move ${esc(labels[kind])} up">↑</button>
-          <button type="button" class="button secondary compact" data-dashboard-move="${kind}" data-direction="1" ${index===widgets.length-1?"disabled":""} aria-label="Move ${esc(labels[kind])} down">↓</button></div></div>
+      return `<article class="family-widget" data-dashboard-widget="${kind}"><div class="family-widget-title"><h3>${esc(titleOf(kind))}</h3>
+          <div class="family-widget-tools"><button type="button" class="button secondary compact" data-dashboard-move="${kind}" data-direction="-1" ${index===0?"disabled":""} aria-label="Move ${esc(titleOf(kind))} up">↑</button>
+          <button type="button" class="button secondary compact" data-dashboard-move="${kind}" data-direction="1" ${index===widgets.length-1?"disabled":""} aria-label="Move ${esc(titleOf(kind))} down">↓</button></div></div>
           ${dashboardContent(kind)}
-          <button type="button" class="button secondary compact" data-open-family-page="${page}" style="margin-top:14px">Open ${esc(labels[kind])}</button></article>`;
+          <button type="button" class="button secondary compact" data-open-family-page="${page}" style="margin-top:14px">Open ${esc(titleOf(kind))}</button></article>`;
     }).join(""):`<div class="panel"><h3>Make this space yours</h3><p class="muted">Choose a widget to start building your home.</p></div>`;
   }
   async function saveDashboard(prefs){
