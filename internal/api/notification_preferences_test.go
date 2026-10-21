@@ -11,6 +11,7 @@ func TestPersonalNotificationPreferencesValidation(t *testing.T){
   {"all disabled but inbox retained",memberNotificationPreferences{EnabledKinds:[]string{}},true},
   {"valid overnight quiet",memberNotificationPreferences{PushEnabled:true,LiveEnabled:true,
    EnabledKinds:[]string{"event_assigned","event_family"},QuietStart:&start,QuietEnd:&end},true},
+  {"advance reminders",memberNotificationPreferences{EnabledKinds:[]string{"care_due","care_advance"}},true},
   {"unknown kind",memberNotificationPreferences{EnabledKinds:[]string{"medical_secret"}},false},
   {"duplicate kind",memberNotificationPreferences{EnabledKinds:[]string{"bill_review","bill_review"}},false},
   {"missing kinds",memberNotificationPreferences{},false},

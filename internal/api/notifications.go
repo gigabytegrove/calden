@@ -208,19 +208,22 @@ func (s *server) listNotifications(w http.ResponseWriter, r *http.Request) {
 	if !a.IsChild{s.ensureBillReviewNotifications(r.Context(), a.ID, a.Role)}
 	limit := 100
 	rows, err := s.db.Query(r.Context(), `SELECT n.id,n.event_id,n.kind,n.title,n.message,n.read_at,n.created_at,n.occurrence_start,
-		e.starts_at,e.ends_at,e.all_day,COALESCE(n.calendar_id,c.id),c.name,c.color
+		e.starts_at,e.ends_at,e.all_day,COALESCE(n.calendar_id,c.id),c.name,c.color,
+        n.care_item_id,cs.kind,cs.id
 		FROM notifications n
 		LEFT JOIN events e ON e.id=n.event_id
 		LEFT JOIN calendars c ON c.id=COALESCE(n.calendar_id,e.calendar_id)
+        LEFT JOIN family_care_items ci ON ci.id=n.care_item_id
+        LEFT JOIN family_care_subjects cs ON cs.id=ci.subject_id
         LEFT JOIN calendar_permissions p ON p.calendar_id=c.id AND p.user_id=$1
 		WHERE n.user_id=$1 AND n.dismissed_at IS NULL
           AND (c.id IS NULL OR $3 IN ('admin','planner') OR COALESCE(p.can_view,false)=true)
           AND (NOT $4 OR c.id IS NULL OR c.calendar_type<>'bill_pay')
           AND ($5 OR c.id IS NULL)
           AND (NOT $4 OR n.kind<>'bill_review')
-          AND (n.kind<>'care_due' OR calden_can_view_care_notification(n.care_item_id,n.user_id))
+          AND (n.kind NOT IN ('care_due','care_advance') OR calden_can_view_care_notification(n.care_item_id,n.user_id))
 		ORDER BY n.created_at DESC
-		LIMIT $2`, a.ID, limit,a.Role,a.IsChild,!a.IsChild||childModuleAllowed(a.ChildModules,"calendar")
+		LIMIT $2`, a.ID, limit,a.Role,a.IsChild,!a.IsChild||childModuleAllowed(a.ChildModules,"calendar"))
 	if err != nil {
 		writeError(w, 500, "Could not load notifications")
 		return
@@ -239,9 +242,12 @@ func (s *server) listNotifications(w http.ResponseWriter, r *http.Request) {
 		var allDay *bool
 		var calendarID *uuid.UUID
 		var calendarName, calendarColor *string
+        var careItemID, careSubjectID *uuid.UUID
+        var careKind *string
 		if err := rows.Scan(
 			&id, &eventID, &kind, &title, &message, &readAt, &createdAt, &occurrenceStart,
 			&startsAt, &endsAt, &allDay, &calendarID, &calendarName, &calendarColor,
+            &careItemID, &careKind, &careSubjectID,
 		); err != nil {
 			continue
 		}
@@ -250,6 +256,7 @@ func (s *server) listNotifications(w http.ResponseWriter, r *http.Request) {
 			"read_at": readAt, "created_at": createdAt, "occurrence_start": occurrenceStart,
 			"starts_at": startsAt, "ends_at": endsAt, "all_day": allDay,
 			"calendar_id": calendarID, "calendar_name": calendarName, "calendar_color": calendarColor,
+            "care_item_id": careItemID, "care_kind": careKind, "care_subject_id": careSubjectID,
 		})
 	}
 	if err := rows.Err(); err != nil {
@@ -266,7 +273,7 @@ func (s *server) listNotifications(w http.ResponseWriter, r *http.Request) {
        AND (NOT $3 OR c.id IS NULL OR c.calendar_type<>'bill_pay')
        AND ($4 OR c.id IS NULL)
        AND (NOT $3 OR n.kind<>'bill_review')
-       AND (n.kind<>'care_due' OR calden_can_view_care_notification(n.care_item_id,n.user_id))`, a.ID,a.Role,a.IsChild,!a.IsChild||childModuleAllowed(a.ChildModules,"calendar")).Scan(&unread); err != nil {
+       AND (n.kind NOT IN ('care_due','care_advance') OR calden_can_view_care_notification(n.care_item_id,n.user_id))`, a.ID,a.Role,a.IsChild,!a.IsChild||childModuleAllowed(a.ChildModules,"calendar")).Scan(&unread); err != nil {
 		writeError(w, 500, "Could not count unread notifications")
 		return
 	}

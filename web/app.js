@@ -1182,18 +1182,26 @@ function renderNotificationInbox(){
 
   host.innerHTML=state.notifications.length?state.notifications.map(item=>{
     const billReview=item.kind==="bill_review";
-    const startValue=billReview&&item.occurrence_start?item.occurrence_start:item.starts_at;
-    const start=startValue?(item.all_day?calendarDate(startValue):new Date(startValue)):null;
-    const when=start?(item.all_day?formatDate(start,{weekday:"short",month:"short",day:"numeric",year:"numeric"}):formatDate(start,{weekday:"short",month:"short",day:"numeric",year:"numeric"})+" · "+formatTime(start)):"Event date unavailable";
+    const careReminder=item.kind==="care_due"||item.kind==="care_advance";
+    const startValue=(billReview||careReminder)&&item.occurrence_start?item.occurrence_start:item.starts_at;
+    // Care occurrence timestamps identify household dates, not clock times.
+    // Parsing as a local calendar date avoids displaying yesterday in US time zones.
+    const start=startValue?(careReminder||item.all_day?calendarDate(startValue):new Date(startValue)):null;
+    const when=start?(careReminder?"Scheduled "+formatDate(start,{weekday:"short",month:"short",day:"numeric",year:"numeric"}):
+      (item.all_day?formatDate(start,{weekday:"short",month:"short",day:"numeric",year:"numeric"}):
+        formatDate(start,{weekday:"short",month:"short",day:"numeric",year:"numeric"})+" · "+formatTime(start))):
+      (careReminder?"Schedule date unavailable":"Event date unavailable");
     const family=item.kind==="event_family";
     const color=safeColor(item.calendar_color||"#64748b");
     const iconClass=billReview?"bill":family?"family":"assigned";
-    const icon=billReview?"$":family?"F":"Y";
-    const kicker=billReview?"Bill follow-up":family?"For everyone":"Assigned to you";
+    const icon=billReview?"$":family?"F":careReminder?"✓":"Y";
+    const careName={school:"School",maintenance:"Home upkeep",pets:"Pet care"}[item.care_kind]||"Family care";
+    const kicker=careReminder?careName+(item.kind==="care_advance"?" · Coming up":" · Due today"):
+      billReview?"Bill follow-up":family?"For everyone":"Assigned to you";
     return `<div class="notification-inbox-entry"><button type="button" class="notification-inbox-row ${item.read_at?"":"unread"}" data-notification-id="${escapeAttr(item.id)}">
       <span class="notification-inbox-icon ${iconClass}">${icon}</span>
       <span class="notification-inbox-main">
-        <span class="notification-inbox-kicker">${kicker} · ${escapeHTML(item.calendar_name||"Calendar")}</span>
+        <span class="notification-inbox-kicker">${escapeHTML(kicker)}${careReminder?"":" · "+escapeHTML(item.calendar_name||"Calendar")}</span>
         <strong>${escapeHTML(item.title)}</strong>
         <small>${escapeHTML(item.message)} ${escapeHTML(when)}</small>
       </span>
@@ -1221,6 +1229,11 @@ function renderNotificationInbox(){
       }catch{}
       renderNotificationInbox();
     }
+    if((item.kind==="care_due"||item.kind==="care_advance")&&
+      item.care_kind&&item.care_subject_id){
+      window.caldenCare?.open(item.care_kind,item.care_subject_id);
+      return;
+    }
     const event=notificationEvent(item);
     if(event)openEventDetails(event);
   }));
@@ -1237,8 +1250,11 @@ async function loadNotifications(announce=true){
       if(item.read_at||previous.has(item.id))return;
       const family=item.kind==="event_family";
       const billReview=item.kind==="bill_review";
-      const body=billReview?item.message+" "+item.title:(family?"For everyone: ":"Assigned to you: ")+item.title;
-      const title=billReview?"Bill follow-up":family?"New family event":"New event assignment";
+      const careReminder=item.kind==="care_due"||item.kind==="care_advance";
+      const body=careReminder?item.title+" · "+item.message:
+        billReview?item.message+" "+item.title:(family?"For everyone: ":"Assigned to you: ")+item.title;
+      const title=careReminder?(item.kind==="care_advance"?"Upcoming family reminder":"Family care due today"):
+        billReview?"Bill follow-up":family?"New family event":"New event assignment";
       try{new Notification("Calden · "+title,{body,tag:"calden-"+item.id})}catch{}
     });
   }

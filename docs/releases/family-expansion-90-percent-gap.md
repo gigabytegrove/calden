@@ -20,10 +20,10 @@ Source-level JavaScript unit/contract assertions across eight family test files 
 | Reorderable widgets | Web customization present | Responsive saved positions, Android parity |
 | RecipeCove two-way meals | **Blocked on actual scoped API contract** | RecipeCove 2.3.9 provides meal-plan routes for interactive sessions, but current API keys are limited to `recipes:read`. A revocable meal-plan write scope, revision/conflict handling and both sides of the sync must be built |
 | Chores/rewards/allowances | Substantial web/Go development | Evidence/photo, guardian approval nuances, history and concurrency tests, Android |
-| School activities | Student/term/schedule sources implemented | Calendar linkage, subscribed ICS intake, real reminders and privacy export |
+| School activities | Student/term/schedule sources and due/advance notification candidates | Calendar linkage, subscribed ICS intake, PostgreSQL/Android notification acceptance and privacy export |
 | Shopping/supplies | Shared/private lists, categories, permitted assignees, manual stock/reorder thresholds, change history, and filterable web UI (migration 039) | Migration/ACL integration acceptance, Android parity, inventory adjustment workflows, RecipeCove ingredient preview |
-| Home maintenance | Equipment, service schedule and history source | Attachments, reminders and detailed service workflows |
-| Pets/vet care | Profiles, appointment/vaccine/medication schedule and history source | Permission granularity, reminders, care attachments |
+| Home maintenance | Equipment, schedule/history and due/advance reminder candidates | Attachments, database/device reminder validation and detailed service workflows |
+| Pets/vet care | Profiles, appointment/vaccine/medication schedules, history and due/advance reminder candidates | Permission granularity, real-device reminder acceptance and care attachments |
 | Routines | Ordered recurrence/completion foundation | Exceptions/streaks/guardian approval, real notification scheduling |
 | Adult/child layouts | Basic web layouts and guardian setting | Full accessibility and native client equivalence |
 | Custom module names/icons | Housewide server-validated module catalog and web UI | Mobile parity, accessibility acceptance |
@@ -54,3 +54,9 @@ Direct GitHub DNS access is blocked from the local container, the available Go r
 - Preserves old clients' category/stock/assignment data when they omit the new keys; does not create a separate inventory service or require an external component.
 - A dedicated PostgreSQL migration/trigger lifecycle test is included for future database-backed acceptance. The connected GitHub environment can inspect and commit source but cannot execute the required Go 1.24/PostgreSQL integration suite or Android tests here.
 - This pass improves one approved feature. It does not independently establish 90% completion for the platform-wide expansion.
+
+## 21 October 2026 — advance-care notification development pass
+
+Migration 040 and updated Go/web code add per-item 0/1/2/3/7/14/30-day advance reminders for school, household upkeep and pet care through Calden's existing notifications. The due-day notification and advance notification use independent unique indexes, so one does not suppress the other. Guardian permissions are reevaluated at creation and delivery; child-linked school notices exclude identifying text; completed/skipped occurrences dismiss outstanding matching prompts in the completion transaction. Old client updates that omit the new lead-time field preserve existing values. Individual delivery opt-out settings remain independent and previously customized settings are not silently expanded.
+
+Go recurrence and preference tests, browser source-contract assertions and a guarded PostgreSQL worker/privacy/idempotency integration test accompany the implementation. This audit records **source implementation**, not passing a compiled build or executing DB/Android acceptance. Calendar subscriptions, meal ingredient preview, native Android parity and full restore testing remain outside this pass.

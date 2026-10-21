@@ -84,7 +84,8 @@
    title:item?.title||"",details:item?.details||"",
    place:item?.place||"",contact:item?.contact||"",
    starts_on:item?.starts_on||today(),repeat_rule:item?.repeat_rule||"none",
-   term_id:item?.term_id||"",assigned_to:item?.assigned_to||""
+   term_id:item?.term_id||"",assigned_to:item?.assigned_to||"",
+   reminder_days_before:String(item?.reminder_days_before??0)
   })){
    const control=formValue(form,key);if(control)control.value=value;
   }
@@ -115,8 +116,10 @@
   }
   el(kind,"items").innerHTML=s?(m.items.length?m.items.map(item=>{
    const badge=item.archived?"Archived":item.next_due?"Next / due "+item.next_due:"No future date";
+   const advance=item.reminder_days_before>0?
+     " · reminder "+item.reminder_days_before+" day"+(item.reminder_days_before===1?"":"s")+" before":"";
    return '<article class="rewards-item family-care-item"><div><strong>'+esc(item.title)+'</strong>'+
-    '<small>'+esc(item.kind.replaceAll("_"," "))+' · '+esc(badge)+' · '+esc(item.repeat_rule)+'</small>'+
+    '<small>'+esc(item.kind.replaceAll("_"," "))+' · '+esc(badge)+' · '+esc(item.repeat_rule)+esc(advance)+'</small>'+
     (item.details?'<span class="muted">'+esc(item.details)+'</span>':"")+
     (item.place?'<small>Place: '+esc(item.place)+'</small>':"")+
     (item.contact?'<small>Contact: '+esc(item.contact)+'</small>':"")+'</div><div class="rewards-controls">'+
@@ -210,6 +213,7 @@
     details:field("details").value.trim(),place:field("place").value.trim(),
     contact:field("contact").value.trim(),starts_on:field("starts_on").value,
     repeat_rule:field("repeat_rule").value,
+    reminder_days_before:Number(field("reminder_days_before").value),
     assigned_to:field("assigned_to").value||null,term_id:field("term_id")?.value||null,
     archived:field("archived").checked};
    const path=base(kind)+"/"+encodeURIComponent(subject.id)+"/items"+(id?"/"+encodeURIComponent(id):"");
@@ -231,5 +235,12 @@
    }catch(err){status(kind,"Couldn't save academic term: "+err.message)}
   });
  }
- window.caldenCare={renderNav,load,enter(page){if(kinds[page])load(page)}};
+ window.caldenCare={renderNav,load,
+  open(kind,subjectID){
+   if(!kinds[kind]||!subjectID||!isEnabled(kind)||state.me?.is_child)return;
+   cache(kind).subjectID=subjectID;
+   navigate(kind);
+  },
+  enter(page){if(kinds[page])load(page)}
+ };
 })();

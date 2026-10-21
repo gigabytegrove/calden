@@ -35,6 +35,7 @@ type careItemInput struct {
  TermID *uuid.UUID `json:"term_id"`
  AssignedTo *uuid.UUID `json:"assigned_to"`
  Archived bool `json:"archived"`
+ ReminderDaysBefore *int `json:"reminder_days_before"`
 }
 type careTermInput struct {
  Title string `json:"title"`
@@ -65,8 +66,24 @@ func cleanCareItem(in careItemInput,kind string)(careItemInput,bool){
  default:return in,false
  }
  if kind!="school"&&in.TermID!=nil{return in,false}
+ if in.ReminderDaysBefore!=nil&&!careReminderLeadAllowed(*in.ReminderDaysBefore){return in,false}
  if in.AssignedTo!=nil&&*in.AssignedTo==uuid.Nil{return in,false}
  return in,true
+}
+// Care reminders use explicit whole-day lead choices. Zero keeps the legacy
+// due-day-only behavior for existing schedules and clients.
+func careReminderLeadAllowed(days int) bool {
+ switch days {
+ case 0,1,2,3,7,14,30:return true
+ default:return false
+ }
+}
+func careAdvanceOccurrence(first,today time.Time,frequency string,lead int)(time.Time,bool){
+ if !careReminderLeadAllowed(lead)||lead==0{return time.Time{},false}
+ // AddDate uses civil dates: correct across DST and never multiplies
+ // calendar days into fixed 24-hour periods in the household time zone.
+ next:=today.AddDate(0,0,lead)
+ return next,careOccurrenceValid(first,next,frequency)
 }
 func careOccurrenceValid(first,day time.Time,frequency string)bool{
  first=time.Date(first.Year(),first.Month(),first.Day(),0,0,0,0,time.UTC)
@@ -212,7 +229,7 @@ func (s *server) listCareItems(w http.ResponseWriter,r *http.Request){
  kind,ok:=s.careKind(w,r);if !ok{return}
  id,ok:=s.careSubjectAccess(w,r,kind,false);if !ok{return}
  rows,err:=s.db.Query(r.Context(),`SELECT i.id,i.kind,i.title,i.details,i.place,i.contact,
-   i.starts_on,i.repeat_rule,i.term_id,i.assigned_to,i.archived,i.created_by
+   i.starts_on,i.repeat_rule,i.term_id,i.assigned_to,i.archived,i.created_by,i.reminder_days_before
    FROM family_care_items i WHERE i.subject_id=$1 ORDER BY i.archived,i.starts_on,i.id`,id)
  if err!=nil{writeError(w,500,"Could not load schedules");return}
  defer rows.Close()
@@ -221,14 +238,14 @@ func (s *server) listCareItems(w http.ResponseWriter,r *http.Request){
  for rows.Next(){
   var itemID,creator uuid.UUID;var term,assigned *uuid.UUID
   var subkind,title,details,place,contact,frequency string
-  var starts time.Time;var archived bool
+  var starts time.Time;var archived bool;var reminderDays int
   if err=rows.Scan(&itemID,&subkind,&title,&details,&place,&contact,&starts,&frequency,
-   &term,&assigned,&archived,&creator);err!=nil{break}
+   &term,&assigned,&archived,&creator,&reminderDays);err!=nil{break}
   next:="";if !archived{next=careNextOccurrence(starts,today,frequency)}
   out=append(out,map[string]any{"id":itemID,"kind":subkind,"title":title,
    "details":details,"place":place,"contact":contact,"starts_on":starts.Format("2006-01-02"),
    "repeat_rule":frequency,"term_id":term,"assigned_to":assigned,"archived":archived,
-   "created_by":creator,"next_due":next})
+   "created_by":creator,"next_due":next,"reminder_days_before":reminderDays})
  }
  if err==nil{err=rows.Err()}
  if err!=nil{writeError(w,500,"Could not read family schedules");return}
@@ -264,18 +281,19 @@ func (s *server) saveCareItem(w http.ResponseWriter,r *http.Request){
   id=parsed;status=200
   tag,err:=s.db.Exec(r.Context(),`UPDATE family_care_items SET
    kind=$3,title=$4,details=$5,place=$6,contact=$7,starts_on=$8::date,
-   repeat_rule=$9,term_id=$10,assigned_to=$11,archived=$12,updated_at=now()
+   repeat_rule=$9,term_id=$10,assigned_to=$11,archived=$12,
+   reminder_days_before=COALESCE($13::integer,reminder_days_before),updated_at=now()
    WHERE id=$1 AND subject_id=$2`,
    id,subject,in.Kind,in.Title,in.Details,in.Place,in.Contact,in.StartsOn,
-   in.RepeatRule,in.TermID,in.AssignedTo,in.Archived)
+   in.RepeatRule,in.TermID,in.AssignedTo,in.Archived,in.ReminderDaysBefore)
   if err!=nil{writeError(w,500,"Could not update schedule");return}
   if tag.RowsAffected()==0{writeError(w,404,"Scheduled item not found");return}
  }else{
   err:=s.db.QueryRow(r.Context(),`INSERT INTO family_care_items
-   (subject_id,kind,title,details,place,contact,starts_on,repeat_rule,term_id,assigned_to,created_by)
-   VALUES($1,$2,$3,$4,$5,$6,$7::date,$8,$9,$10,$11) RETURNING id`,
+   (subject_id,kind,title,details,place,contact,starts_on,repeat_rule,term_id,assigned_to,created_by,reminder_days_before)
+   VALUES($1,$2,$3,$4,$5,$6,$7::date,$8,$9,$10,$11,COALESCE($12::integer,0)) RETURNING id`,
    subject,in.Kind,in.Title,in.Details,in.Place,in.Contact,in.StartsOn,
-   in.RepeatRule,in.TermID,in.AssignedTo,currentActor(r).ID).Scan(&id)
+   in.RepeatRule,in.TermID,in.AssignedTo,currentActor(r).ID,in.ReminderDaysBefore).Scan(&id)
   if err!=nil{writeError(w,500,"Could not add schedule");return}
  }
  s.audit(r,"update","family_care_item",&id,"Updated household care schedule",map[string]any{"kind":kind})
@@ -315,6 +333,14 @@ func (s *server) careOccurrence(w http.ResponseWriter,r *http.Request){
     note=EXCLUDED.note,recorded_by=EXCLUDED.recorded_by,recorded_at=now()`,
   id,date.Format("2006-01-02"),in.Status,in.Note,currentActor(r).ID)
  if err!=nil{writeError(w,500,"Could not record completion");return}
+ // Keep notification rows for history, but hide outstanding prompts for this
+ // occurrence once it was completed or deliberately skipped.
+ _,err=tx.Exec(r.Context(),`UPDATE notifications SET dismissed_at=now()
+   WHERE care_item_id=$1 AND kind IN ('care_due','care_advance')
+     AND occurrence_start=($2::date::timestamp AT TIME ZONE 'UTC')
+     AND dismissed_at IS NULL AND read_at IS NULL`,
+   id,date.Format("2006-01-02"))
+ if err!=nil{writeError(w,500,"Could not finish reminder update");return}
  if err=tx.Commit(r.Context());err!=nil{writeError(w,500,"Could not commit completion");return}
  s.audit(r,"update","family_care_occurrence",&id,"Recorded household care activity",
   map[string]any{"date":date.Format("2006-01-02"),"status":in.Status})

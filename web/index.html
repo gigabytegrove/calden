@@ -303,6 +303,11 @@
               <div class="family-pref-grid"><label>First date<input name="starts_on" type="date" required></label><label>Repeat<select name="repeat_rule">
                 <option value="none">Does not repeat</option><option value="daily">Every day</option><option value="weekly">Every week</option>
                 <option value="monthly">Every month</option><option value="yearly">Every year</option></select></label></div>
+              <label>Remind me ahead of time<select name="reminder_days_before">
+                <option value="0">On the day only</option><option value="1">1 day before</option>
+                <option value="2">2 days before</option><option value="3">3 days before</option>
+                <option value="7">1 week before</option><option value="14">2 weeks before</option>
+                <option value="30">30 days before</option></select></label>
               <div class="family-pref-grid"><label>Place<input name="place" maxlength="180"></label><label>Contact / teacher / vet<input name="contact" maxlength="180"></label></div>
               <label>Notes<textarea name="details" maxlength="4000" rows="2"></textarea></label>
               <div class="family-pref-grid"><label>Responsible person<select name="assigned_to"><option value="">Not assigned</option></select></label>
@@ -350,6 +355,11 @@
               <div class="family-pref-grid"><label>First date<input name="starts_on" type="date" required></label><label>Repeat<select name="repeat_rule">
                 <option value="none">Does not repeat</option><option value="daily">Every day</option><option value="weekly">Every week</option>
                 <option value="monthly">Every month</option><option value="yearly">Every year</option></select></label></div>
+              <label>Remind me ahead of time<select name="reminder_days_before">
+                <option value="0">On the day only</option><option value="1">1 day before</option>
+                <option value="2">2 days before</option><option value="3">3 days before</option>
+                <option value="7">1 week before</option><option value="14">2 weeks before</option>
+                <option value="30">30 days before</option></select></label>
               <div class="family-pref-grid"><label>Place<input name="place" maxlength="180"></label><label>Contact / teacher / vet<input name="contact" maxlength="180"></label></div>
               <label>Notes<textarea name="details" maxlength="4000" rows="2"></textarea></label>
               <div class="family-pref-grid"><label>Responsible person<select name="assigned_to"><option value="">Not assigned</option></select></label>
@@ -397,6 +407,11 @@
               <div class="family-pref-grid"><label>First date<input name="starts_on" type="date" required></label><label>Repeat<select name="repeat_rule">
                 <option value="none">Does not repeat</option><option value="daily">Every day</option><option value="weekly">Every week</option>
                 <option value="monthly">Every month</option><option value="yearly">Every year</option></select></label></div>
+              <label>Remind me ahead of time<select name="reminder_days_before">
+                <option value="0">On the day only</option><option value="1">1 day before</option>
+                <option value="2">2 days before</option><option value="3">3 days before</option>
+                <option value="7">1 week before</option><option value="14">2 weeks before</option>
+                <option value="30">30 days before</option></select></label>
               <div class="family-pref-grid"><label>Place<input name="place" maxlength="180"></label><label>Contact / teacher / vet<input name="contact" maxlength="180"></label></div>
               <label>Notes<textarea name="details" maxlength="4000" rows="2"></textarea></label>
               <div class="family-pref-grid"><label>Responsible person<select name="assigned_to"><option value="">Not assigned</option></select></label>
@@ -960,7 +975,8 @@
                 <label class="family-inline-check"><input type="checkbox" name="kind" value="event_assigned" checked> Events assigned to me</label>
                 <label class="family-inline-check"><input type="checkbox" name="kind" value="event_family" checked> Shared family events</label>
                 <label class="family-inline-check"><input type="checkbox" name="kind" value="bill_review" checked> Bill reminders (where permitted)</label>
-                <label class="family-inline-check"><input type="checkbox" name="kind" value="care_due" checked> School, home upkeep and pet-care reminders</label>
+                <label class="family-inline-check"><input type="checkbox" name="kind" value="care_due" checked> School, home upkeep and pet-care reminders due today</label>
+                <label class="family-inline-check"><input type="checkbox" name="kind" value="care_advance" checked> Upcoming school, home upkeep and pet-care reminders</label>
               </fieldset>
               <label class="family-inline-check"><input type="checkbox" name="quiet_enabled"> Use quiet hours</label>
               <div class="family-pref-grid" data-quiet-fields>
