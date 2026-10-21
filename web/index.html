@@ -684,6 +684,7 @@
         <nav class="settings-nav" aria-label="Settings sections">
           <button type="button" class="settings-nav-item active admin-settings" data-settings-tab="general"><strong>Household</strong><span>Name, time zone, week layout</span></button>
           <button type="button" class="settings-nav-item" data-settings-tab="calendar"><strong>Calendar & display</strong><span>Defaults and this browser</span></button>
+          <button type="button" class="settings-nav-item" data-settings-tab="alerts"><strong>My reminders</strong><span>Delivery and quiet hours</span></button>
           <button type="button" class="settings-nav-item admin-settings" data-settings-tab="optional-features"><strong>Optional Features</strong><span>Turn household features on or off</span></button>
           <button type="button" class="settings-nav-item admin-settings" data-settings-tab="integrations"><strong>Integrations</strong><span>Connected services</span></button>
           <button type="button" class="settings-nav-item admin-settings" data-settings-tab="updates"><strong>Updates</strong><span>Versions and maintenance</span></button>
@@ -898,6 +899,28 @@
               <fieldset><legend>Calendar visibility</legend><div id="settings-calendar-visibility" class="settings-calendar-list"></div></fieldset>
               <div class="form-actions"><button id="reset-display-settings" type="button" class="button secondary">Reset</button><span class="grow"></span><button type="submit" class="button">Save display settings</button></div>
               <p id="display-settings-status" class="status-line"></p>
+            </form>
+          </section>
+
+          <section class="settings-pane hidden" data-settings-pane="alerts">
+            <form id="personal-notifications-form" class="panel stack">
+              <div><p class="eyebrow">Your preferences</p><h3>Reminders and alerts</h3>
+                <p class="muted">Keep your inbox history while choosing how notifications reach you. Quiet hours use your household's time zone.</p></div>
+              <label class="toggle-row"><input name="live_enabled" type="checkbox" checked> Deliver live alerts while Calden is open</label>
+              <label class="toggle-row"><input name="push_enabled" type="checkbox" checked> Allow mobile push delivery where supported</label>
+              <fieldset class="family-child-fieldset"><legend>Alert types</legend>
+                <label class="family-inline-check"><input type="checkbox" name="kind" value="event_assigned" checked> Events assigned to me</label>
+                <label class="family-inline-check"><input type="checkbox" name="kind" value="event_family" checked> Shared family events</label>
+                <label class="family-inline-check"><input type="checkbox" name="kind" value="bill_review" checked> Bill reminders (where permitted)</label>
+              </fieldset>
+              <label class="family-inline-check"><input type="checkbox" name="quiet_enabled"> Use quiet hours</label>
+              <div class="family-pref-grid" data-quiet-fields>
+                <label>Quiet from<input type="time" name="quiet_start" value="22:00"></label>
+                <label>Quiet until<input type="time" name="quiet_end" value="07:00"></label>
+              </div>
+              <div class="form-actions"><button class="button" type="submit">Save my reminder preferences</button></div>
+              <p id="personal-notifications-status" class="status-line" role="status"></p>
+              <p class="muted">These settings affect active delivery; saved notifications remain available in your inbox. Event-specific advance notices still use the event reminder settings.</p>
             </form>
           </section>
 
@@ -1142,5 +1165,6 @@
 <script src="/children.js?v=1.4.8-family-children" defer></script>
 <script src="/family-care.js?v=1.4.8-family-care" defer></script>
 <script src="/family-appearance.js?v=1.4.8-family-appearance" defer></script>
+<script src="/notification-preferences.js?v=1.4.8-user-alerts" defer></script>
 </body>
 </html>

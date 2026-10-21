@@ -130,12 +130,26 @@ func (d *dispatcher) lease(ctx context.Context) (delivery,error){
        LEFT JOIN calendars cal ON cal.id=COALESCE(n.calendar_id,e.calendar_id)
        LEFT JOIN calendar_permissions perm ON perm.calendar_id=cal.id AND perm.user_id=usr.id
        LEFT JOIN family_child_profiles child ON child.user_id=usr.id
+       LEFT JOIN member_notification_preferences pref ON pref.user_id=usr.id
        WHERE (p.status='pending' AND p.next_attempt_at<=now()
            OR p.status='leased' AND p.leased_until<now())
          AND d.revoked_at IS NULL AND d.enabled AND d.push_provider='fcm'
          AND d.push_token IS NOT NULL
          AND n.read_at IS NULL AND n.dismissed_at IS NULL
          AND usr.active=true
+         AND COALESCE(pref.push_enabled,true)
+         AND (pref.user_id IS NULL OR n.kind=ANY(pref.enabled_kinds))
+         AND (pref.quiet_start IS NULL OR NOT (
+           CASE WHEN pref.quiet_start<pref.quiet_end THEN
+             to_char(timezone(COALESCE((SELECT value FROM app_settings WHERE key='timezone'),'UTC'),now()),'HH24:MI')
+                 >=pref.quiet_start AND
+             to_char(timezone(COALESCE((SELECT value FROM app_settings WHERE key='timezone'),'UTC'),now()),'HH24:MI')
+                 <pref.quiet_end
+           ELSE
+             to_char(timezone(COALESCE((SELECT value FROM app_settings WHERE key='timezone'),'UTC'),now()),'HH24:MI')
+                 >=pref.quiet_start OR
+             to_char(timezone(COALESCE((SELECT value FROM app_settings WHERE key='timezone'),'UTC'),now()),'HH24:MI')
+                 <pref.quiet_end END))
          AND (cal.id IS NULL OR usr.role IN ('admin','planner') OR COALESCE(perm.can_view,false)=true)
          AND (NOT usr.is_child OR (
            child.user_id IS NOT NULL
