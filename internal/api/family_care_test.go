@@ -74,3 +74,19 @@ func TestCareItemKindAndDateValidation(t *testing.T){
   _,ok:=cleanCareItem(tc.input,tc.kind);if ok!=tc.valid{t.Fatalf("valid=%v want %v",ok,tc.valid)}
  })}
 }
+
+// Older Android clients omit reminder_days_before. A nil lead preserves the
+// persisted value on PUT; explicit zero disables advance reminders.
+func TestCareReminderLeadValidation(t *testing.T) {
+ for _,tc:=range []struct{days int;valid bool}{
+  {0,true},{1,true},{2,true},{3,true},{7,true},{14,true},{30,true},
+  {-1,false},{4,false},{29,false},{31,false},{365,false},
+ }{
+  n:=tc.days
+  in:=careItemInput{Kind:"service",Title:"Air filter",StartsOn:"2026-11-11",ReminderDaysBefore:&n}
+  _,ok:=cleanCareItem(in,"maintenance")
+  if ok!=tc.valid{t.Fatalf("lead %d valid=%v want %v",tc.days,ok,tc.valid)}
+ }
+ in:=careItemInput{Kind:"appointment",Title:"Vet",StartsOn:"2026-11-11"}
+ if _,ok:=cleanCareItem(in,"pets");!ok{t.Fatal("legacy payload without lead must remain valid")}
+}
