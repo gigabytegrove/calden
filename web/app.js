@@ -330,7 +330,7 @@ function renderApp(){
   window.caldenRoutines?.render();
   window.caldenRewards?.render();
   window.caldenCare?.renderNav();
-  $$(".rewards-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.rewards_enabled!==true));
+  $$$(".rewards-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.rewards_enabled!==true));
   window.caldenChildren?.applyChildView();
   decorateNavigation();
   window.caldenAppearance?.load();
@@ -3093,7 +3093,7 @@ for(const [name,label] of [["bills","Bills"],["agenda","Agenda"],["tasks","Tasks
       $$(".routines-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.routines_enabled!==true));
       if(name==="shopping"&&state.settings.shopping_enabled===false&&state.currentPage==="shopping")navigate("calendar");
       if(name==="routines"&&state.settings.routines_enabled!==true&&state.currentPage==="routines")navigate("calendar");
-      $(".rewards-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.rewards_enabled!==true));
+      $$(".rewards-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.rewards_enabled!==true));
       window.caldenCare?.renderNav();
       if(["school","maintenance","pets"].includes(name)&&!state.settings[name+"_enabled"]&&state.currentPage===name)navigate("calendar");
       if(name==="rewards"&&state.settings.rewards_enabled!==true&&state.currentPage==="rewards")navigate("calendar");

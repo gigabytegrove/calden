@@ -286,6 +286,11 @@ func (s *server) careOccurrence(w http.ResponseWriter,r *http.Request){
  subject,ok:=s.careSubjectAccess(w,r,kind,true);if !ok{return}
  id,err:=uuid.Parse(r.PathValue("item_id"))
  if err!=nil{writeError(w,400,"Invalid item");return}
+ var subjectArchived bool
+ if err=s.db.QueryRow(r.Context(),"SELECT archived FROM family_care_subjects WHERE id=$1",subject).Scan(&subjectArchived);err!=nil{
+  writeError(w,500,"Could not check record status");return
+ }
+ if subjectArchived{writeError(w,409,"Archived records cannot accept new completions");return}
  date,err:=choreDate(r.PathValue("date"))
  if err!=nil{writeError(w,400,"Invalid occurrence date");return}
  var in struct{Status string `json:"status"`;Note string `json:"note"`}
