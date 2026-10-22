@@ -101,7 +101,7 @@ test("global Settings appearance can override system Dark and persists without t
       "Follow my device should respect system dark preference");
     theme.value="light";
     theme.dispatchEvent(new w.Event("change",{bubbles:true}));
-    for(let i=0;i<120&&instance.saves.length===0;i++)
+    for(let i=0;i<120&&theme.disabled;i++)
       await new Promise(resolve=>setTimeout(resolve,20));
     assert.equal(instance.saves.length,1);
     assert.equal(instance.saves[0].appearance,"light");
@@ -111,12 +111,12 @@ test("global Settings appearance can override system Dark and persists without t
     assert.equal(document.getElementById("dashboard-appearance").value,"light");
     assert.equal(document.getElementById("settings-appearance").value,"light");
     theme.value="dark";theme.dispatchEvent(new w.Event("change",{bubbles:true}));
-    for(let i=0;i<120&&instance.saves.length<2;i++)
+    for(let i=0;i<120&&theme.disabled;i++)
       await new Promise(resolve=>setTimeout(resolve,20));
     assert.equal(instance.saves.length,2);
     assert.equal(document.body.classList.contains("calden-family-dark"),true);
     theme.value="system";theme.dispatchEvent(new w.Event("change",{bubbles:true}));
-    for(let i=0;i<120&&instance.saves.length<3;i++)
+    for(let i=0;i<120&&theme.disabled;i++)
       await new Promise(resolve=>setTimeout(resolve,20));
     assert.equal(instance.saves.length,3);
     assert.equal(document.body.classList.contains("calden-family-dark"),true);
@@ -163,7 +163,7 @@ test("administrator can disable Meal Planning without losing any other feature s
   const toggle=w.document.getElementById("settings-meals-enabled");
   assert.equal(toggle.checked,true);
   toggle.checked=false;toggle.dispatchEvent(new w.Event("change",{bubbles:true}));
-  for(let i=0;i<120&&instance.featureSaves.length<1;i++)
+  for(let i=0;i<120&&toggle.disabled;i++)
     await new Promise(resolve=>setTimeout(resolve,20));
   assert.deepEqual(instance.featureSaves,[{meals_enabled:false}]);
   assert.equal(instance.householdSettings().meals_enabled,false);
