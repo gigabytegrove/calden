@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#f7f8fb">
-  <meta name="calden-version" content="1.5.0-alpha.3">
+  <meta name="calden-version" content="1.5.0-alpha.4">
   <link rel="icon" type="image/svg+xml" href="/assets/calden-icon.svg">
   
   <title>Calden</title>
-  <link rel="stylesheet" href="/styles.css?v=1.5.0-alpha.3">
+  <link rel="stylesheet" href="/styles.css?v=1.5.0-alpha.4">
 </head>
 <body class="bg-slate-50 text-slate-900">
 <div id="auth" class="auth-shell">
@@ -87,7 +87,7 @@
       <a class="nav-item" data-page="dashboard" href="/dashboard">My home</a>
       <a class="nav-item active" data-page="calendar" href="/calendar">Calendar</a>
       <a class="nav-item shopping-nav" data-page="shopping" href="/shopping">Shopping</a>
-      <a class="nav-item" data-page="meals" href="/meals">Meal planning</a>
+      <a class="nav-item meals-nav" data-page="meals" href="/meals">Meal planning</a>
       <a class="nav-item routines-nav hidden" data-page="routines" href="/routines">Routines</a>
       <a class="nav-item rewards-nav hidden" data-page="rewards" href="/rewards">Rewards &amp; Allowances</a>
       <a class="nav-item care-nav care-school-nav hidden" data-page="school" href="/school">School</a>
@@ -746,7 +746,7 @@
       <div class="settings-workspace">
         <nav class="settings-nav" aria-label="Settings sections">
           <button type="button" class="settings-nav-item active admin-settings" data-settings-tab="general"><strong>Household</strong><span>Name, time zone, week layout</span></button>
-          <button type="button" class="settings-nav-item" data-settings-tab="calendar"><strong>Calendar & display</strong><span>Defaults and this browser</span></button>
+          <button type="button" class="settings-nav-item" data-settings-tab="calendar"><strong>Appearance & calendar</strong><span>Light / Dark, calendar defaults</span></button>
           <button type="button" class="settings-nav-item" data-settings-tab="alerts"><strong>My reminders</strong><span>Delivery and quiet hours</span></button>
           <button type="button" class="settings-nav-item admin-settings" data-settings-tab="optional-features"><strong>Optional Features</strong><span>Turn household features on or off</span></button>
           <button type="button" class="settings-nav-item admin-settings" data-settings-tab="integrations"><strong>Integrations</strong><span>Connected services</span></button>
@@ -814,6 +814,25 @@
         <div><p class="eyebrow">Connected services</p><h2>Integrations</h2><p class="muted">Move existing schedules into Calden and connect the services your household already uses.</p></div>
       </div>
       <div class="integration-stack">
+        <section class="panel integration-card recipecove-integration-card" aria-labelledby="recipecove-title">
+          <div class="integration-card-head">
+            <div class="integration-icon" aria-hidden="true">R</div>
+            <div class="integration-card-copy">
+              <div class="integration-title-row"><h3 id="recipecove-title">RecipeCove</h3><span class="integration-badge" id="recipecove-connection-badge">Checking…</span></div>
+              <p>Meal planning stays in RecipeCove; Calden does not copy your recipes or meal plans into its database.</p>
+            </div>
+          </div>
+          <div class="integration-connection stack">
+            <p id="recipecove-integration-status" class="status-line" role="status" aria-live="polite">Checking server configuration…</p>
+            <p class="muted">The Calden server currently uses <code>RECIPECOVE_URL</code> and <code>RECIPECOVE_SYNC_KEY</code>. Credentials stay on the server and are never exposed in this screen.</p>
+            <p class="muted">A configured server does not guarantee an active connection. RecipeCove's compatible integration API still requires end-to-end validation.</p>
+            <div class="form-actions">
+              <button id="recipecove-check" type="button" class="button secondary compact">Check configuration</button>
+              <button id="recipecove-feature-link" type="button" class="button secondary compact">Meal Planning switch</button>
+            </div>
+          </div>
+        </section>
+        <div class="integration-group-title"><h3>Calendar migration</h3><p class="muted">Bring in calendars and repair earlier imports</p></div>
         <section class="panel integration-card google-migration-card">
           <div class="integration-card-head">
             <div class="integration-icon google-icon">G</div>
@@ -873,6 +892,7 @@
           </section>
         </section>
 
+        <div class="integration-group-title"><h3>Notification delivery</h3><p class="muted">Connect household-wide reminder delivery</p></div>
         <section class="panel integration-card monita-integration-card">
           <div class="integration-card-head">
             <div class="integration-icon">M</div>
@@ -924,6 +944,8 @@
               <p class="muted">Allow chores, including repeating chores. Existing chores remain saved when hidden.</p>
               <label class="toggle-row"><input id="settings-shopping-enabled" type="checkbox"><span>Enable Shopping</span></label>
               <p class="muted">Show or hide shared household shopping lists. All lists and items remain saved.</p>
+              <label class="toggle-row"><input id="settings-meals-enabled" type="checkbox"><span>Enable Meal Planning</span></label>
+              <p class="muted">Show or hide RecipeCove meal planning for everyone, without deleting recipes or plans in RecipeCove.</p>
               <label class="toggle-row"><input id="settings-routines-enabled" type="checkbox"><span>Enable Family Routines</span></label>
               <p class="muted">Create repeating personal checklists. Hiding routines preserves their completion history.</p>
               <label class="toggle-row"><input id="settings-rewards-enabled" type="checkbox"><span>Enable Rewards &amp; Allowances</span></label>
@@ -951,6 +973,19 @@
           </section>
 
           <section class="settings-pane hidden" data-settings-pane="calendar">
+            <section class="panel stack" aria-label="Appearance preferences">
+              <div><p class="eyebrow">Your appearance</p><h3>Light or Dark mode</h3>
+                <p class="muted">Choose how Calden looks on all pages. Your selection follows your account on other devices; Follow my device uses the operating system's setting.</p></div>
+              <label>Appearance
+                <select id="settings-appearance" aria-describedby="settings-appearance-help">
+                  <option value="system">Follow my device</option>
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
+                </select>
+              </label>
+              <p id="settings-appearance-help" class="muted">Changes save automatically. You can still customize your home widgets separately.</p>
+              <p id="settings-appearance-status" class="status-line" role="status" aria-live="polite"></p>
+            </section>
             <form id="display-settings-form" class="panel stack">
               <div><p class="eyebrow">This browser</p><h3>Calendar & event defaults</h3><p class="muted">Display defaults stay in this browser. Your week-start preference follows your account across devices.</p></div>
               <div class="two">
@@ -1224,13 +1259,13 @@
   </form>
 </dialog>
 
-<script src="/app.js?v=1.5.0-alpha.3" defer></script>
-<script src="/routines.js?v=1.5.0-alpha.3-family-routines" defer></script>
-<script src="/rewards.js?v=1.5.0-alpha.3-family-rewards" defer></script>
-<script src="/children.js?v=1.5.0-alpha.3-family-children" defer></script>
-<script src="/meals.js?v=1.5.0-alpha.3-recipecove-meals" defer></script>
-<script src="/family-care.js?v=1.5.0-alpha.3-family-care" defer></script>
-<script src="/family-appearance.js?v=1.5.0-alpha.3-family-appearance" defer></script>
-<script src="/notification-preferences.js?v=1.5.0-alpha.3-user-alerts" defer></script>
+<script src="/app.js?v=1.5.0-alpha.4" defer></script>
+<script src="/routines.js?v=1.5.0-alpha.4-family-routines" defer></script>
+<script src="/rewards.js?v=1.5.0-alpha.4-family-rewards" defer></script>
+<script src="/children.js?v=1.5.0-alpha.4-family-children" defer></script>
+<script src="/meals.js?v=1.5.0-alpha.4-recipecove-meals" defer></script>
+<script src="/family-care.js?v=1.5.0-alpha.4-family-care" defer></script>
+<script src="/family-appearance.js?v=1.5.0-alpha.4-family-appearance" defer></script>
+<script src="/notification-preferences.js?v=1.5.0-alpha.4-user-alerts" defer></script>
 </body>
 </html>

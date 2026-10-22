@@ -1333,3 +1333,29 @@ body:not(.calden-family-dark) .primary-nav{
 body:not(.calden-family-dark) .sidebar .nav-badge{
   color:#fff;background:#2563eb;box-shadow:0 0 0 2px #fff
 }
+
+
+/* Family integration settings: separate connection, notification and
+   migration workflows with predictable spacing on narrow screens. */
+.integration-stack{display:grid;gap:19px;align-content:start;min-width:0}
+.integration-stack>.integration-card{min-width:0}
+.integration-group-title{
+  display:flex;align-items:baseline;justify-content:space-between;
+  flex-wrap:wrap;gap:4px 14px;padding:4px 2px 0;
+  border-bottom:1px solid var(--line,#dfe4eb)
+}
+.integration-group-title h3{margin:0 0 7px;font-size:1rem}
+.integration-group-title p{margin:0 0 7px;font-size:.79rem}
+.recipecove-integration-card .integration-connection{margin-top:12px}
+.recipecove-integration-card .integration-connection p{overflow-wrap:anywhere}
+.recipecove-integration-card .integration-connection code{
+  font-family:ui-monospace,SFMono-Regular,Consolas,monospace;
+  font-size:.84em;overflow-wrap:anywhere
+}
+.recipecove-integration-card .form-actions{flex-wrap:wrap}
+@media(max-width:640px){
+  .integration-group-title{display:block}
+  .recipecove-integration-card .form-actions .button{width:100%}
+}
+body.calden-family-dark .integration-group-title{border-color:#43536b}
+body.calden-family-dark .recipecove-integration-card code{color:#bfdbfe}

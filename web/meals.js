@@ -185,7 +185,7 @@
  next.addEventListener("click",()=>{start.value=plusDays(start.value||isoToday(),14);revision++;ready=false;load()});
  reset();
  window.caldenMeals={enter(page){
-  if(page!=="meals"){revision++;return}
+  if(page!=="meals"||state.settings?.meals_enabled===false){revision++;clearPlan();return}
   if(!initialized)reset();
   load();
  }};
