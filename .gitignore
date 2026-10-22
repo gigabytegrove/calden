@@ -4,3 +4,15 @@ data/
 .DS_Store
 
 node_modules/
+
+# Android client source/builds belong only in gigabytegrove/calden-android
+/android/
+*.apk
+*.aab
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+**/google-services.json
