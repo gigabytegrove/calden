@@ -324,6 +324,7 @@ function renderApp(){
   renderSettings();
   renderChores();
   $$(".shopping-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.shopping_enabled===false));
+  $$(".meals-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.meals_enabled===false||state.me?.is_child||state.me?.role==="restricted"));
       $$(".routines-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.routines_enabled!==true));
   window.caldenFamily?.renderDashboard();
   window.caldenFamily?.renderShopping();
@@ -437,7 +438,7 @@ function navigate(page,load=true,writeURL=true){
   if(["calendars","categories"].includes(page)&&!["admin","planner"].includes(state.me?.role))page="calendar";
   if(page==="chores"&&!state.settings?.chores_enabled&&!state.settings?.tasks_enabled)page="calendar";
   if(page==="shopping"&&state.settings?.shopping_enabled===false)page="calendar";
-  if(page==="meals"&&(state.me?.is_child||state.me?.role==="restricted"))page="dashboard";
+  if(page==="meals"&&(state.settings?.meals_enabled===false||state.me?.is_child||state.me?.role==="restricted"))page="dashboard";
   if(page==="routines"&&state.settings?.routines_enabled!==true)page="calendar";
   if(page==="rewards"&&state.settings?.rewards_enabled!==true)page="calendar";
   if(["school","maintenance","pets"].includes(page)&&state.settings?.[page+"_enabled"]!==true)page="calendar";
@@ -1541,6 +1542,26 @@ async function loadRegisteredDevices(){
     </div></article>`).join("");
   }catch(err){status.textContent="Could not load registered devices: "+err.message}
 }
+// RecipeCove configuration check: no API compatibility claim or key disclosure.
+async function loadRecipeCoveIntegrationStatus(){
+  const status=$("#recipecove-integration-status"),badge=$("#recipecove-connection-badge");
+  if(!status||!badge||state.me?.role!=="admin")return;
+  status.textContent="Checking server configuration…";
+  try{
+    const data=await api("/api/integrations/recipecove/status");
+    badge.textContent=data.enabled===false?"Disabled":data.configured?"Configured":"Not configured";
+    status.textContent=data.enabled===false?
+      "Meal Planning is disabled for this household. Existing RecipeCove data is unchanged.":
+      data.configured?"Server configuration exists. API compatibility and connectivity are not yet verified.":
+      "RecipeCove is not configured on this Calden server.";
+  }catch(err){
+    badge.textContent="Unavailable";
+    status.textContent="Could not check RecipeCove configuration: "+err.message;
+  }
+}
+$("#recipecove-check").addEventListener("click",loadRecipeCoveIntegrationStatus);
+$("#recipecove-feature-link").addEventListener("click",()=>activateSettingsTab("optional-features"));
+
 function activateSettingsTab(tab,writeURL=false){
   if(!["general","calendar","optional-features","account","integrations","updates","backups","devices"].includes(tab))tab="calendar";
   if(["general","optional-features","integrations","updates","backups"].includes(tab)&&state.me?.role!=="admin")tab="calendar";
@@ -1549,7 +1570,7 @@ function activateSettingsTab(tab,writeURL=false){
   $$(".settings-nav-item").forEach(button=>button.classList.toggle("active",button.dataset.settingsTab===tab));
   $$("[data-settings-pane]").forEach(pane=>pane.classList.toggle("hidden",pane.dataset.settingsPane!==tab));
   if(tab==="account")loadPrivateBusyTime();
-  if(tab==="integrations"){loadMonita();setGoogleImportFile(state.googleImportFile)}
+  if(tab==="integrations"){loadMonita();setGoogleImportFile(state.googleImportFile);loadRecipeCoveIntegrationStatus()}
   if(tab==="updates")loadUpdater();
   if(tab==="backups")loadBackups();
   if(tab==="devices")loadRegisteredDevices();
@@ -1565,6 +1586,7 @@ function renderSettings(){
   $("#settings-tasks-enabled").checked=!!state.settings?.tasks_enabled;
   $("#settings-chores-enabled").checked=!!state.settings?.chores_enabled;
   $("#settings-shopping-enabled").checked=state.settings?.shopping_enabled!==false;
+  $("#settings-meals-enabled").checked=state.settings?.meals_enabled!==false;
   $("#settings-routines-enabled").checked=state.settings?.routines_enabled===true;
   $("#settings-rewards-enabled").checked=state.settings?.rewards_enabled===true;
   for(const kind of ["school","maintenance","pets"]){
@@ -3123,7 +3145,7 @@ $("#chore-list").addEventListener("change",async event=>{
 });
 // Each checkbox saves only its own global setting. The API returns all four,
 // keeping the other three unchanged. This works for every household member.
-for(const [name,label] of [["bills","Bills"],["agenda","Agenda"],["tasks","Tasks"],["chores","Chores"],["shopping","Shopping"],["routines","Routines"],["rewards","Rewards & Allowances"],["school","School"],["maintenance","Home upkeep"],["pets","Pets"]]){
+for(const [name,label] of [["bills","Bills"],["agenda","Agenda"],["tasks","Tasks"],["chores","Chores"],["shopping","Shopping"],["meals","Meal Planning"],["routines","Routines"],["rewards","Rewards & Allowances"],["school","School"],["maintenance","Home upkeep"],["pets","Pets"]]){
   $("#settings-"+name+"-enabled").addEventListener("change",async event=>{
     if(state.me?.role!=="admin")return;
     const control=event.currentTarget,status=$("#settings-feature-status"),value=control.checked;
@@ -3133,8 +3155,11 @@ for(const [name,label] of [["bills","Bills"],["agenda","Agenda"],["tasks","Tasks
       renderBillNavigation();
       renderChores();
       $$(".shopping-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.shopping_enabled===false));
+  $$(".meals-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.meals_enabled===false||state.me?.is_child||state.me?.role==="restricted"));
       $$(".routines-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.routines_enabled!==true));
       if(name==="shopping"&&state.settings.shopping_enabled===false&&state.currentPage==="shopping")navigate("calendar");
+      if(name==="meals"&&state.settings.meals_enabled===false&&state.currentPage==="meals")navigate("dashboard");
+      if(name==="meals")loadRecipeCoveIntegrationStatus();
       if(name==="routines"&&state.settings.routines_enabled!==true&&state.currentPage==="routines")navigate("calendar");
       $$(".rewards-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.rewards_enabled!==true));
       window.caldenCare?.renderNav();
@@ -3235,6 +3260,9 @@ boot().catch(err=>{console.error("Calden failed before authentication",err);show
     const host=$("#dashboard-widgets");if(!host)return;
     const pref=preference();
     $("#dashboard-appearance").value=pref.appearance;
+    // The global Settings selector and dashboard editor share a single saved
+    // account preference. Never treat either control as its own independent theme.
+    if($("#settings-appearance"))$("#settings-appearance").value=pref.appearance;
     $("#dashboard-layout").value=state.me?.is_child?(state.me.child_layout||"simple"):pref.layout;
     $("#dashboard-layout").disabled=!!state.me?.is_child;
     $("#dashboard-widget-choices").innerHTML=Object.entries(labels).filter(([kind])=>availableWidget(kind))
@@ -3268,6 +3296,25 @@ boot().catch(err=>{console.error("Calden failed before authentication",err);show
     renderDashboard();
   });
   $("#dashboard-cancel").addEventListener("click",closeDashboardEditor);
+  // Theme is an app-wide personal preference; changing it must not reset
+  // the dashboard widget order or the guardian-controlled child layout.
+  $("#settings-appearance").addEventListener("change",async event=>{
+    const selector=event.currentTarget;
+    const original=preference();
+    const next=selector.value;
+    if(next===original.appearance)return;
+    selector.disabled=true;
+    status("#settings-appearance-status","Saving your appearance…");
+    const saved=await saveDashboard({...original,appearance:next});
+    if(saved){
+      status("#settings-appearance-status",
+        "Appearance saved. "+(next==="system"?"Calden now follows your device.":"Calden is now in "+(next==="light"?"Light":"Dark")+" mode."));
+    }else{
+      selector.value=original.appearance;
+      status("#settings-appearance-status","Unable to save appearance. Your previous setting is unchanged.");
+    }
+    selector.disabled=false;
+  });
   $("#dashboard-save").addEventListener("click",async()=>{
     const prefs=preference();
     const selected=new Set([...$$("[data-dashboard-choice]:checked")].map(x=>x.dataset.dashboardChoice));

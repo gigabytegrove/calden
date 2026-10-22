@@ -88,24 +88,42 @@ func validCoveMeal(in coveMealInput,create bool)bool{
  }
  return true
 }
-func allowCoveUser(w http.ResponseWriter,r *http.Request)bool{
+// Default-on for compatibility with existing households. This gates the
+// server-side read/write proxy as well as the browser's navigation and UI.
+func (s *server) coveEnabled(ctx context.Context)(bool,error){
+ var enabled bool
+ err:=s.db.QueryRow(ctx,`SELECT COALESCE(
+   (SELECT value <> 'false' FROM app_settings WHERE key='meals_enabled'),true)`).Scan(&enabled)
+ return enabled,err
+}
+func (s *server) allowCoveUser(w http.ResponseWriter,r *http.Request)bool{
  a:=currentActor(r)
  if a.IsChild||a.Role=="restricted"{
   writeError(w,403,"Meal planning is managed by adult household members");return false
  }
+ enabled,err:=s.coveEnabled(r.Context())
+ if err!=nil{writeError(w,500,"Could not load Meal Planning settings");return false}
+ if !enabled{writeError(w,403,"Meal Planning is disabled for this household");return false}
  return true
 }
 func (s *server) coveStatus(w http.ResponseWriter,r *http.Request){
- if !allowCoveUser(w,r){return}
- _,_,err:=recipeCoveConfig()
- writeJSON(w,200,map[string]any{"configured":err==nil,"source":"RecipeCove"})
+ a:=currentActor(r)
+ if a.IsChild||a.Role=="restricted"{
+  writeError(w,403,"Meal planning is managed by adult household members");return
+ }
+ enabled,err:=s.coveEnabled(r.Context())
+ if err!=nil{writeError(w,500,"Could not load Meal Planning settings");return}
+ _,_,configErr:=recipeCoveConfig()
+ // "configured" only checks server-side settings. It does not imply that
+ // RecipeCove's proposed integration endpoint exists or is reachable.
+ writeJSON(w,200,map[string]any{"configured":configErr==nil,"enabled":enabled,"source":"RecipeCove"})
 }
 func (s *server) coveRecipes(w http.ResponseWriter,r *http.Request){
- if !allowCoveUser(w,r){return}
+ if !s.allowCoveUser(w,r){return}
  recipeCoveProxy(w,r,"GET","/recipes",nil)
 }
 func (s *server) coveMeals(w http.ResponseWriter,r *http.Request){
- if !allowCoveUser(w,r){return}
+ if !s.allowCoveUser(w,r){return}
  from,to:=r.URL.Query().Get("start"),r.URL.Query().Get("end")
  d1,e1:=time.Parse("2006-01-02",from)
  d2,e2:=time.Parse("2006-01-02",to)
@@ -115,7 +133,7 @@ func (s *server) coveMeals(w http.ResponseWriter,r *http.Request){
  recipeCoveProxy(w,r,"GET","/meal-plan?start="+url.QueryEscape(from)+"&end="+url.QueryEscape(to),nil)
 }
 func (s *server) coveSaveMeal(w http.ResponseWriter,r *http.Request){
- if !allowCoveUser(w,r){return}
+ if !s.allowCoveUser(w,r){return}
  var in coveMealInput
  if decode(r,&in)!=nil||!validCoveMeal(in,r.Method=="POST"){
   writeError(w,400,"Choose a recipe, meal, date and valid servings");return
@@ -131,7 +149,7 @@ func (s *server) coveSaveMeal(w http.ResponseWriter,r *http.Request){
  recipeCoveProxy(w,r,r.Method,route,payload)
 }
 func (s *server) coveDeleteMeal(w http.ResponseWriter,r *http.Request){
- if !allowCoveUser(w,r){return}
+ if !s.allowCoveUser(w,r){return}
  id,err:=strconv.ParseInt(r.PathValue("id"),10,64)
  if err!=nil||id<1{writeError(w,400,"Invalid meal");return}
  recipeCoveProxy(w,r,"DELETE","/meal-plan/"+strconv.FormatInt(id,10),nil)
