@@ -9,7 +9,7 @@ test("native Calden meal route and script are valid and navigable",()=>{
  assert.match(html,/data-page="meals" href="\/meals"/);
  assert.match(html,/src="\/meals\.js\?/);
  assert.match(app,/window\.caldenMeals\?\.enter\(page\)/);
- assert.match(app,/page==="meals"&&\(state\.me\?\.is_child/);
+ assert.ok(app.includes('page==="meals"&&(state.settings?.meals_enabled===false'));
  for(const route of ["GET /api/integrations/recipecove/status",
  "GET /api/integrations/recipecove/recipes",
  "GET /api/integrations/recipecove/meals",
