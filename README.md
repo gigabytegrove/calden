@@ -6,6 +6,20 @@
 
 <h1 align="center">Calden</h1>
 
+
+<!-- GIGABYTE GROVE REPOSITORY BADGES START -->
+<p align="center">
+  <a href="https://github.com/gigabytegrove/calden"><img alt="GitHub repository" src="https://img.shields.io/badge/GitHub-Repository-181717?logo=github&logoColor=white"></a>
+  <a href="https://github.com/gigabytegrove/calden/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/gigabytegrove/calden?style=flat&label=Stars&logo=github"></a>
+  <a href="https://github.com/gigabytegrove/calden/issues"><img alt="Issues" src="https://img.shields.io/badge/Issues-View-555555?logo=github"></a>
+  <a href="https://github.com/gigabytegrove/calden/releases"><img alt="Releases" src="https://img.shields.io/badge/Releases-View-555555?logo=github"></a>
+  <a href="https://paypal.me/gigabytegrove"><img alt="Donate via PayPal" src="https://img.shields.io/badge/Donate-PayPal-0070BA?logo=paypal&logoColor=white"></a>
+</p>
+<p align="center">
+  <a href="https://github.com/gigabytegrove/calden">Repository</a> · <a href="https://github.com/gigabytegrove/calden/stargazers">Stars</a> · <a href="https://github.com/gigabytegrove/calden/issues">Issues</a> · <a href="https://github.com/gigabytegrove/calden/releases">Releases</a> · <a href="https://paypal.me/gigabytegrove">Donate via PayPal</a>
+</p>
+<!-- GIGABYTE GROVE REPOSITORY BADGES END -->
+
 <p align="center"><strong>A family calendar and scheduling system you control.</strong></p>
 
 Calden is a self-hosted family calendar built for normal people, not calendar administrators. It keeps household schedules in one place, makes it obvious which calendar an event belongs to, and shows exactly who an event is assigned to.
