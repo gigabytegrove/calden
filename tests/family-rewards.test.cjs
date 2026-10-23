@@ -21,7 +21,7 @@ test("rewards client is parsed and loaded as addressable Calden page",()=>{
  assert.match(rewards,/Prepaid allowance/);
  assert.match(app,/rewards_enabled===true/);
  assert.match(app,/window\.caldenRewards\?\.enter\(page\)/);
- assert.match(app,/const caldenPages=new Set\(\["dashboard","shopping","routines","rewards"/);
+ assert.match(app,/const caldenPages=new Set\(\["dashboard","shopping","meals","routines","rewards"/);
 });
 
 test("rewards APIs are all authenticated, using manager checks on privileged writes",()=>{
