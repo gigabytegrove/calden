@@ -3162,7 +3162,14 @@ boot().catch(err=>{console.error("Calden failed before authentication",err);show
     if(kind==="agenda")return state.settings?.agenda_enabled!==false;
     return Object.hasOwn(labels,kind);
   };
-  const preference=()=>state.dashboard||{appearance:"system",layout:"standard",widgets:["calendar","notifications"]};
+  const preference=()=>{
+    const raw=state.dashboard&&typeof state.dashboard==="object"?state.dashboard:{};
+    return {
+      appearance:["system","light","dark"].includes(raw.appearance)?raw.appearance:"system",
+      layout:["standard","simple"].includes(raw.layout)?raw.layout:"standard",
+      widgets:Array.isArray(raw.widgets)?raw.widgets.filter(w=>typeof w==="string"&&Object.hasOwn(labels,w)):["calendar","notifications"]
+    };
+  };
   function applyDashboardAppearance(){
     const pref=preference();
     document.body.classList.toggle("calden-family-dark",pref.appearance==="dark"||(pref.appearance==="system"&&window.matchMedia?.("(prefers-color-scheme: dark)").matches));
