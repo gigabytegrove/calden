@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM --platform=$BUILDPLATFORM node:22-alpine AS webbuild
+FROM --platform=$BUILDPLATFORM node:22.23.4-alpine AS webbuild
 
 WORKDIR /src
 COPY package.json ./
@@ -8,7 +8,7 @@ RUN npm install --no-audit --no-fund
 COPY web ./web
 RUN npm run build:css
 
-FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.27.3-alpine AS build
 
 ARG TARGETOS=linux
 ARG TARGETARCH
