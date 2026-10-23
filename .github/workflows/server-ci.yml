@@ -22,7 +22,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.24.x"
+          go-version: "1.27.3"
           cache: false
 
       - name: Resolve dependencies
@@ -72,16 +72,17 @@ jobs:
         run: |
           set -euo pipefail
           curl -fsSI http://127.0.0.1:8787/ | tr -d '\r' > /tmp/root-headers.txt
-          curl -fsSI http://127.0.0.1:8787/app.js?v=1.4.7 | tr -d '\r' > /tmp/app-headers.txt
+          APP_VERSION="$(tr -d '[:space:]' < VERSION)"
+          curl -fsSI "http://127.0.0.1:8787/app.js?v=$APP_VERSION" | tr -d '\r' > /tmp/app-headers.txt
           grep -qi '^Cache-Control: .*no-store' /tmp/root-headers.txt
           grep -qi '^Cache-Control: .*no-store' /tmp/app-headers.txt
-          curl -fsS http://127.0.0.1:8787/ | grep -q '/app.js?v=1.4.7'
-          curl -fsS http://127.0.0.1:8787/ | grep -q '/styles.css?v=1.4.7'
+          curl -fsS http://127.0.0.1:8787/ | grep -Fq "/app.js?v=$APP_VERSION"
+          curl -fsS http://127.0.0.1:8787/ | grep -Fq "/styles.css?v=$APP_VERSION"
 
       - name: Set up browser test
         uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "22.23.4"
 
       - name: Run date parsing regression tests
         run: node --test tests/web-date.test.cjs
