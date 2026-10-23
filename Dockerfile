@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM --platform=$BUILDPLATFORM node:22-alpine AS webbuild
+FROM --platform=$BUILDPLATFORM node:22.23.4-alpine AS webbuild
 
 WORKDIR /src
 COPY package.json ./
