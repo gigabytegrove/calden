@@ -17,9 +17,7 @@ services:
       retries: 15
 
   tracking-hub:
-    build:
-      context: .
-      dockerfile: Dockerfile.tracking-hub
+    image: ghcr.io/gigabytegrove/calden-tracking-hub:0.1.0-rc1
     restart: unless-stopped
     depends_on:
       hub-db:
