@@ -1,0 +1,150 @@
+name: Publish Calden Alpha 1.5.0-alpha.5
+
+on:
+  push:
+    branches:
+      - alpha/v1.5.0-alpha.5
+    paths:
+      - VERSION
+      - cmd/**
+      - internal/**
+      - web/**
+      - tests/**
+      - docs/releases/v1.5.0-alpha.5.md
+      - Dockerfile
+      - go.mod
+      - go.sum
+      - package.json
+      - .github/workflows/publish-alpha-1.5.0.yml
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: calden-alpha-1.5.0-alpha.5-release
+  cancel-in-progress: false
+
+jobs:
+  verify-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: calden_alpha_ci
+          POSTGRES_PASSWORD: calden_ci_only
+          POSTGRES_DB: calden_alpha_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U calden_alpha_ci -d calden_alpha_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Check out alpha 1.5 source
+        uses: actions/checkout@v4
+
+      - name: Require exact alpha release and preserve alpha features
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(cat VERSION)" = "1.5.0-alpha.5"
+          grep -Fq 'name="calden-version" content="1.5.0-alpha.5"' web/index.html
+          grep -Fq 'id="settings-meals-enabled"' web/index.html
+          grep -Fq 'id="settings-packages-enabled"' web/index.html
+          grep -Fq 'id="page-packages"' web/index.html
+          grep -Fq 'id="page-meals"' web/index.html
+          test -f internal/store/migrations/041_package_tracking.sql
+          test -f internal/store/migrations/042_package_inbound_tokens.sql
+          test -f internal/store/migrations/043_package_mailboxes.sql
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Run Go compilation, tests and vet
+        run: |
+          go test ./...
+          go vet ./...
+
+      - name: Exercise migrations and mailbox security on PostgreSQL
+        env:
+          CALDEN_TEST_DATABASE_URL: postgres://calden_alpha_ci:calden_ci_only@127.0.0.1:5432/calden_alpha_ci?sslmode=disable
+        run: go test ./internal/api -run TestPackageDatabaseIntegration -count=1 -v
+
+      - name: Compile UI and run browser-level regression suite
+        run: |
+          npm install --no-audit --no-fund
+          npm run build:css
+          npm run test:web
+          node --check web/app.js
+          node --check web/packages.js
+
+      - name: Build updater-compatible complete Linux runtime archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s web/styles.css
+          mkdir -p dist
+          for ARCH in amd64 arm64; do
+            mkdir -p "stage/$ARCH"
+            CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" go build -trimpath               -ldflags="-s -w -X main.version=1.5.0-alpha.5"               -o "stage/$ARCH/calden" ./cmd/calden
+            chmod 0755 "stage/$ARCH/calden"
+            cp -a web "stage/$ARCH/web"
+            (cd "stage/$ARCH" && tar -czf "../../dist/calden-linux-$ARCH.tar.gz" calden web)
+            tar -tzf "dist/calden-linux-$ARCH.tar.gz" | grep -Fxq "calden"
+            tar -tzf "dist/calden-linux-$ARCH.tar.gz" | grep -Fxq "web/index.html"
+            tar -tzf "dist/calden-linux-$ARCH.tar.gz" | grep -Fxq "web/styles.css"
+            tar -tzf "dist/calden-linux-$ARCH.tar.gz" | grep -Fxq "web/packages.js"
+          done
+          (cd dist && sha256sum calden-linux-amd64.tar.gz calden-linux-arm64.tar.gz > SHA256SUMS && sha256sum -c SHA256SUMS)
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Authenticate to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish alpha-tagged container only (never latest)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            CALDEN_RUN_TESTS=1
+          tags: |
+            ghcr.io/gigabytegrove/calden:1.5.0-alpha.5
+          labels: |
+            org.opencontainers.image.title=Calden Alpha
+            org.opencontainers.image.source=https://github.com/gigabytegrove/calden
+            org.opencontainers.image.version=1.5.0-alpha.5
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Publish tested alpha release and checksums
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="v1.5.0-alpha.5"
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "ERROR: $TAG already published. Never overwrite a tested alpha." >&2
+            exit 1
+          fi
+          gh release create "$TAG"             dist/calden-linux-amd64.tar.gz             dist/calden-linux-arm64.tar.gz             dist/SHA256SUMS             --repo "$GITHUB_REPOSITORY"             --target "$GITHUB_SHA"             --title "Calden 1.5.0-alpha.5 — Package Tracking"             --notes-file docs/releases/v1.5.0-alpha.5.md             --prerelease             --latest=false
