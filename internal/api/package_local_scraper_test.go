@@ -36,6 +36,13 @@ func TestLocalTrackerAcceptsRealCarrierScansOnly(t *testing.T){
   t.Fatalf("wrong scan timestamp: %s",got)
  }
 }
+func TestLocalTrackerRejectsCrossShipmentStatus(t *testing.T){
+ raw:=[]byte(`{"carrier":"ups","source":"ups","result":{"current_stage":"delivered","delivery_tracking_number":"1Z999AA10123456785","events":[{"stage":"delivered","time":"2026-10-25T14:05:00Z","description":"Delivered"}]}}`)
+ if _,err:=parseLocalScraperJSON(raw,"1Z999AA10123456784");err==nil{
+  t.Fatal("Carrier status for a different tracking number was accepted")
+ }
+}
+
 func TestLocalTrackerDoesNotInventStatuses(t *testing.T){
  for _,raw:=range [][]byte{
   []byte("not json"),[]byte(`{"carrier":"ups","source":"ups","result":{}}`),
