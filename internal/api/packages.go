@@ -40,6 +40,7 @@ type packageRecord struct {
  NextTrackingCheck string `json:"next_tracking_check"`
  TrackingError string `json:"tracking_error"`
  ProviderSlug string `json:"provider_slug"`
+ LatestScan string `json:"latest_scan"`
  CanEdit bool `json:"can_edit"`
 }
 
@@ -89,10 +90,10 @@ func (s *server) requirePackages(w http.ResponseWriter,r *http.Request)bool{
 }
 func packageCanWrite(r *http.Request)bool{return currentActor(r).Role!="restricted"&&!currentActor(r).IsChild}
 
-const packageColumns="id,owner_id,shared,label,carrier,tracking_number,status,status_source,COALESCE(expected_date::text,''),COALESCE(delivered_at::text,''),notes,updated_at,COALESCE(last_tracking_check_at::text,''),COALESCE(next_tracking_check_at::text,''),tracking_error,provider_slug"
+const packageColumns="id,owner_id,shared,label,carrier,tracking_number,status,status_source,COALESCE(expected_date::text,''),COALESCE(delivered_at::text,''),notes,updated_at,COALESCE(last_tracking_check_at::text,''),COALESCE(next_tracking_check_at::text,''),tracking_error,provider_slug,COALESCE((SELECT c.detail FROM package_checkpoints c WHERE c.shipment_id=package_shipments.id AND c.source='provider' ORDER BY c.occurred_at DESC,c.id DESC LIMIT 1),'')"
 func scanPackage(row interface{Scan(...any)error},actorID uuid.UUID)(packageRecord,error){
  var p packageRecord
- err:=row.Scan(&p.ID,&p.OwnerID,&p.Shared,&p.Label,&p.Carrier,&p.TrackingNumber,&p.Status,&p.StatusSource,&p.ExpectedDate,&p.DeliveredAt,&p.Notes,&p.UpdatedAt,&p.LastTrackingCheck,&p.NextTrackingCheck,&p.TrackingError,&p.ProviderSlug)
+ err:=row.Scan(&p.ID,&p.OwnerID,&p.Shared,&p.Label,&p.Carrier,&p.TrackingNumber,&p.Status,&p.StatusSource,&p.ExpectedDate,&p.DeliveredAt,&p.Notes,&p.UpdatedAt,&p.LastTrackingCheck,&p.NextTrackingCheck,&p.TrackingError,&p.ProviderSlug,&p.LatestScan)
  p.CanEdit=p.OwnerID==actorID
  p.TrackingURL=packageTrackingURL(p.Carrier,p.TrackingNumber)
  return p,err
