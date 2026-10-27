@@ -57,7 +57,7 @@ jobs:
       - name: Run PostgreSQL schema and mailbox security integration checks
         env:
           CALDEN_TEST_DATABASE_URL: postgres://calden_ci:calden_ci_only@127.0.0.1:5432/calden_packages_ci?sslmode=disable
-        run: go test ./internal/api -run TestPackageDatabaseIntegration -count=1 -v
+        run: go test ./internal/api -run 'TestPackage.*Integration' -count=1 -v
       - name: Check JavaScript syntax
         run: |
           node --check web/app.js
