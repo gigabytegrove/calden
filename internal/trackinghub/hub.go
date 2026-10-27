@@ -218,6 +218,16 @@ func(h *Hub) track(w http.ResponseWriter,r *http.Request){
  if err=tx.Commit(ctx);err!=nil{fail(w,503,"Tracking update could not be saved");return}
  writeJSON(w,200,map[string]any{"tracking":snapshot,"cached":false})
 }
+func(h *Hub) sendProviderRequest(ctx context.Context,req *http.Request)(*http.Response,error){
+ h.providerMu.Lock()
+ defer h.providerMu.Unlock()
+ if delay:=time.Until(h.nextProviderCall);delay>0{
+  timer:=time.NewTimer(delay);defer timer.Stop()
+  select{case <-ctx.Done():return nil,ctx.Err();case <-timer.C:}
+ }
+ h.nextProviderCall=time.Now().Add(210*time.Millisecond)
+ return h.cfg.HTTPClient.Do(req)
+}
 func(h *Hub) requestAfterShip(ctx context.Context,providerID,number,carrier string)(trackingSnapshot,error){
  method,path:=http.MethodPost,h.cfg.Endpoint
  var input io.Reader
@@ -234,16 +244,7 @@ func(h *Hub) requestAfterShip(ctx context.Context,providerID,number,carrier stri
  req.Header.Set("as-api-key",h.cfg.AfterShipKey)
  req.Header.Set("Content-Type","application/json")
  req.Header.Set("Accept","application/json")
- // Restrict the operator account to one outbound request at a time and
- // at most five per second, including duplicate-resolution requests.
- h.providerMu.Lock()
- defer h.providerMu.Unlock()
- if delay:=time.Until(h.nextProviderCall);delay>0{
-  timer:=time.NewTimer(delay);defer timer.Stop()
-  select{case <-ctx.Done():return trackingSnapshot{},ctx.Err();case <-timer.C:}
- }
- h.nextProviderCall=time.Now().Add(210*time.Millisecond)
- resp,err:=h.cfg.HTTPClient.Do(req)
+ resp,err:=h.sendProviderRequest(ctx,req)
  if err!=nil{return trackingSnapshot{},errors.New("Carrier data service unreachable")}
  defer resp.Body.Close()
  if resp.StatusCode==401||resp.StatusCode==403{return trackingSnapshot{},errors.New("Shared carrier account not authorized")}
@@ -276,13 +277,7 @@ func(h *Hub) findExistingTracking(ctx context.Context,number,carrier string)(tra
  if err!=nil{return trackingSnapshot{},errors.New("Cannot locate existing tracking")}
  req.Header.Set("as-api-key",h.cfg.AfterShipKey)
  req.Header.Set("Accept","application/json")
- // This is a distinct API endpoint call and is separately rate-limited.
- if delay:=time.Until(h.nextProviderCall);delay>0{
-  timer:=time.NewTimer(delay);defer timer.Stop()
-  select{case <-ctx.Done():return trackingSnapshot{},ctx.Err();case <-timer.C:}
- }
- h.nextProviderCall=time.Now().Add(210*time.Millisecond)
- resp,err:=h.cfg.HTTPClient.Do(req)
+ resp,err:=h.sendProviderRequest(ctx,req)
  if err!=nil{return trackingSnapshot{},errors.New("Carrier record lookup failed")}
  defer resp.Body.Close()
  if resp.StatusCode!=200{return trackingSnapshot{},errors.New("Carrier did not return matching tracking record")}
