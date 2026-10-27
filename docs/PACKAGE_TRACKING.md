@@ -10,7 +10,7 @@ Calden's Package Tracking is **disabled by default** for existing and new househ
 - Optional import of raw RFC 822 shipping emails from the UI (paste headers and body or upload an `.eml` file). Currently recognized IDs: UPS `1Z` numbers, USPS long numeric / international `US` numbers, Amazon Logistics `TBA` numbers and FedEx numeric IDs when FedEx is mentioned.
 - Email imports are unverified suggestions: they never overwrite an existing tracking status, and they never represent a successful carrier API request.
 - Owner-specific mail-gateway forwarding: generate a token in Packages → Import email. Calden stores only its SHA-256 digest and displays the raw value once. Configure an independently operated mail gateway to POST a raw RFC 822 email (up to 256 KiB) to `/api/packages/inbound-email` with `Authorization: Bearer cpk_...`. Rotating or revoking the token immediately invalidates the previous credential.
-- Calden attempts keyless status reads from official public carrier pages every three hours. When carriers require interaction or login, it preserves the package and provides the official tracking link. No carrier passwords are stored or scraped.
+- **Built-in local tracking** in the single Calden Docker container runs Universal Parcel Scraper with Node and Chromium, identifying supported carriers and automatically retrieving actual scan locations, status and ETAs approximately every three hours, without a paid subscription, developer signup or API key. The child process receives an allowlisted environment, not Calden's database or authentication secrets. Public tracker fallbacks also receive the tracking number.
 
 ## Built-in mailbox scanning (opt-in)
 
@@ -57,11 +57,16 @@ The import handler does not load embedded URLs, fetch untrusted images, save ema
 
 ## Limitations
 
-Automatic **three-hour keyless public-page checks** are provided, but successful live tracking cannot be guaranteed where a carrier's website blocks unattended requests or does not expose machine-readable tracking. An optional authorized AfterShip integration can add coverage but is not mandatory. Consumer Amazon OAuth, USPS Informed Delivery login, Gmail OAuth, Outlook OAuth, carrier-account scraping, and native Android package screens are not implemented. Manual or email-based data is never represented as carrier-verified.
+Automatic **three-hour local carrier checks** are provided in the complete Docker installation; successful live tracking cannot be guaranteed where a carrier blocks automation, requires customer-specific data, or exposes no machine-readable history. An optional authorized AfterShip integration can add coverage but is not mandatory. Consumer Amazon OAuth, USPS Informed Delivery login, Gmail OAuth, Outlook OAuth, carrier-account scraping, and native Android package screens are not implemented. Manual or email-based data is never represented as carrier-verified.
 
 
-## Built-in keyless local tracking (1.5.0-alpha.8)
+## Built-in keyless local tracking (1.5.0-alpha.9)
 
 The **Docker image** embeds the Apache-2.0 [Universal Parcel Scraper](https://github.com/plhery/universal-parcel-scraper) and Chromium/Node runtime in the **same Calden container**. Tracking numbers are detected and actual visible carrier scan events (including known locations, times, status, and tentative delivery estimates) are imported into the existing package timeline and calendar view. Multiple public tracker fallbacks are enabled, meaning tracking numbers may be sent to those public services as well as the carrier. Tracking remains globally off by default until enabled under Settings.
 
-The bundled engine uses site adapters and browser/HTTP sources; carriers frequently change websites or block automated requests. It cannot guarantee that any arbitrary tracking number can be resolved, particularly Amazon TBA IDs and USPS/FedEx browser challenges. Calden preserves previous genuine scans rather than substituting fabricated statuses. **No subscription or developer account is required**, and you do not deploy a separate API service. Image download and outgoing HTTPS access to carrier sites are the only network requirements. **The alpha.8 Docker image is the complete bundled build; the native binary-only archive does not contain Node/browser dependencies and is not equivalent.**
+The bundled engine uses site adapters and browser/HTTP sources; carriers frequently change websites or block automated requests. It cannot guarantee that any arbitrary tracking number can be resolved, particularly Amazon TBA IDs and USPS/FedEx browser challenges. Calden preserves previous genuine scans rather than substituting fabricated statuses. **No subscription or developer account is required**, and you do not deploy a separate API service. Image download and outgoing HTTPS access to carrier sites are the only network requirements. **The alpha.9 Docker image is the complete bundled build; the native binary-only archive does not contain Node/browser dependencies and is not equivalent.**
+
+
+### Alpha.9 tracking safeguards
+
+The scanner uses the provider's real stage vocabulary, including registered, customs and ready-for-pickup. It records facility descriptions and scan timestamps only when the source provides a timezone, avoiding silently interpreting unzoned local clocks as UTC. It verifies any primary tracking number supplied by the adapter before applying a status; updates for an unrelated shipment are rejected. Carrier events remain deduplicated across three-hour updates. The Node subprocess receives a **strictly allowlisted environment**, excluding Calden's database, JWT and SMTP secrets. End-to-end integration tests simulate the actual Node CLI and verify PostgreSQL persistence without requiring paid credentials.
