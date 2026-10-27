@@ -432,6 +432,7 @@
         <div><h2>Package Tracking</h2><p class="muted">Keep deliveries on your calendar. Packages are private unless you share them.</p></div>
         <div class="package-head-actions">
           <button type="button" class="button secondary" id="packages-refresh">Refresh list</button>
+          <button type="button" class="button secondary hidden" id="packages-provider-open">Tracking API settings</button>
           <button type="button" class="button secondary" id="packages-import-open">Import email</button>
           <button type="button" class="button" id="packages-add">+ Add package</button>
         </div>
@@ -443,7 +444,7 @@
       </div>
       <p id="packages-status" class="status-line" role="status" aria-live="polite"></p>
       <div id="packages-list" class="package-list" aria-live="polite"></div>
-      <p class="muted package-disclaimer">Carrier tracking links open the carrier's own website. Status is manually maintained unless supplied by an imported email or an authorized tracking connection; Calden does not impersonate a carrier.</p>
+      <p class="muted package-disclaimer">Carrier tracking links open the carrier's own website. Statuses are carrier-verified only following an authorized tracking API response; Calden does not impersonate a carrier.</p>
     </section>
 
     <section id="page-calendar" class="app-page">
@@ -1282,15 +1283,34 @@
   </form>
 </dialog>
 
+<dialog id="package-provider-dialog" class="package-dialog">
+  <div class="package-form stack">
+    <div class="package-dialog-head"><div><h2>Automatic carrier tracking</h2><p class="muted">A single authorized AfterShip connection for the household.</p></div><button type="button" class="button secondary compact" id="package-provider-close">Close</button></div>
+    <p class="muted">AfterShip identifies carriers and retrieves genuine tracking updates. Calden checks active shipments every three hours. An eligible AfterShip account and Tracking API key are required; plan restrictions and charges may apply.</p>
+    <form id="package-provider-form" class="stack">
+      <label>AfterShip Tracking API key
+        <input name="api_key" type="password" maxlength="512" autocomplete="new-password" placeholder="Enter key (leave blank to keep saved key)"></label>
+      <label class="package-sharing"><input type="checkbox" name="enabled"> Enable automatic carrier tracking</label>
+      <div class="package-form-actions">
+        <button type="submit" class="button" id="package-provider-save">Save connection</button>
+        <button type="button" class="button danger" id="package-provider-remove">Disconnect</button>
+      </div>
+      <p id="package-provider-status" role="status" aria-live="polite"></p>
+    </form>
+    <p class="muted"><a href="https://www.aftership.com/docs/tracking/quickstart/api-quick-start" target="_blank" rel="noopener noreferrer">Get an AfterShip Tracking API key</a>. The secret is encrypted on the server and never sent back to the browser. No personal carrier-account passwords are needed.</p>
+  </div>
+</dialog>
+
 <dialog id="package-dialog" class="package-dialog">
   <form id="package-form" class="package-form stack">
     <div class="package-dialog-head"><div><h2 id="package-form-heading">Add package</h2><p class="muted">Only the owner can edit or archive this shipment.</p></div><button type="button" class="button secondary compact" data-close-package aria-label="Close package editor">Close</button></div>
     <input type="hidden" name="id">
     <label>Package name <input name="label" maxlength="140" required placeholder="Replacement laptop battery"></label>
     <div class="package-form-row">
-      <label>Carrier <select name="carrier" required><option value="ups">UPS</option><option value="usps">USPS</option><option value="fedex">FedEx</option><option value="amazon">Amazon Logistics</option><option value="other">Other</option></select></label>
+      <label>Carrier <select name="carrier" required><option value="auto" selected>Auto-detect</option><option value="ups">UPS</option><option value="usps">USPS</option><option value="fedex">FedEx</option><option value="amazon">Amazon Logistics</option><option value="other">Other</option></select></label>
       <label>Tracking number <input name="tracking_number" maxlength="100" minlength="4" spellcheck="false" autocomplete="off" required placeholder="Enter carrier tracking ID"></label>
     </div>
+    <p id="package-carrier-suggestion" class="muted" aria-live="polite">Carrier detected from tracking number; verified when a carrier API responds.</p>
     <div class="package-form-row">
       <label>Status <select name="status"><option value="unknown">Not yet verified</option><option value="label_created">Label created</option><option value="in_transit">In transit</option><option value="out_for_delivery">Out for delivery</option><option value="delivered">Delivered</option><option value="exception">Delivery exception</option></select></label>
       <label>Expected delivery date <input type="date" name="expected_date"></label>
@@ -1299,8 +1319,10 @@
     <label class="package-sharing"><input type="checkbox" name="shared"> Share this delivery with household members</label>
     <p class="muted">Private by default. Shared packages are visible to other adult household accounts.</p>
     <p id="package-form-error" class="error" role="alert"></p>
+    <p id="package-tracking-details" class="muted" role="status" aria-live="polite"></p>
     <div class="package-form-actions">
       <button type="button" class="button danger hidden" id="package-archive">Archive</button>
+      <button type="button" class="button secondary hidden" id="package-update-status">Check tracking now</button>
       <a id="package-track-link" class="button secondary hidden" target="_blank" rel="noopener noreferrer">Track with carrier</a>
       <span class="grow"></span><button type="submit" class="button" id="package-save">Save package</button>
     </div>
