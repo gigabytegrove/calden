@@ -29,7 +29,8 @@
     document.querySelectorAll(".packages-nav").forEach(el=>el.classList.toggle("hidden",!enabled()));
     $("#packages-calendar-toggle")?.classList.toggle("hidden",!enabled());
     if($("#packages-calendar-visible"))$("#packages-calendar-visible").checked=visible;
-    $("#packages-provider-open").classList.toggle("hidden",state.me?.role!=="admin");
+    // Paid API setup is not part of the normal Calden workflow.
+    $("#packages-provider-open").classList.add("hidden");
     $("#packages-add").disabled=!canWrite();
     $("#packages-import-open").disabled=!canWrite();
     if(!enabled()&&state.currentPage==="packages")navigate("calendar",false);
@@ -126,7 +127,7 @@
     formValue(form,"shared").checked=!!p?.shared;
     updateCarrierSuggestion();
     const checkDetail=$("#package-tracking-details");
-    checkDetail.textContent=p?.last_tracking_check?"Last carrier tracking attempt: "+new Date(p.last_tracking_check).toLocaleString()+". Next scheduled: "+(p.next_tracking_check?new Date(p.next_tracking_check).toLocaleString():"pending")+(p.tracking_error?". "+p.tracking_error:""):"Not checked yet. Calden automatically attempts public tracking every three hours while this package is active.";
+    checkDetail.textContent=p?.last_tracking_check?"Last carrier tracking attempt: "+new Date(p.last_tracking_check).toLocaleString()+". Next scheduled: "+(p.next_tracking_check?new Date(p.next_tracking_check).toLocaleString():"pending")+(p.tracking_error?". "+p.tracking_error:""):"No carrier scan checked yet. Calden attempts automatic tracking every three hours for active packages.";
     const writable=canWrite()&&(!p||p.can_edit);
     form.querySelectorAll("input,select,textarea").forEach(el=>{el.disabled=!writable});
     $("#package-save").classList.toggle("hidden",!writable);
