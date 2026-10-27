@@ -3161,7 +3161,7 @@ for(const [name,label] of [["bills","Bills"],["agenda","Agenda"],["tasks","Tasks
       renderBillNavigation();
       renderChores();
       if(name==="packages")window.caldenPackages?.onToggle();
-      $(".shopping-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.shopping_enabled===false));
+      $$(".shopping-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.shopping_enabled===false));
   $$(".meals-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.meals_enabled===false||state.me?.is_child||state.me?.role==="restricted"));
       $$(".routines-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.routines_enabled!==true));
       if(name==="shopping"&&state.settings.shopping_enabled===false&&state.currentPage==="shopping")navigate("calendar");
