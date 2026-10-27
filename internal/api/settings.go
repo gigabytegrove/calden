@@ -17,6 +17,7 @@ type generalSettingsPayload struct {
     AgendaEnabled bool `json:"agenda_enabled"`
     ShoppingEnabled bool `json:"shopping_enabled"`
     MealsEnabled bool `json:"meals_enabled"`
+    PackagesEnabled bool `json:"packages_enabled"`
     RoutinesEnabled bool `json:"routines_enabled"`
     RewardsEnabled bool `json:"rewards_enabled"`
     SchoolEnabled bool `json:"school_enabled"`
@@ -32,7 +33,7 @@ func (s *server) generalSettings(w http.ResponseWriter, r *http.Request) {
 		WeekStart:     "sunday",
 		DefaultView:   7,
 	}
-	rows, err := s.db.Query(r.Context(), `SELECT key,value FROM app_settings WHERE key IN ('household_name','timezone','week_start','default_view','chores_enabled','tasks_enabled','bills_enabled','agenda_enabled','shopping_enabled','meals_enabled','routines_enabled','rewards_enabled','school_enabled','maintenance_enabled','pets_enabled')`)
+	rows, err := s.db.Query(r.Context(), `SELECT key,value FROM app_settings WHERE key IN ('household_name','timezone','week_start','default_view','chores_enabled','tasks_enabled','bills_enabled','agenda_enabled','shopping_enabled','meals_enabled','packages_enabled','routines_enabled','rewards_enabled','school_enabled','maintenance_enabled','pets_enabled')`)
 	if err != nil {
 		writeError(w, 500, "Could not load family settings")
 		return
@@ -56,6 +57,8 @@ func (s *server) generalSettings(w http.ResponseWriter, r *http.Request) {
             out.ShoppingEnabled = value != "false"
         case "meals_enabled":
             out.MealsEnabled = value != "false"
+        case "packages_enabled":
+            out.PackagesEnabled = value == "true"
         case "routines_enabled":
             out.RoutinesEnabled = value == "true"
         case "rewards_enabled":
@@ -154,6 +157,7 @@ func (s *server) saveGeneralSettings(w http.ResponseWriter, r *http.Request) {
     in.AgendaEnabled = true
     in.ShoppingEnabled = true
     in.MealsEnabled = true
+    in.PackagesEnabled = false
     in.RoutinesEnabled = false
     in.RewardsEnabled = false
     in.SchoolEnabled = false
@@ -162,6 +166,7 @@ func (s *server) saveGeneralSettings(w http.ResponseWriter, r *http.Request) {
     _ = s.db.QueryRow(r.Context(), "SELECT COALESCE((SELECT value='true' FROM app_settings WHERE key='bills_enabled'),true),COALESCE((SELECT value='true' FROM app_settings WHERE key='agenda_enabled'),true)").Scan(&in.BillsEnabled,&in.AgendaEnabled)
     _ = s.db.QueryRow(r.Context(), "SELECT COALESCE((SELECT value!='false' FROM app_settings WHERE key='shopping_enabled'),true)").Scan(&in.ShoppingEnabled)
     _ = s.db.QueryRow(r.Context(), "SELECT COALESCE((SELECT value!='false' FROM app_settings WHERE key='meals_enabled'),true)").Scan(&in.MealsEnabled)
+    _ = s.db.QueryRow(r.Context(), "SELECT COALESCE((SELECT value='true' FROM app_settings WHERE key='packages_enabled'),false)").Scan(&in.PackagesEnabled)
     _ = s.db.QueryRow(r.Context(), "SELECT COALESCE((SELECT value='true' FROM app_settings WHERE key='routines_enabled'),false)").Scan(&in.RoutinesEnabled)
     _ = s.db.QueryRow(r.Context(), "SELECT COALESCE((SELECT value='true' FROM app_settings WHERE key='rewards_enabled'),false)").Scan(&in.RewardsEnabled)
     _ = s.db.QueryRow(r.Context(), "SELECT COALESCE((SELECT value='true' FROM app_settings WHERE key='school_enabled'),false)").Scan(&in.SchoolEnabled)
@@ -203,13 +208,14 @@ func (s *server) saveFeatureVisibility(w http.ResponseWriter, r *http.Request) {
         ChoresEnabled *bool `json:"chores_enabled"`
         ShoppingEnabled *bool `json:"shopping_enabled"`
         MealsEnabled *bool `json:"meals_enabled"`
+        PackagesEnabled *bool `json:"packages_enabled"`
         RoutinesEnabled *bool `json:"routines_enabled"`
         RewardsEnabled *bool `json:"rewards_enabled"`
         SchoolEnabled *bool `json:"school_enabled"`
         MaintenanceEnabled *bool `json:"maintenance_enabled"`
         PetsEnabled *bool `json:"pets_enabled"`
     }
-    if decode(r,&in)!=nil || (in.BillsEnabled==nil && in.AgendaEnabled==nil && in.TasksEnabled==nil && in.ChoresEnabled==nil && in.ShoppingEnabled==nil && in.MealsEnabled==nil && in.RoutinesEnabled==nil && in.RewardsEnabled==nil && in.SchoolEnabled==nil && in.MaintenanceEnabled==nil && in.PetsEnabled==nil) {
+    if decode(r,&in)!=nil || (in.BillsEnabled==nil && in.AgendaEnabled==nil && in.TasksEnabled==nil && in.ChoresEnabled==nil && in.ShoppingEnabled==nil && in.MealsEnabled==nil && in.PackagesEnabled==nil && in.RoutinesEnabled==nil && in.RewardsEnabled==nil && in.SchoolEnabled==nil && in.MaintenanceEnabled==nil && in.PetsEnabled==nil) {
         writeError(w,400,"Choose an optional feature");return
     }
     tx,err:=s.db.Begin(r.Context())
@@ -220,6 +226,7 @@ func (s *server) saveFeatureVisibility(w http.ResponseWriter, r *http.Request) {
         {"tasks_enabled",in.TasksEnabled},{"chores_enabled",in.ChoresEnabled},
         {"shopping_enabled",in.ShoppingEnabled},
         {"meals_enabled",in.MealsEnabled},
+        {"packages_enabled",in.PackagesEnabled},
         {"routines_enabled",in.RoutinesEnabled},
         {"rewards_enabled",in.RewardsEnabled},
         {"school_enabled",in.SchoolEnabled},
