@@ -36,6 +36,10 @@ type packageRecord struct {
  Notes string `json:"notes"`
  UpdatedAt time.Time `json:"updated_at"`
  TrackingURL string `json:"tracking_url"`
+ LastTrackingCheck string `json:"last_tracking_check"`
+ NextTrackingCheck string `json:"next_tracking_check"`
+ TrackingError string `json:"tracking_error"`
+ ProviderSlug string `json:"provider_slug"`
  CanEdit bool `json:"can_edit"`
 }
 
@@ -52,6 +56,7 @@ func validPackageStatus(s string) bool {
 func preparePackageInput(in *packageInput) bool {
  in.Label=strings.TrimSpace(in.Label)
  in.Carrier=strings.ToLower(strings.TrimSpace(in.Carrier))
+ if in.Carrier==""||in.Carrier=="auto"{in.Carrier=detectPackageCarrier(in.TrackingNumber)}
  in.TrackingNumber=strings.ToUpper(strings.TrimSpace(in.TrackingNumber))
  in.Status=strings.ToLower(strings.TrimSpace(in.Status))
  in.ExpectedDate=strings.TrimSpace(in.ExpectedDate)
@@ -84,10 +89,10 @@ func (s *server) requirePackages(w http.ResponseWriter,r *http.Request)bool{
 }
 func packageCanWrite(r *http.Request)bool{return currentActor(r).Role!="restricted"&&!currentActor(r).IsChild}
 
-const packageColumns="id,owner_id,shared,label,carrier,tracking_number,status,status_source,COALESCE(expected_date::text,''),COALESCE(delivered_at::text,''),notes,updated_at"
+const packageColumns="id,owner_id,shared,label,carrier,tracking_number,status,status_source,COALESCE(expected_date::text,''),COALESCE(delivered_at::text,''),notes,updated_at,COALESCE(last_tracking_check_at::text,''),COALESCE(next_tracking_check_at::text,''),tracking_error,provider_slug"
 func scanPackage(row interface{Scan(...any)error},actorID uuid.UUID)(packageRecord,error){
  var p packageRecord
- err:=row.Scan(&p.ID,&p.OwnerID,&p.Shared,&p.Label,&p.Carrier,&p.TrackingNumber,&p.Status,&p.StatusSource,&p.ExpectedDate,&p.DeliveredAt,&p.Notes,&p.UpdatedAt)
+ err:=row.Scan(&p.ID,&p.OwnerID,&p.Shared,&p.Label,&p.Carrier,&p.TrackingNumber,&p.Status,&p.StatusSource,&p.ExpectedDate,&p.DeliveredAt,&p.Notes,&p.UpdatedAt,&p.LastTrackingCheck,&p.NextTrackingCheck,&p.TrackingError,&p.ProviderSlug)
  p.CanEdit=p.OwnerID==actorID
  p.TrackingURL=packageTrackingURL(p.Carrier,p.TrackingNumber)
  return p,err
@@ -154,7 +159,7 @@ func (s *server) updatePackage(w http.ResponseWriter,r *http.Request){
  err=tx.QueryRow(r.Context(),"SELECT status FROM package_shipments WHERE id=$1 AND owner_id=$2 AND NOT archived FOR UPDATE",id,currentActor(r).ID).Scan(&oldStatus)
  if errors.Is(err,pgx.ErrNoRows){writeError(w,404,"Package not found");return}
  if err!=nil{writeError(w,500,"Could not update package");return}
- tag,err:=tx.Exec(r.Context(),"UPDATE package_shipments SET shared=$2,label=$3,carrier=$4,tracking_number=$5,status=$6,status_source='manual',expected_date=NULLIF($7,'')::date,notes=$8,delivered_at=CASE WHEN $6='delivered' THEN COALESCE(delivered_at,now()) ELSE NULL END,updated_at=now() WHERE id=$1",id,in.Shared,in.Label,in.Carrier,in.TrackingNumber,in.Status,in.ExpectedDate,in.Notes)
+ tag,err:=tx.Exec(r.Context(),"UPDATE package_shipments SET shared=$2,label=$3,carrier=$4,tracking_number=$5,status=$6,status_source='manual',expected_date=NULLIF($7,'')::date,notes=$8,delivered_at=CASE WHEN $6='delivered' THEN COALESCE(delivered_at,now()) ELSE NULL END,provider_tracking_id=CASE WHEN carrier!=$4 OR tracking_number!=$5 THEN '' ELSE provider_tracking_id END,provider_slug=CASE WHEN carrier!=$4 OR tracking_number!=$5 THEN '' ELSE provider_slug END,next_tracking_check_at=CASE WHEN carrier!=$4 OR tracking_number!=$5 THEN now() ELSE next_tracking_check_at END,tracking_error=CASE WHEN carrier!=$4 OR tracking_number!=$5 THEN '' ELSE tracking_error END,updated_at=now() WHERE id=$1",id,in.Shared,in.Label,in.Carrier,in.TrackingNumber,in.Status,in.ExpectedDate,in.Notes)
  if err!=nil {writeError(w,409,"Unable to save: that tracking number may already exist");return}
  if tag.RowsAffected()!=1{writeError(w,404,"Package not found");return}
  if oldStatus!=in.Status{
