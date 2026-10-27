@@ -35,6 +35,7 @@
     if(!enabled()&&state.currentPage==="packages")navigate("calendar",false);
   }
   async function load(){
+    loadTrackingServiceInfo();
     if(!enabled()){shipments=[];render();renderCalendar();return}
     if(loading)return;
     loading=true;
@@ -52,6 +53,16 @@
       render();
       renderCalendar();
     }finally{loading=false}
+  }
+  async function loadTrackingServiceInfo(){
+    const el=$("#packages-service-info");
+    if(!el)return;
+    try{
+      const info=await api("/api/packages/service");
+      if(!enabled())return;
+      el.textContent=info.message||"";
+      el.classList.toggle("hidden",false);
+    }catch(e){el.textContent="Carrier tracking configuration is temporarily unavailable: "+e.message}
   }
   function render(){
     const active=shipments.filter(p=>p.status!=="delivered");
