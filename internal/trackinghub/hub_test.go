@@ -85,3 +85,31 @@ func TestHubMultiTenantPostgres(t *testing.T){
  if err=db.QueryRow(ctx,"SELECT token_hash FROM hub_installations WHERE installation_id=$1",install1).Scan(&digest);err!=nil{t.Fatal(err)}
  if digest!=hex.EncodeToString(keyhash[:])||digest==cred1{t.Fatal("installation bearer credential stored unhashed")}
 }
+
+func TestAfterShipDuplicateNumberRecoveredWithoutExposingAccountData(t *testing.T){
+ const number="1Z999AA10123456784"
+ var listed,read int
+ provider:=httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
+  if r.Header.Get("as-api-key")!="central-private-test-key"{t.Error("provider credential was not held centrally")}
+  w.Header().Set("Content-Type","application/json")
+  switch{
+  case r.Method=="POST"&&r.URL.Path=="/trackings":
+   w.WriteHeader(400)
+   fmt.Fprint(w,`{"meta":{"code":4003,"message":"Tracking already exists"}}`)
+  case r.Method=="GET"&&r.URL.Path=="/trackings":
+   listed++
+   if r.URL.Query().Get("tracking_numbers")!=number{t.Error("did not query exact existing number")}
+   fmt.Fprint(w,`{"data":{"trackings":[{"id":"some-other-track","tracking_number":"NOT-OUR-PARCEL","slug":"ups"},{"id":"known-track-id","tracking_number":"1Z999AA10123456784","slug":"ups"}]}}`)
+  case r.Method=="GET"&&r.URL.Path=="/trackings/known-track-id":
+   read++
+   fmt.Fprint(w,`{"data":{"id":"known-track-id","tracking_number":"1Z999AA10123456784","slug":"ups","tag":"InTransit","subtag_message":"Arrived at carrier facility"}}`)
+  default:t.Errorf("Unexpected provider endpoint %s %s",r.Method,r.URL.Path);w.WriteHeader(404)
+  }
+ }))
+ defer provider.Close()
+ hub:=&Hub{cfg:Config{AfterShipKey:"central-private-test-key",Endpoint:provider.URL+"/trackings",HTTPClient:provider.Client()}}
+ found,err:=hub.requestAfterShip(context.Background(),"",number,"ups")
+ if err!=nil||found.ID!="known-track-id"||found.Tag!="InTransit"||listed!=1||read!=1{
+  t.Fatalf("Duplicate resolution failed: %#v, %v, list=%d detail=%d",found,err,listed,read)
+ }
+}
