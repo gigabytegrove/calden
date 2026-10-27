@@ -6,7 +6,10 @@ on:
   pull_request:
     paths:
       - 'internal/api/packages*.go'
-      - 'internal/api/package_email.go'
+      - 'internal/api/package_email*.go'
+      - 'internal/api/package_imap*.go'
+      - 'internal/api/package_mailbox*.go'
+      - 'cmd/calden/main.go'
       - 'internal/store/migrations/04*.sql'
       - 'web/packages.js'
       - 'web/app.js'
@@ -22,7 +25,21 @@ permissions:
 jobs:
   package-tracking:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: calden_ci
+          POSTGRES_PASSWORD: calden_ci_only
+          POSTGRES_DB: calden_packages_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U calden_ci -d calden_packages_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v6
@@ -36,6 +53,10 @@ jobs:
         run: |
           go test ./...
           go vet ./...
+      - name: Run PostgreSQL schema and mailbox security integration checks
+        env:
+          CALDEN_TEST_DATABASE_URL: postgres://calden_ci:calden_ci_only@127.0.0.1:5432/calden_packages_ci?sslmode=disable
+        run: go test ./internal/api -run TestPackageDatabaseIntegration -count=1 -v
       - name: Check JavaScript syntax
         run: |
           node --check web/app.js

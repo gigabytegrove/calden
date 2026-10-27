@@ -166,6 +166,53 @@
     }catch(err){status("#package-form-error",err.message)}
     finally{b.disabled=false}
   }
+  async function loadMailboxSettings(){
+    const form=$("#package-mailbox-form");
+    const label=$("#package-mailbox-status");
+    label.textContent="Checking mailbox connection…";
+    const result=await api("/api/packages/mailbox");
+    form.elements.namedItem("hostname").value=result.hostname||"imap.gmail.com";
+    form.elements.namedItem("username").value=result.username||"";
+    form.elements.namedItem("password").value="";
+    form.elements.namedItem("enabled").checked=Boolean(result.enabled);
+    label.textContent=!result.configured?"No mailbox connected. Enter a username and app password to start.":(
+      (result.enabled?"Automatic inbox checks enabled. ":"Inbox checks paused. ")+
+      (result.last_scan?"Last scan: "+new Date(result.last_scan).toLocaleString()+". ":"First scan pending. ")+
+      (result.last_error?"Last error: "+result.last_error+". ":"")+
+      (result.last_scan?"Messages examined: "+Number(result.last_imported||0)+".":"")
+    );
+  }
+  async function saveMailboxSettings(event){
+    event.preventDefault();
+    const form=$("#package-mailbox-form"),button=$("#package-mailbox-save");
+    const fields=Object.fromEntries(new FormData(form).entries());
+    fields.enabled=form.elements.namedItem("enabled").checked;
+    button.disabled=true;
+    status("#package-mailbox-status","Saving encrypted mailbox connection…");
+    try{
+      await api("/api/packages/mailbox",{method:"PUT",body:JSON.stringify(fields)});
+      form.elements.namedItem("password").value="";
+      await loadMailboxSettings();
+      status("#package-mailbox-status","Mailbox saved. Enabled connections are checked shortly and then about every 15 minutes.");
+    }catch(err){status("#package-mailbox-status",err.message)}
+    finally{button.disabled=false}
+  }
+  async function requestMailboxScan(){
+    const button=$("#package-mailbox-check");button.disabled=true;
+    try{
+      await api("/api/packages/mailbox/check",{method:"POST",body:"{}"});
+      status("#package-mailbox-status","Mailbox check queued. Refresh this status after the server finishes scanning.");
+    }catch(err){status("#package-mailbox-status",err.message)}
+    finally{button.disabled=false}
+  }
+  async function disconnectMailbox(){
+    if(!confirm("Disconnect shipping email discovery? Saved mailbox credentials and scan state will be deleted. Existing packages are retained."))return;
+    try{
+      await api("/api/packages/mailbox",{method:"DELETE"});
+      await loadMailboxSettings();
+      status("#package-mailbox-status","Mailbox disconnected. Existing packages were not deleted.");
+    }catch(err){status("#package-mailbox-status",err.message)}
+  }
   function openEmail(){
     $("#package-email-form").reset();
     $("#package-email-token-value").value="";
@@ -173,6 +220,7 @@
     status("#package-email-status","");
     status("#package-token-status","Checking forwarding token…");
     $("#package-email-dialog").showModal();
+    loadMailboxSettings().catch(err=>status("#package-mailbox-status",err.message));
     api("/api/packages/email-token").then(data=>{
       status("#package-token-status",data.configured?"A forwarding token is configured. Rotate it to see a new value.":"No forwarding token configured.");
     }).catch(err=>status("#package-token-status",err.message));
@@ -236,6 +284,10 @@
   $("#package-email-form").addEventListener("submit",importEmail);
   $("#package-token-generate").addEventListener("click",generateToken);
   $("#package-token-revoke").addEventListener("click",revokeToken);
+  $("#package-mailbox-form").addEventListener("submit",saveMailboxSettings);
+  $("#package-mailbox-check").addEventListener("click",requestMailboxScan);
+  $("#package-mailbox-reload").addEventListener("click",()=>loadMailboxSettings().catch(err=>status("#package-mailbox-status",err.message)));
+  $("#package-mailbox-remove").addEventListener("click",disconnectMailbox);
   $("#packages-calendar-visible").checked=visible;
   $("#packages-calendar-visible").addEventListener("change",event=>{
     visible=event.target.checked;

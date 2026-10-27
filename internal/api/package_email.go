@@ -17,7 +17,6 @@ import (
  "strings"
 
  "github.com/google/uuid"
- "github.com/jackc/pgx/v5"
 )
 
 var (
@@ -92,25 +91,13 @@ func readPackageMailBody(contentType,transfer string,body io.Reader)string{
  return out
 }
 func (s *server) ingestPackageEmail(w http.ResponseWriter,r *http.Request,owner uuid.UUID,raw string){
- subject,found,err:=extractEmailPackages(raw)
- if err!=nil{writeError(w,400,err.Error());return}
- if len(found)==0{writeError(w,422,"No recognizable Amazon, USPS, UPS or FedEx tracking numbers were found. Add the package manually.");return}
- tx,err:=s.db.Begin(r.Context())
- if err!=nil{writeError(w,500,"Could not import shipping email");return}
- defer tx.Rollback(r.Context())
- created,skipped:=0,0
- for _,p:=range found{
-  if !packageTrackingPattern.MatchString(p.TrackingNumber){continue}
-  var id uuid.UUID
-  e:=tx.QueryRow(r.Context(),"INSERT INTO package_shipments(owner_id,label,carrier,tracking_number,status,status_source) VALUES($1,$2,$3,$4,'unknown','email') ON CONFLICT DO NOTHING RETURNING id",owner,subject,p.Carrier,p.TrackingNumber).Scan(&id)
-  if errors.Is(e,pgx.ErrNoRows){skipped++;continue}
-  if e!=nil{writeError(w,500,"Could not import shipping email");return}
-  _,e=tx.Exec(r.Context(),"INSERT INTO package_checkpoints(shipment_id,status,detail,source) VALUES($1,'unknown','Imported from shipping email (not carrier-verified)','email')",id)
-  if e!=nil{writeError(w,500,"Could not save package history");return}
-  created++
+ result,err:=s.storePackageMailRaw(r.Context(),owner,raw)
+ if err!=nil{
+  if len(raw)>262144{writeError(w,413,"Email exceeds 256 KB");return}
+  writeError(w,400,"Could not parse or save shipping email");return
  }
- if err=tx.Commit(r.Context());err!=nil{writeError(w,500,"Could not finish email import");return}
- writeJSON(w,200,map[string]any{"created":created,"skipped":skipped})
+ if result.Found==0{writeError(w,422,"No recognizable tracking number found. Add the shipment manually.");return}
+ writeJSON(w,200,map[string]any{"created":result.Created,"skipped":result.Skipped})
 }
 func (s *server) importPackageEmail(w http.ResponseWriter,r *http.Request){
  if !s.requirePackages(w,r){return}
