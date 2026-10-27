@@ -123,6 +123,7 @@ func New(cfg Config) http.Handler {
     mux.Handle("POST /api/integrations/recipecove/meals", s.auth(http.HandlerFunc(s.coveSaveMeal)))
     mux.Handle("PUT /api/integrations/recipecove/meals/{id}", s.auth(http.HandlerFunc(s.coveSaveMeal)))
     mux.Handle("DELETE /api/integrations/recipecove/meals/{id}", s.auth(http.HandlerFunc(s.coveDeleteMeal)))
+    mux.Handle("GET /api/packages/service", s.auth(http.HandlerFunc(s.trackingServiceInfo)))
     mux.Handle("GET /api/packages/provider", s.auth(s.admin(http.HandlerFunc(s.trackingProviderInfo))))
     mux.Handle("PUT /api/packages/provider", s.auth(s.admin(http.HandlerFunc(s.saveTrackingProvider))))
     mux.Handle("DELETE /api/packages/provider", s.auth(s.admin(http.HandlerFunc(s.deleteTrackingProvider))))
