@@ -95,7 +95,20 @@ func claimTracking(ctx context.Context,db *pgxpool.Pool,id uuid.UUID)(dueTrackin
  return job,err==nil,err
 }
 func (s *server) syncPackageTracking(ctx context.Context,job dueTracking,key string)error{
- if key==""{return s.syncPublicTracking(ctx,job)}
+ if key==""{
+  localErr:=s.syncLocalScraperTracking(ctx,job)
+  if localErr==nil{return nil}
+  // Native runtimes without the bundled Node engine and carriers with
+  // unsupported adapters still get an official public-page attempt.
+  publicErr:=s.syncPublicTracking(ctx,job)
+  if publicErr==nil{return nil}
+  if errors.Is(localErr,errLocalScraperUnavailable){return publicErr}
+  // Preserve the specific local-engine reason rather than converting it
+  // to the old generic "open a website" message.
+  _,_=s.db.Exec(ctx,`UPDATE package_shipments SET tracking_error=$3,last_tracking_check_at=now()
+   WHERE id=$1 AND tracking_number=$2`,job.ID,job.Number,localErr.Error())
+  return localErr
+ }
  api:=newAftershipAPI(key)
  var tracking aftershipTracking
  var err error
@@ -189,7 +202,7 @@ func(s *server) refreshPackageTracking(w http.ResponseWriter,r *http.Request){
  job,claimed,err:=claimTracking(r.Context(),s.db,id)
  if err!=nil{writeError(w,500,"Could not schedule tracking lookup");return}
  if !claimed{writeJSON(w,200,map[string]any{"status":"scheduled","message":"Tracking is already current or scheduled; requests run at most every three hours"});return}
- ctx,cancel:=context.WithTimeout(r.Context(),18*time.Second);defer cancel()
+ ctx,cancel:=context.WithTimeout(r.Context(),75*time.Second);defer cancel()
  if err=s.syncPackageTracking(ctx,job,key);err!=nil{
   // A public lookup may be blocked or require browser interaction. Do not
   // turn this ordinary carrier restriction into a 409 or pretend it worked.
@@ -226,7 +239,7 @@ func processDuePackageTracking(ctx context.Context,db *pgxpool.Pool,master []byt
  rows.Close()
  for _,job:=range jobs{
   if ctx.Err()!=nil{return}
-  qctx,cancel:=context.WithTimeout(ctx,18*time.Second)
+  qctx,cancel:=context.WithTimeout(ctx,75*time.Second)
   _=s.syncPackageTracking(qctx,job,key)
   cancel()
   select{case <-ctx.Done():return;case <-time.After(250*time.Millisecond):}
