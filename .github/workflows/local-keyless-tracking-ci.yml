@@ -1,0 +1,58 @@
+name: Calden Local Keyless Tracking
+
+on:
+  push:
+    branches: [feature/calden-local-keyless-tracking-20261027]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  keyless-tracking:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: calden_test
+          POSTGRES_PASSWORD: test_password_not_production
+          POSTGRES_DB: calden_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U calden_test -d calden_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Go unit and database integration tests
+        env:
+          CALDEN_TEST_DATABASE_URL: postgres://calden_test:test_password_not_production@127.0.0.1:5432/calden_test?sslmode=disable
+        run: |
+          go test ./...
+          go vet ./...
+      - name: Web regression tests
+        run: |
+          npm install --no-audit --no-fund
+          npm run build:css
+          npm run test:web
+          node --check web/packages.js
+      - name: Build single Calden Docker image including Node and Chromium
+        run: docker build --build-arg CALDEN_RUN_TESTS=1 -t calden-local-tracking:test .
+      - name: Prove Docker image contains working local carrier detection
+        run: |
+          docker run --rm --entrypoint node calden-local-tracking:test \
+            /opt/calden-parcel/node_modules/universal-parcel-scraper/dist/cli/index.js detect 1Z999AA10123456784 \
+            | tee /tmp/calden-ups-detect.json
+          grep -qi "ups" /tmp/calden-ups-detect.json
+          docker run --rm --entrypoint sh calden-local-tracking:test -c \
+            'test -x /usr/bin/chromium && command -v node && test -x /app/calden && test -f /opt/calden-parcel/node_modules/universal-parcel-scraper/LICENSE'
