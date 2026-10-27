@@ -40,13 +40,11 @@ func extractEmailPackages(raw string)(string,[]incomingPackage,error){
  if len(subject)>140{subject=subject[:140]}
  if subject==""{subject="Imported delivery notification"}
  body:=readPackageMailBody(msg.Header.Get("Content-Type"),msg.Header.Get("Content-Transfer-Encoding"),msg.Body)
- combined:=subject+"
-"+body
+ combined:=subject+"\n"+body
  if len(combined)>262144{combined=combined[:262144]}
  // Email can be forged. The extracted data is only a suggestion: it is NEVER
  // marked as an authenticated carrier scan or used to overwrite a manual status.
- lower:=strings.ToLower(combined+"
-"+msg.Header.Get("From"))
+ lower:=strings.ToLower(combined+"\n"+msg.Header.Get("From"))
  seen:=map[string]bool{}
  matches:=make([]incomingPackage,0)
  add:=func(carrier string, re *regexp.Regexp){
@@ -76,10 +74,7 @@ func readPackageMailBody(contentType,transfer string,body io.Reader)string{
    if strings.Contains(kind,"attachment")||part.FileName()!=""{part.Close();continue}
    b:=readPackageMailBody(kind,part.Header.Get("Content-Transfer-Encoding"),io.LimitReader(part,131072))
    part.Close()
-   if strings.HasPrefix(kind,"text/plain"){plain+="
-"+b} else if strings.HasPrefix(kind,"text/html"){markup+="
-"+b}else if strings.HasPrefix(kind,"multipart/"){plain+="
-"+b}
+   if strings.HasPrefix(kind,"text/plain"){plain+="\n"+b} else if strings.HasPrefix(kind,"text/html"){markup+="\n"+b}else if strings.HasPrefix(kind,"multipart/"){plain+="\n"+b}
   }
   if strings.TrimSpace(plain)!=""{return plain}
   return markup
