@@ -73,7 +73,7 @@ ENV CALDEN_PORT=8787 \
     CALDEN_WEB_DIR=/app/web \
     TRACKING_CHROMIUM_PATH=/usr/bin/chromium \
     NODE_OPTIONS=--max-old-space-size=512 \
-    SCRAPER_PROVIDERS=ParcelsApp,Ship24,17TRACK,Postal Ninja,UPU
+    SCRAPER_PROVIDERS="ParcelsApp,Ship24,17TRACK,Postal Ninja,UPU"
 
 EXPOSE 8787
 
