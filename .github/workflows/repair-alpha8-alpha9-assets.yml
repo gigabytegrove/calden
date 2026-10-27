@@ -1,0 +1,86 @@
+name: Repair missing Calden Alpha 8 and 9 update bundles
+
+on:
+  push:
+    branches: [fix/alpha8-alpha9-missing-update-assets-20261027]
+    paths: [.github/workflows/repair-alpha8-alpha9-assets.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repair-calden-20261027-alpha8-alpha9
+  cancel-in-progress: false
+
+jobs:
+  rebuild-and-attach-from-original-tags:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Fetch all release tags and source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Rebuild and validate the exact existing alpha 8 and 9 releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for VERSION in 1.5.0-alpha.8 1.5.0-alpha.9; do
+            TAG="v$VERSION"
+            echo "::group::Rebuild original $TAG"
+            git checkout --detach "$TAG"
+            test "$(tr -d '[:space:]' < VERSION)" = "$VERSION"
+            grep -Fq "name=\"calden-version\" content=\"$VERSION\"" web/index.html
+            npm install --no-audit --no-fund
+            npm run build:css
+            npm run test:web
+            go test ./...
+            go vet ./...
+            mkdir -p dist
+            for ARCH in amd64 arm64; do
+              mkdir -p "stage/$ARCH"
+              CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" go build -trimpath \
+                -ldflags="-s -w -X main.version=$VERSION" -o "stage/$ARCH/calden" ./cmd/calden
+              chmod 0755 "stage/$ARCH/calden"
+              cp -a web "stage/$ARCH/web"
+              (cd "stage/$ARCH" && tar -czf "../../dist/calden-linux-$ARCH.tar.gz" calden web)
+              tar -tzf "dist/calden-linux-$ARCH.tar.gz" > "dist/$ARCH.contents"
+              grep -Fxq "calden" "dist/$ARCH.contents"
+              grep -Fxq "web/index.html" "dist/$ARCH.contents"
+              grep -Fxq "web/styles.css" "dist/$ARCH.contents"
+              grep -Fxq "web/packages.js" "dist/$ARCH.contents"
+              test -s "dist/calden-linux-$ARCH.tar.gz"
+            done
+            (cd dist && sha256sum calden-linux-amd64.tar.gz calden-linux-arm64.tar.gz > SHA256SUMS && sha256sum -c SHA256SUMS)
+            # These releases were erroneously published with no assets. Do not
+            # mutate their tags or substitute newer branch builds.
+            test "$(gh release view "$TAG" --json assets --jq '.assets | length')" = "0" || {
+              echo "STOP: $TAG changed; refusing to replace independently uploaded artifacts"; exit 1;
+            }
+            gh release upload "$TAG" \
+              dist/calden-linux-amd64.tar.gz \
+              dist/calden-linux-arm64.tar.gz \
+              dist/SHA256SUMS
+            mkdir -p "verified/$VERSION"
+            gh release download "$TAG" --dir "verified/$VERSION" \
+              --pattern 'calden-linux-amd64.tar.gz' \
+              --pattern 'calden-linux-arm64.tar.gz' \
+              --pattern 'SHA256SUMS'
+            (cd "verified/$VERSION" && sha256sum -c SHA256SUMS)
+            test "$(gh release view "$TAG" --json assets --jq '.assets | length')" = "3"
+            echo "VERIFIED: $TAG now contains both installable Linux bundles and SHA256SUMS."
+            echo "::endgroup::"
+            rm -rf dist stage
+          done
