@@ -15,7 +15,7 @@ on:
       - go.mod
       - go.sum
       - package.json
-      - .github/workflows/publish-alpha-1.5.0.yml
+      - .github/workflows/publish-alpha-1.5.0-alpha6.yml
 
 permissions:
   contents: write
