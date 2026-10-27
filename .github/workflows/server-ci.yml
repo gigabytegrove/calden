@@ -75,8 +75,9 @@ jobs:
           curl -fsSI http://127.0.0.1:8787/app.js?v=1.4.7 | tr -d '\r' > /tmp/app-headers.txt
           grep -qi '^Cache-Control: .*no-store' /tmp/root-headers.txt
           grep -qi '^Cache-Control: .*no-store' /tmp/app-headers.txt
-          curl -fsS http://127.0.0.1:8787/ | grep -q '/app.js?v=1.4.7'
-          curl -fsS http://127.0.0.1:8787/ | grep -q '/styles.css?v=1.4.7'
+          curl -fsS http://127.0.0.1:8787/ > /tmp/index.html
+          grep -Fq "/app.js?v=$(tr -d '[:space:]' < VERSION)" /tmp/index.html
+          grep -Fq "/styles.css?v=$(tr -d '[:space:]' < VERSION)" /tmp/index.html
 
       - name: Set up browser test
         uses: actions/setup-node@v4
