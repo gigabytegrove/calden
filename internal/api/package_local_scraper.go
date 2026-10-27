@@ -75,9 +75,13 @@ func invokeLocalScraper(ctx context.Context,number,carrier string)(localResult,e
  path:=localScannerExecutable()
  if _,err:=os.Stat(path);err!=nil{return empty,errLocalScraperUnavailable}
  args:=[]string{path,"track",number}
- if carrier!="other"&&carrier!=""{args=append(args,"--carrier",carrier)}
+ // Amazon TBA identifiers require a provider that supports them, and
+ // generic FedEx numeric identifiers overlap other carriers. Ask the
+ // engine to recognize candidates rather than forcing an unverified guess.
+ if carrier=="ups"||carrier=="usps"{args=append(args,"--carrier",carrier)}
  cmd:=exec.CommandContext(ctx,"node",args...)
  cmd.Env=append(os.Environ(),"TRACKING_CHROMIUM_PATH=/usr/bin/chromium")
+ cmd.WaitDelay=3*time.Second
  // Only stdout may contain structured data. Never store command stderr,
  // which may include provider internals or raw tracking details.
  out:=&limitedTrackingBuffer{cap:2<<20}
