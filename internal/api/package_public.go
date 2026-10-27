@@ -9,6 +9,7 @@ import (
  "net/url"
  "regexp"
  "strings"
+ "time"
 )
 
 // Public tracking pages are intended for humans. The presence of a public
