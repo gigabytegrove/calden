@@ -95,18 +95,30 @@ func claimTracking(ctx context.Context,db *pgxpool.Pool,id uuid.UUID)(dueTrackin
  return job,err==nil,err
 }
 func (s *server) syncPackageTracking(ctx context.Context,job dueTracking,key string)error{
+ origin,err:=trackingHubURL()
+ if err!=nil{return err}
+ if origin!=""{
+  tracked,err:=fetchHubTracking(ctx,hubClient(),origin,s.jwtSecret,job)
+  if err!=nil{
+   _,_=s.db.Exec(ctx,`UPDATE package_shipments SET last_tracking_check_at=now(),tracking_error=$2
+    WHERE id=$1 AND tracking_number=$3`,job.ID,err.Error(),job.Number)
+   return err
+  }
+  return s.applyCarrierTracking(ctx,job,tracked)
+ }
  if key==""{return s.syncPublicTracking(ctx,job)}
- api:=newAftershipAPI(key)
- var tracking aftershipTracking
- var err error
- if job.ProviderID!=""{tracking,err=api.fetch(ctx,job.ProviderID)
- }else{tracking,err=api.register(ctx,job.ID,job.Number,job.Carrier)}
+ provider:=newAftershipAPI(key)
+ var tracked aftershipTracking
+ if job.ProviderID!=""{tracked,err=provider.fetch(ctx,job.ProviderID)
+ }else{tracked,err=provider.register(ctx,job.ID,job.Number,job.Carrier)}
  if err!=nil{
-  // Safe, intentionally generic error; no credentials or provider response bodies.
   _,_=s.db.Exec(ctx,`UPDATE package_shipments SET last_tracking_check_at=now(),tracking_error=$2
    WHERE id=$1 AND tracking_number=$3`,job.ID,err.Error(),job.Number)
   return err
  }
+ return s.applyCarrierTracking(ctx,job,tracked)
+}
+func (s *server) applyCarrierTracking(ctx context.Context,job dueTracking,tracking aftershipTracking)error{
  if tracking.TrackingNumber!=""&&strings.ToUpper(strings.TrimSpace(tracking.TrackingNumber))!=job.Number{
   _,_=s.db.Exec(ctx,`UPDATE package_shipments SET last_tracking_check_at=now(),tracking_error='Provider returned a different tracking number'
    WHERE id=$1 AND tracking_number=$2`,job.ID,job.Number)
