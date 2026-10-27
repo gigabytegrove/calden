@@ -59,6 +59,8 @@ services:
       CALDEN_DB_PASSWORD_FILE: /run/calden-secrets/db-password
       CALDEN_DB_SSLMODE: disable
       CALDEN_DATA_DIR: /data
+      # Official distributions can set this once; individual households do not need a provider key.
+      CALDEN_TRACKING_HUB_URL: ${CALDEN_TRACKING_HUB_URL:-}
     ports:
       - "${CALDEN_PORT:-8787}:8787"
     volumes:
