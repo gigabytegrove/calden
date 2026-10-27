@@ -32,6 +32,27 @@ jobs:
           --health-retries 12
     steps:
       - uses: actions/checkout@v4
+      - name: Inspect existing release before publishing any mutable Docker tag
+        id: existing_release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="v1.5.0-alpha.9"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            mkdir -p existing-release
+            gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir existing-release \
+              --pattern 'calden-linux-amd64.tar.gz' \
+              --pattern 'calden-linux-arm64.tar.gz' \
+              --pattern 'SHA256SUMS'
+            (cd existing-release && sha256sum -c SHA256SUMS)
+            test "$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets | length')" = "3"
+            echo "Existing alpha9 already has both verified update bundles; Docker tag will not be overwritten."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Verify alpha version and preserved screens
         shell: bash
         run: |
@@ -64,7 +85,27 @@ jobs:
           npm run test:web
           node --check web/packages.js
           node --check web/app.js
+      - name: Build updater-installable amd64 and arm64 archives before release
+        if: steps.existing_release.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          for ARCH in amd64 arm64; do
+            mkdir -p "stage/$ARCH"
+            CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" go build -trimpath \
+              -ldflags="-s -w -X main.version=1.5.0-alpha.9" \
+              -o "stage/$ARCH/calden" ./cmd/calden
+            chmod 0755 "stage/$ARCH/calden"
+            cp -a web "stage/$ARCH/web"
+            (cd "stage/$ARCH" && tar -czf "../../dist/calden-linux-$ARCH.tar.gz" calden web)
+            tar -tzf "dist/calden-linux-$ARCH.tar.gz" > "dist/$ARCH.contents"
+            grep -Fxq "calden" "dist/$ARCH.contents"
+            grep -Fxq "web/index.html" "dist/$ARCH.contents"
+          done
+          (cd dist && sha256sum calden-linux-amd64.tar.gz calden-linux-arm64.tar.gz > SHA256SUMS && sha256sum -c SHA256SUMS)
       - name: Build complete amd64 local tracker image with real Node and Chromium
+        if: steps.existing_release.outputs.exists != 'true'
         run: |
           docker build --build-arg CALDEN_RUN_TESTS=1 -t calden-alpha9:ci .
           docker run --rm --entrypoint node calden-alpha9:ci \
@@ -81,6 +122,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Publish isolated alpha9 Docker images
+        if: steps.existing_release.outputs.exists != 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -95,7 +137,8 @@ jobs:
             org.opencontainers.image.source=https://github.com/gigabytegrove/calden
             org.opencontainers.image.version=1.5.0-alpha.9
             org.opencontainers.image.revision=${{ github.sha }}
-      - name: Publish alpha9 release notes after successful multiarch images
+      - name: Publish release with required runtime archives and checksums
+        if: steps.existing_release.outputs.exists != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
@@ -103,10 +146,11 @@ jobs:
           set -euo pipefail
           TAG="v1.5.0-alpha.9"
           if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "ERROR: $TAG already exists; refusing to overwrite it" >&2
+            echo "Release appeared while publishing; refusing to overwrite it"
             exit 1
           fi
           gh release create "$TAG" \
+            dist/calden-linux-amd64.tar.gz dist/calden-linux-arm64.tar.gz dist/SHA256SUMS \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "Calden 1.5.0-alpha.9 — Free Keyless Package Tracking" \
