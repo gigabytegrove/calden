@@ -11,9 +11,11 @@ import (
  "fmt"
  "io"
  "net"
+ "net/url"
  "net/http"
  "regexp"
  "strings"
+ "sync"
  "time"
 
  "github.com/google/uuid"
@@ -35,7 +37,7 @@ type Config struct{
  Endpoint string // for tests; production uses the official fixed AfterShip API URL
  HTTPClient *http.Client
 }
-type Hub struct{cfg Config}
+type Hub struct{cfg Config;providerMu sync.Mutex;nextProviderCall time.Time}
 const officialAfterShipURL="https://api.aftership.com/tracking/2026-07/trackings"
 var trackingNumberRE=regexp.MustCompile(`^[A-Z0-9]{4,100}$`)
 var safeIDRE=regexp.MustCompile(`^[a-zA-Z0-9_-]{1,128}$`)
@@ -232,10 +234,29 @@ func(h *Hub) requestAfterShip(ctx context.Context,providerID,number,carrier stri
  req.Header.Set("as-api-key",h.cfg.AfterShipKey)
  req.Header.Set("Content-Type","application/json")
  req.Header.Set("Accept","application/json")
+ // Restrict the operator account to one outbound request at a time and
+ // at most five per second, including duplicate-resolution requests.
+ h.providerMu.Lock()
+ defer h.providerMu.Unlock()
+ if delay:=time.Until(h.nextProviderCall);delay>0{
+  timer:=time.NewTimer(delay);defer timer.Stop()
+  select{case <-ctx.Done():return trackingSnapshot{},ctx.Err();case <-timer.C:}
+ }
+ h.nextProviderCall=time.Now().Add(210*time.Millisecond)
  resp,err:=h.cfg.HTTPClient.Do(req)
  if err!=nil{return trackingSnapshot{},errors.New("Carrier data service unreachable")}
  defer resp.Body.Close()
  if resp.StatusCode==401||resp.StatusCode==403{return trackingSnapshot{},errors.New("Shared carrier account not authorized")}
+ if method==http.MethodPost&&resp.StatusCode==400{
+  var problem struct{Meta struct{Code int `json:"code"`} `json:"meta"`}
+  _=json.NewDecoder(io.LimitReader(resp.Body,4096)).Decode(&problem)
+  if problem.Meta.Code==4003{
+   // Existing tracking records belong to the same authorized AfterShip
+   // account. Select ONLY this exact carrier/tracking number and return
+   // minimal carrier status fields; never expose the account-wide list.
+   return h.findExistingTracking(ctx,number,carrier)
+  }
+ }
  if resp.StatusCode==429{return trackingSnapshot{},errors.New("Carrier tracking rate limit reached")}
  if resp.StatusCode<200||resp.StatusCode>=300{return trackingSnapshot{},fmt.Errorf("Carrier tracking service HTTP %d",resp.StatusCode)}
  var envelope struct{Data trackingSnapshot `json:"data"`}
@@ -248,6 +269,33 @@ func(h *Hub) requestAfterShip(ctx context.Context,providerID,number,carrier stri
   return trackingSnapshot{},errors.New("Carrier response too large")
  }
  return out,nil
+}
+func(h *Hub) findExistingTracking(ctx context.Context,number,carrier string)(trackingSnapshot,error){
+ endpoint:=h.cfg.Endpoint+"?tracking_numbers="+url.QueryEscape(number)+"&limit=50"
+ req,err:=http.NewRequestWithContext(ctx,http.MethodGet,endpoint,nil)
+ if err!=nil{return trackingSnapshot{},errors.New("Cannot locate existing tracking")}
+ req.Header.Set("as-api-key",h.cfg.AfterShipKey)
+ req.Header.Set("Accept","application/json")
+ // This is a distinct API endpoint call and is separately rate-limited.
+ if delay:=time.Until(h.nextProviderCall);delay>0{
+  timer:=time.NewTimer(delay);defer timer.Stop()
+  select{case <-ctx.Done():return trackingSnapshot{},ctx.Err();case <-timer.C:}
+ }
+ h.nextProviderCall=time.Now().Add(210*time.Millisecond)
+ resp,err:=h.cfg.HTTPClient.Do(req)
+ if err!=nil{return trackingSnapshot{},errors.New("Carrier record lookup failed")}
+ defer resp.Body.Close()
+ if resp.StatusCode!=200{return trackingSnapshot{},errors.New("Carrier did not return matching tracking record")}
+ var list struct{Data struct{Trackings []trackingSnapshot `json:"trackings"`} `json:"data"`}
+ if json.NewDecoder(io.LimitReader(resp.Body,2<<20)).Decode(&list)!=nil{return trackingSnapshot{},errors.New("Carrier duplicate lookup unreadable")}
+ for _,item:=range list.Data.Trackings{
+  if strings.ToUpper(strings.TrimSpace(item.TrackingNumber))!=number||!safeIDRE.MatchString(item.ID){continue}
+  slug:=strings.ToLower(item.Slug)
+  if carrier!="other"&&slug!=carrier&&!strings.HasPrefix(slug,carrier+"-"){continue}
+  // Fetch by provider tracking ID to retrieve full checkpoint history.
+  return h.requestAfterShip(ctx,item.ID,number,carrier)
+ }
+ return trackingSnapshot{},errors.New("Carrier has no matching tracking record for this number and courier")
 }
 func (h *Hub) Prune(ctx context.Context)error{
  _,err:=h.cfg.DB.Exec(ctx,`DELETE FROM hub_shipments WHERE updated_at<now()-interval '45 days'`)
