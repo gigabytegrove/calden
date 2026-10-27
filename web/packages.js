@@ -12,6 +12,8 @@
   const carriers={auto:"Auto-detect",amazon:"Amazon",usps:"USPS",ups:"UPS",fedex:"FedEx",other:"Other"};
   let shipments=[];
   let loading=false;
+  const checking=new Set();
+  const checkTime=v=>v?new Date(v).toLocaleString():"Pending";
   let visible=localStorage.getItem("calden_packages_calendar")!=="false";
   const enabled=()=>state.settings?.packages_enabled===true&&!state.me?.is_child;
   const canWrite=()=>state.me?.role!=="restricted"&&!state.me?.is_child;
@@ -78,9 +80,10 @@
     host.innerHTML=shown.map(p=>'<article class="package-entry"><div class="package-entry-main">'+
       '<div class="package-entry-icon" aria-hidden="true">📦</div><div class="package-entry-description">'+
       '<strong>'+esc(p.label)+'</strong><span>'+esc(carriers[p.carrier]||p.carrier)+' · '+esc(p.tracking_number)+'</span>'+
-      '<small>'+esc(p.shared?"Shared with household":"Private")+' · '+esc(p.status_source==="manual"?"Manually maintained":p.status_source==="email"?"Imported from email":p.provider_slug?.startsWith("local:")?"Carrier scans":p.provider_slug?.startsWith("public:")?"From public carrier page":"Carrier API update")+'</small>'+(p.latest_scan?'<small class="package-latest-scan">📍 '+esc(p.latest_scan)+'</small>':'')+ (p.tracking_error?'<small class="package-tracking-issue">Tracking check: '+esc(p.tracking_error)+'</small>':'')+'</div></div>'+
+      '<small>'+esc(p.shared?"Shared with household":"Private")+' · '+esc(p.status_source==="manual"?"Manually maintained":p.status_source==="email"?"Imported from email":p.provider_slug?.startsWith("local:")?"Carrier scans":p.provider_slug?.startsWith("public:")?"From public carrier page":"Carrier API update")+'</small>'+(p.latest_scan?'<small class="package-latest-scan">📍 '+esc(p.latest_scan)+'</small>':'')+ '<small>Last checked: '+(p.last_tracking_check?esc(checkTime(p.last_tracking_check)):'Never')+' · Next: '+esc(checkTime(p.next_tracking_check))+'</small>'+(p.tracking_error?'<small class="package-tracking-issue" role="status">Carrier check failed: '+esc(p.tracking_error)+'</small>':'')+'</div></div>'+
       '<div class="package-entry-side"><span class="package-status package-status-'+attr(p.status)+'">'+esc(labelStatus(p.status))+'</span>'+
       '<span class="package-delivery">'+esc(p.expected_date?safeDate(p.expected_date):"Delivery date unknown")+'</span>'+
+      (p.can_edit&&p.status!=="delivered"?'<button class="button secondary compact" type="button" data-package-check="'+attr(p.id)+'" '+(checking.has(p.id)?'disabled':'')+'>'+(checking.has(p.id)?'Checking…':'Check tracking now')+'</button>':'')+
       '<button class="button secondary compact" type="button" data-package-open="'+attr(p.id)+'">'+(p.can_edit?"Open / edit":"View")+'</button></div></article>'
     ).join("");
   }
@@ -287,10 +290,24 @@
     const f=$("#package-form"),number=formValue(f,"tracking_number").value;
     const selected=formValue(f,"carrier").value,guess=detectCarrier(number);
     const message=selected!=="auto"
-      ?"Manual carrier override: "+(carriers[selected]||selected)+". Live API results still require a connected provider."
-      :guess==="other"?"Carrier cannot be confidently determined from this format. An authorized tracking API will attempt detection."
-      :"Likely "+carriers[guess]+" (number format only). The tracking API will verify this.";
+      ?"Manual carrier override: "+(carriers[selected]||selected)+". Calden checks available public carrier sources."
+      :guess==="other"?"Carrier cannot be confidently determined from this format. Calden will attempt public carrier detection."
+      :"Likely "+carriers[guess]+" (number format only). Calden will attempt to verify this.";
     status("#package-carrier-suggestion",message);
+  }
+  async function checkPackage(id){
+    const p=shipments.find(item=>item.id===id);
+    if(!p||!p.can_edit||p.status==="delivered"||checking.has(id))return;
+    checking.add(id);render();
+    status("#packages-status","Checking carrier tracking for "+(p.label||p.tracking_number)+"…");
+    try{
+      const outcome=await api("/api/packages/"+encodeURIComponent(id)+"/refresh",{method:"POST",body:"{}"});
+      await load();
+      status("#packages-status",outcome.status==="updated"?"Carrier scans updated.":outcome.message||"No new verified carrier scan available.");
+    }catch(error){
+      await load();
+      status("#packages-status","Carrier check unsuccessful: "+error.message);
+    }finally{checking.delete(id);render()}
   }
   async function refreshCurrentPackage(){
     const id=formValue($("#package-form"),"id").value;
@@ -357,6 +374,8 @@
   $("#packages-filter").addEventListener("change",render);
   $("#packages-search").addEventListener("input",render);
   $("#packages-list").addEventListener("click",event=>{
+    const check=event.target.closest("[data-package-check]");
+    if(check){checkPackage(check.dataset.packageCheck);return}
     const button=event.target.closest("[data-package-open]");
     if(button)openPackage(button.dataset.packageOpen);
   });
