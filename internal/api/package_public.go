@@ -9,7 +9,6 @@ import (
  "net/url"
  "regexp"
  "strings"
- "time"
 )
 
 // Public tracking pages are intended for humans. The presence of a public
@@ -44,9 +43,9 @@ func publicTrackingURL(carrier,number string) (string,error) {
 func trustedPublicTrackingHost(carrier,host string)bool{
  host=strings.ToLower(host)
  switch carrier {
- case "ups":return host=="www.ups.com"||host=="ups.com"
- case "usps":return host=="tools.usps.com"
- case "fedex":return host=="www.fedex.com"||host=="fedex.com"
+ case "ups":return host=="www.ups.com"||host=="ups.com"||host=="wwwapps.ups.com"
+ case "usps":return host=="tools.usps.com"||host=="www.usps.com"
+ case "fedex":return host=="www.fedex.com"||host=="fedex.com"||host=="wtrk.fedex.com"
  }
  return false
 }
