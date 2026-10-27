@@ -56,3 +56,19 @@ jobs:
           grep -qi "ups" /tmp/calden-ups-detect.json
           docker run --rm --entrypoint sh calden-local-tracking:test -c \
             'test -x /usr/bin/chromium && command -v node && test -x /app/calden && test -f /opt/calden-parcel/node_modules/universal-parcel-scraper/LICENSE'
+
+      - name: Attempt a real publicly documented UPS sample (non-gating carrier canary)
+        continue-on-error: true
+        timeout-minutes: 3
+        run: |
+          docker run --rm --entrypoint sh calden-local-tracking:test -ec '
+            timeout 110s node /opt/calden-parcel/node_modules/universal-parcel-scraper/dist/cli/index.js \
+              track 1Z2231040309026972 --carrier ups > /tmp/carrier-sample.json 2>/dev/null
+            node -e "
+              const fs=require(\x27fs\x27);
+              const output=JSON.parse(fs.readFileSync(\x27/tmp/carrier-sample.json\x27,\x27utf8\x27));
+              const scanCount=output.result?.events?.length||0;
+              console.log(JSON.stringify({carrier:output.carrier,source:output.source,stage:output.result?.current_stage,scanCount}));
+              if(!scanCount)process.exit(2);
+            "
+          '
