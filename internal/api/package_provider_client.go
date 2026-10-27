@@ -28,7 +28,7 @@ var (
 )
 
 func normalizePackageTrackingNumber(number string) string {
- return strings.Map(func(r rune)rune{if r=='-'||r==' '||r=='\\t'||r=='\\r'||r=='\\n'{return -1};return r},strings.ToUpper(strings.TrimSpace(number)))
+ return strings.Map(func(r rune)rune{if r=='-'||r==' '||r==9||r==10||r==13{return -1};return r},strings.ToUpper(strings.TrimSpace(number)))
 }
 func detectPackageCarrier(number string) string {
  number=normalizePackageTrackingNumber(number)
