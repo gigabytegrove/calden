@@ -1,0 +1,54 @@
+# Deploy this ONCE under your management, separately from every Calden appliance.
+# Put it behind HTTPS via your reverse proxy; do not expose 8790 directly.
+services:
+  hub-db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: trackinghub
+      POSTGRES_DB: trackinghub
+      POSTGRES_PASSWORD_FILE: /run/secrets/hub_db_password
+    secrets: [hub_db_password]
+    volumes: [hub-db:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U trackinghub -d trackinghub"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
+  tracking-hub:
+    build:
+      context: .
+      dockerfile: Dockerfile.tracking-hub
+    restart: unless-stopped
+    depends_on:
+      hub-db:
+        condition: service_healthy
+    environment:
+      CALDEN_HUB_DATABASE_URL_FILE: /run/secrets/hub_database_url
+      CALDEN_HUB_AFTERSHIP_KEY_FILE: /run/secrets/hub_aftership_key
+      CALDEN_HUB_PUBLIC_ENROLLMENT: ${CALDEN_HUB_PUBLIC_ENROLLMENT:-false}
+      CALDEN_HUB_MAX_INSTALLS_DAILY: ${CALDEN_HUB_MAX_INSTALLS_DAILY:-100}
+      CALDEN_HUB_MAX_SHIPMENTS_PER_INSTALL: ${CALDEN_HUB_MAX_SHIPMENTS_PER_INSTALL:-50}
+      CALDEN_HUB_MAX_API_CALLS_PER_INSTALL: ${CALDEN_HUB_MAX_API_CALLS_PER_INSTALL:-400}
+      CALDEN_HUB_MAX_API_CALLS_DAILY: ${CALDEN_HUB_MAX_API_CALLS_DAILY:-5000}
+    secrets: [hub_database_url,hub_aftership_key]
+    ports: ["127.0.0.1:8790:8790"]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    healthcheck:
+      test: ["CMD","/usr/local/bin/calden-tracking-hub","-healthcheck"]
+      disable: true
+
+volumes:
+  hub-db:
+
+secrets:
+  hub_db_password:
+    file: ./tracking-hub-secrets/db-password
+  hub_database_url:
+    file: ./tracking-hub-secrets/database-url
+  hub_aftership_key:
+    file: ./tracking-hub-secrets/aftership-key
