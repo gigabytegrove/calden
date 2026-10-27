@@ -27,8 +27,11 @@ var (
  providerIDRE=regexp.MustCompile(`^[a-zA-Z0-9_-]{1,128}$`)
 )
 
+func normalizePackageTrackingNumber(number string) string {
+ return strings.Map(func(r rune)rune{if r=='-'||r==' '||r=='\\t'||r=='\\r'||r=='\\n'{return -1};return r},strings.ToUpper(strings.TrimSpace(number)))
+}
 func detectPackageCarrier(number string) string {
- number=strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(number)," ",""))
+ number=normalizePackageTrackingNumber(number)
  switch {
  case upsTrackingRE.MatchString(number):return "ups"
  case amazonTrackingRE.MatchString(number):return "amazon"
@@ -149,10 +152,10 @@ func(a *aftershipAPI) fetch(ctx context.Context,id string)(aftershipTracking,err
 }
 func(a *aftershipAPI) register(ctx context.Context,id uuid.UUID,number,carrier string)(aftershipTracking,error){
  trackingID:="calden-"+strings.ReplaceAll(id.String(),"-","")
- record:=map[string]any{"id":trackingID,"tracking_number":number}
+ record:=map[string]any{"id":trackingID,"tracking_number":normalizePackageTrackingNumber(number)}
  // Unknown or guessed ambiguous carrier is intentionally omitted: AfterShip
  // identifies the courier using its enabled preferred courier list.
- if carrier=="ups"||carrier=="usps"||carrier=="fedex"||carrier=="amazon"{
+ if carrier=="ups"||carrier=="usps"||carrier=="amazon"{
   record["slug"]=carrier
  }
  result,err:=a.request(ctx,http.MethodPost,"",record)
