@@ -1424,3 +1424,6 @@ body.calden-family-dark .recipecove-integration-card code{color:#bfdbfe}
 }
 @media(max-width:430px){.package-totals{grid-template-columns:1fr 1fr 1fr}.package-total{padding:12px 8px}.package-total strong{font-size:1.65rem}.package-total span{font-size:.7rem}}
 @media(prefers-reduced-motion:reduce){.package-entry,.package-dialog{scroll-behavior:auto}}
+
+.package-latest-scan{display:block;margin-top:4px;overflow-wrap:anywhere;color:inherit;opacity:.85;line-height:1.4}
+.package-tracking-issue{display:block;margin-top:4px;overflow-wrap:anywhere;color:var(--text-muted,#6b7280);font-size:.76rem}
