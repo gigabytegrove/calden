@@ -102,10 +102,11 @@ jobs:
             chmod 0755 "stage/$ARCH/calden"
             cp -a web "stage/$ARCH/web"
             (cd "stage/$ARCH" && tar -czf "../../dist/calden-linux-$ARCH.tar.gz" calden web)
-            tar -tzf "dist/calden-linux-$ARCH.tar.gz" | grep -Fxq "calden"
-            tar -tzf "dist/calden-linux-$ARCH.tar.gz" | grep -Fxq "web/index.html"
-            tar -tzf "dist/calden-linux-$ARCH.tar.gz" | grep -Fxq "web/styles.css"
-            tar -tzf "dist/calden-linux-$ARCH.tar.gz" | grep -Fxq "web/packages.js"
+            tar -tzf "dist/calden-linux-$ARCH.tar.gz" > "dist/contents-$ARCH.txt"
+            grep -Fxq "calden" "dist/contents-$ARCH.txt"
+            grep -Fxq "web/index.html" "dist/contents-$ARCH.txt"
+            grep -Fxq "web/styles.css" "dist/contents-$ARCH.txt"
+            grep -Fxq "web/packages.js" "dist/contents-$ARCH.txt"
           done
           (cd dist && sha256sum calden-linux-amd64.tar.gz calden-linux-arm64.tar.gz > SHA256SUMS && sha256sum -c SHA256SUMS)
 
