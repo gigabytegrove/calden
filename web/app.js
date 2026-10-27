@@ -323,6 +323,8 @@ function renderApp(){
   renderNotifications();
   renderSettings();
   renderChores();
+  window.caldenPackages?.renderNav();
+  if(state.settings?.packages_enabled===true)window.caldenPackages?.load();
   $$(".shopping-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.shopping_enabled===false));
   $$(".meals-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.meals_enabled===false||state.me?.is_child||state.me?.role==="restricted"));
       $$(".routines-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.routines_enabled!==true));
@@ -365,7 +367,7 @@ function startCalDenVersionWatch(){
   document.addEventListener("visibilitychange",()=>{if(!document.hidden)checkCalDenClientVersion()});
 }
 
-const caldenPages=new Set(["dashboard","shopping","meals","routines","rewards","school","maintenance","pets","calendar","bills","agenda","chores","people","calendars","categories","notifications","integrations","updates","backups","activity","settings"]);
+const caldenPages=new Set(["packages","dashboard","shopping","meals","routines","rewards","school","maintenance","pets","calendar","bills","agenda","chores","people","calendars","categories","notifications","integrations","updates","backups","activity","settings"]);
 function caldenPageURL(page){
   if(page==="calendar")return "/calendar?date="+dateInputValue(state.anchorDate)+"&days="+state.viewDays;
   if(page==="bills")return "/bills?month="+dateInputValue(state.billMonth).slice(0,7);
@@ -437,6 +439,7 @@ function navigate(page,load=true,writeURL=true){
   if(adminPages.has(page)&&state.me?.role!=="admin")page="calendar";
   if(["calendars","categories"].includes(page)&&!["admin","planner"].includes(state.me?.role))page="calendar";
   if(page==="chores"&&!state.settings?.chores_enabled&&!state.settings?.tasks_enabled)page="calendar";
+  if(page==="packages"&&(state.settings?.packages_enabled!==true||state.me?.is_child))page="calendar";
   if(page==="shopping"&&state.settings?.shopping_enabled===false)page="calendar";
   if(page==="meals"&&(state.settings?.meals_enabled===false||state.me?.is_child||state.me?.role==="restricted"))page="dashboard";
   if(page==="routines"&&state.settings?.routines_enabled!==true)page="calendar";
@@ -459,7 +462,7 @@ function navigate(page,load=true,writeURL=true){
   if(writeURL)history.pushState({calden:true},"",caldenPageURL(page));
   $$(".app-page").forEach(el=>el.classList.toggle("hidden",el.id!==`page-${page}`));
   $$("[data-page]").forEach(el=>el.classList.toggle("active",el.dataset.page===page));
-  const titles={dashboard:"My home",shopping:"Shopping",routines:"Routines",rewards:"Rewards & Allowances",school:"School",maintenance:"Home upkeep",pets:"Pets",calendar:"Calendar",bills:"Bill Pay",agenda:"Agenda",chores:"Tasks & Chores",people:"People",calendars:"Calendars",categories:"Categories",notifications:"Notifications",integrations:"Integrations",updates:"Updates",backups:"Backups & Restore",activity:"Activity",settings:"Settings"};
+  const titles={dashboard:"My home",shopping:"Shopping",packages:"Packages",routines:"Routines",rewards:"Rewards & Allowances",school:"School",maintenance:"Home upkeep",pets:"Pets",calendar:"Calendar",bills:"Bill Pay",agenda:"Agenda",chores:"Tasks & Chores",people:"People",calendars:"Calendars",categories:"Categories",notifications:"Notifications",integrations:"Integrations",updates:"Updates",backups:"Backups & Restore",activity:"Activity",settings:"Settings"};
   $("#page-title").textContent=window.caldenAppearance?.label(page,titles[page]||"Calden")||titles[page]||"Calden";
   $("#new-event").classList.toggle("hidden",state.me?.is_child||!["calendar","agenda"].includes(page));
   $("#sidebar").classList.remove("open");
@@ -469,6 +472,7 @@ function navigate(page,load=true,writeURL=true){
   window.caldenRewards?.enter(page);
   window.caldenChildren?.enter(page);
   window.caldenCare?.enter(page);
+  window.caldenPackages?.enter(page);
   window.caldenMeals?.enter(page);
   if(!load)return;
   if(page==="notifications")loadNotifications(false).catch(()=>renderNotifications());
@@ -1005,7 +1009,7 @@ function renderTimeline(days){
   const lanes=dayList.map(day=>{
     const allDay=eventsForDay(day).filter(e=>e.all_day);
     const timed=eventsForDay(day).filter(e=>!e.all_day);
-    const allDayHTML=allDay.map(e=>calendarEventBlock(e,true)).join("");
+    const allDayHTML=allDay.map(e=>calendarEventBlock(e,true)).join("")+(window.caldenPackages?.calendarForDay(day)||"");
     const timedHTML=layoutTimedEvents(timed,day).map(item=>{
       const top=clamp(item.startMin/totalMinutes*100,0,100);
       const height=clamp((item.endMin-item.startMin)/totalMinutes*100,1.4,100-top);
@@ -1036,7 +1040,7 @@ function renderDayGrid(days){
     const monthMarker=i===0||day.getDate()===1?`<span class="month-marker">${formatDate(day,{month:"short"})}</span>`:"";
     return `<article class="day-cell ${sameDay(day,new Date())?"today":""} ${[0,6].includes(day.getDay())?"weekend":""}" data-date="${day.toISOString()}">
       <header><span>${monthMarker}</span><strong>${day.getDate()}</strong><button type="button" class="day-add" data-add-date="${escapeAttr(day.toISOString())}" aria-label="Add event on ${escapeAttr(formatDate(day,{month:"long",day:"numeric"}))}">+</button></header>
-      <div class="day-events">${visible.map(e=>calendarEventBlock(e,false)).join("")}${more>0?`<span class="more-events">+${more} more</span>`:""}</div>
+      <div class="day-events">${visible.map(e=>calendarEventBlock(e,false)).join("")}${window.caldenPackages?.calendarForDay(day)||""}${more>0?`<span class="more-events">+${more} more</span>`:""}</div>
     </article>`;
   }).join("");
   return `<div class="day-grid-shell"><div class="day-grid-weekdays">${weekdayHeader}</div><div class="day-grid" style="--grid-days:7">${cells}</div></div>`;
@@ -1065,6 +1069,7 @@ function avatarMini(e){
 }
 function bindCalendarEvents(){
   const host=$("#calendar-view");
+  window.caldenPackages?.bindCalendar(host);
   host.querySelectorAll("[data-event-key]").forEach(el=>el.addEventListener("click",event=>{
     event.stopPropagation();
     const found=findEventByKey(el.dataset.eventKey);if(found)openEventDetails(found);
@@ -1587,6 +1592,7 @@ function renderSettings(){
   $("#settings-chores-enabled").checked=!!state.settings?.chores_enabled;
   $("#settings-shopping-enabled").checked=state.settings?.shopping_enabled!==false;
   $("#settings-meals-enabled").checked=state.settings?.meals_enabled!==false;
+  $("#settings-packages-enabled").checked=state.settings?.packages_enabled===true;
   $("#settings-routines-enabled").checked=state.settings?.routines_enabled===true;
   $("#settings-rewards-enabled").checked=state.settings?.rewards_enabled===true;
   for(const kind of ["school","maintenance","pets"]){
@@ -3145,7 +3151,7 @@ $("#chore-list").addEventListener("change",async event=>{
 });
 // Each checkbox saves only its own global setting. The API returns all four,
 // keeping the other three unchanged. This works for every household member.
-for(const [name,label] of [["bills","Bills"],["agenda","Agenda"],["tasks","Tasks"],["chores","Chores"],["shopping","Shopping"],["meals","Meal Planning"],["routines","Routines"],["rewards","Rewards & Allowances"],["school","School"],["maintenance","Home upkeep"],["pets","Pets"]]){
+for(const [name,label] of [["bills","Bills"],["agenda","Agenda"],["tasks","Tasks"],["chores","Chores"],["shopping","Shopping"],["meals","Meal Planning"],["packages","Packages"],["routines","Routines"],["rewards","Rewards & Allowances"],["school","School"],["maintenance","Home upkeep"],["pets","Pets"]]){
   $("#settings-"+name+"-enabled").addEventListener("change",async event=>{
     if(state.me?.role!=="admin")return;
     const control=event.currentTarget,status=$("#settings-feature-status"),value=control.checked;
@@ -3154,7 +3160,8 @@ for(const [name,label] of [["bills","Bills"],["agenda","Agenda"],["tasks","Tasks
       state.settings=await api("/api/settings/features",{method:"PUT",body:JSON.stringify({[name+"_enabled"]:value})});
       renderBillNavigation();
       renderChores();
-      $$(".shopping-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.shopping_enabled===false));
+      if(name==="packages")window.caldenPackages?.onToggle();
+      $(".shopping-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.shopping_enabled===false));
   $$(".meals-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.meals_enabled===false||state.me?.is_child||state.me?.role==="restricted"));
       $$(".routines-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.routines_enabled!==true));
       if(name==="shopping"&&state.settings.shopping_enabled===false&&state.currentPage==="shopping")navigate("calendar");
