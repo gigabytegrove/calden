@@ -1,0 +1,13 @@
+FROM golang:1.24-alpine AS build
+WORKDIR /source
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/calden-tracking-hub ./cmd/calden-tracking-hub
+
+FROM alpine:3.22
+RUN apk add --no-cache ca-certificates && addgroup -S calden && adduser -S -G calden calden
+COPY --from=build /out/calden-tracking-hub /usr/local/bin/calden-tracking-hub
+USER calden
+EXPOSE 8790
+ENTRYPOINT ["/usr/local/bin/calden-tracking-hub"]
