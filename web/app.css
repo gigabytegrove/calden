@@ -1134,3 +1134,14 @@ body.calden-family-dark .family-history-entry{border-color:#38475c}
 .family-shopping-filter label{font-size:.82rem;font-weight:700;color:var(--muted)}
 .family-shopping-filter select{margin-left:6px;min-width:145px;max-width:230px}
 @media(max-width:650px){.family-shopping-filter{justify-content:stretch}.family-shopping-filter label,.family-shopping-filter select{display:block;width:100%;max-width:none;margin:4px 0 0}}
+
+/* Packages: reuse Calden's existing panels, controls and calendar design. */
+.package-workspace{display:grid;grid-template-columns:minmax(280px,420px) minmax(0,1fr);gap:20px;align-items:start}
+.package-workspace .panel{min-width:0}
+.package-item{padding:16px 0;border-bottom:1px solid var(--line)}
+.package-item:last-child{border-bottom:0}
+.package-item strong{overflow-wrap:anywhere}
+.package-item .form-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.package-marker{width:100%;margin:2px 0;min-height:28px;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border-left:3px solid #b7791f;padding:5px;background:#fbf3e3;color:#51351d}
+.package-marker:focus-visible{outline:3px solid #7c3aed;outline-offset:2px}
+@media(max-width:760px){.package-workspace{grid-template-columns:minmax(0,1fr)}}
