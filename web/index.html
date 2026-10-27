@@ -87,6 +87,7 @@
       <a class="nav-item" data-page="dashboard" href="/dashboard">My home</a>
       <a class="nav-item active" data-page="calendar" href="/calendar">Calendar</a>
       <a class="nav-item shopping-nav" data-page="shopping" href="/shopping">Shopping</a>
+      <a class="nav-item packages-nav hidden" data-page="packages" href="/packages">Packages</a>
       <a class="nav-item" data-page="meals" href="/meals">Meal planning</a>
       <a class="nav-item routines-nav hidden" data-page="routines" href="/routines">Routines</a>
       <a class="nav-item rewards-nav hidden" data-page="rewards" href="/rewards">Rewards &amp; Allowances</a>
@@ -426,6 +427,26 @@
         </div>
       </div>
     </section>
+
+    <section id="page-packages" class="app-page hidden packages-page">
+      <div class="page-header">
+        <div><h2>Package Tracking</h2><p class="muted">Keep deliveries on your calendar. Packages are private unless you share them.</p></div>
+        <div class="package-head-actions">
+          <button type="button" class="button secondary" id="packages-refresh">Refresh list</button>
+          <button type="button" class="button secondary" id="packages-import-open">Import email</button>
+          <button type="button" class="button" id="packages-add">+ Add package</button>
+        </div>
+      </div>
+      <div class="package-totals" id="packages-summary" aria-label="Package totals"></div>
+      <div class="package-toolbar">
+        <label>Status <select id="packages-filter"><option value="active">Incoming</option><option value="all">All</option><option value="delivered">Delivered</option></select></label>
+        <label>Search <input id="packages-search" type="search" placeholder="Package, carrier or tracking number"></label>
+      </div>
+      <p id="packages-status" class="status-line" role="status" aria-live="polite"></p>
+      <div id="packages-list" class="package-list" aria-live="polite"></div>
+      <p class="muted package-disclaimer">Carrier tracking links open the carrier's own website. Status is manually maintained unless supplied by an imported email or an authorized tracking connection; Calden does not impersonate a carrier.</p>
+    </section>
+
     <section id="page-calendar" class="app-page">
       <div class="calendar-toolbar">
         <div class="date-nav">
@@ -445,6 +466,7 @@
         <div class="filter-field"><span>Person</span><select id="calendar-person-filter"><option value="">Everyone</option></select></div>
         <label class="calendar-search"><span>Search</span><input id="calendar-search" type="search" placeholder="Find an event"></label>
         <button id="clear-calendar-filters" class="button secondary compact hidden" type="button">Clear filters</button>
+        <label class="package-calendar-toggle hidden" id="packages-calendar-toggle"><input type="checkbox" id="packages-calendar-visible" checked> Package deliveries</label>
       </div>
       <div id="calendar-view" class="calendar-view"></div>
     </section>
@@ -924,6 +946,8 @@
               <p class="muted">Allow chores, including repeating chores. Existing chores remain saved when hidden.</p>
               <label class="toggle-row"><input id="settings-shopping-enabled" type="checkbox"><span>Enable Shopping</span></label>
               <p class="muted">Show or hide shared household shopping lists. All lists and items remain saved.</p>
+              <label class="toggle-row"><input id="settings-packages-enabled" type="checkbox"><span>Enable Package Tracking</span></label>
+              <p class="muted">Off by default. Hiding Packages stops incoming email imports and preserves shipment history.</p>
               <label class="toggle-row"><input id="settings-routines-enabled" type="checkbox"><span>Enable Family Routines</span></label>
               <p class="muted">Create repeating personal checklists. Hiding routines preserves their completion history.</p>
               <label class="toggle-row"><input id="settings-rewards-enabled" type="checkbox"><span>Enable Rewards &amp; Allowances</span></label>
@@ -1224,7 +1248,60 @@
   </form>
 </dialog>
 
-<script src="/app.js?v=1.4.9" defer></script>
+
+<dialog id="package-dialog" class="package-dialog">
+  <form id="package-form" class="package-form stack">
+    <div class="package-dialog-head"><div><h2 id="package-form-heading">Add package</h2><p class="muted">Only the owner can edit or archive this shipment.</p></div><button type="button" class="button secondary compact" data-close-package aria-label="Close package editor">Close</button></div>
+    <input type="hidden" name="id">
+    <label>Package name <input name="label" maxlength="140" required placeholder="Replacement laptop battery"></label>
+    <div class="package-form-row">
+      <label>Carrier <select name="carrier" required><option value="ups">UPS</option><option value="usps">USPS</option><option value="fedex">FedEx</option><option value="amazon">Amazon Logistics</option><option value="other">Other</option></select></label>
+      <label>Tracking number <input name="tracking_number" maxlength="100" minlength="4" spellcheck="false" autocomplete="off" required placeholder="Enter carrier tracking ID"></label>
+    </div>
+    <div class="package-form-row">
+      <label>Status <select name="status"><option value="unknown">Not yet verified</option><option value="label_created">Label created</option><option value="in_transit">In transit</option><option value="out_for_delivery">Out for delivery</option><option value="delivered">Delivered</option><option value="exception">Delivery exception</option></select></label>
+      <label>Expected delivery date <input type="date" name="expected_date"></label>
+    </div>
+    <label>Notes <textarea name="notes" maxlength="2000" rows="2" placeholder="Optional delivery details"></textarea></label>
+    <label class="package-sharing"><input type="checkbox" name="shared"> Share this delivery with household members</label>
+    <p class="muted">Private by default. Shared packages are visible to other adult household accounts.</p>
+    <p id="package-form-error" class="error" role="alert"></p>
+    <div class="package-form-actions">
+      <button type="button" class="button danger hidden" id="package-archive">Archive</button>
+      <a id="package-track-link" class="button secondary hidden" target="_blank" rel="noopener noreferrer">Track with carrier</a>
+      <span class="grow"></span><button type="submit" class="button" id="package-save">Save package</button>
+    </div>
+    <div id="package-history-panel" class="hidden"><h3>Status history</h3><div id="package-history"></div></div>
+  </form>
+</dialog>
+
+<dialog id="package-email-dialog" class="package-dialog">
+  <div class="package-form stack">
+    <div class="package-dialog-head"><div><h2>Import shipping emails</h2><p class="muted">No carrier account passwords are required.</p></div><button type="button" class="button secondary compact" data-close-package-email>Close</button></div>
+    <form id="package-email-form" class="stack">
+      <label>Paste a complete shipping email (including headers)
+        <textarea name="raw_email" rows="7" maxlength="262144" placeholder="From: ...&#10;Subject: Your package shipped&#10;&#10;Tracking: 1Z..."></textarea>
+      </label>
+      <label>Or import an .eml file <input id="package-email-file" type="file" accept=".eml,message/rfc822,text/plain"></label>
+      <button class="button" type="submit">Extract tracking numbers</button>
+    </form>
+    <p id="package-email-status" class="status-line" aria-live="polite"></p>
+    <div class="package-inbound-section">
+      <h3>Automatic import from your mail gateway</h3>
+      <p class="muted">For a mail system that supports HTTP forwarding, POST the raw RFC 822 email as the request body to the endpoint below, with <code>Authorization: Bearer YOUR_TOKEN</code>. The token is generated per user and shown only once.</p>
+      <code id="package-inbound-url"></code>
+      <p id="package-token-status" class="muted"></p>
+      <label class="package-token-label">New one-time token <input id="package-email-token-value" readonly autocomplete="off" spellcheck="false" placeholder="Only shown after generating a new token"></label>
+      <div class="package-form-actions">
+        <button type="button" class="button secondary" id="package-token-generate">Generate / rotate token</button>
+        <button type="button" class="button danger" id="package-token-revoke">Revoke token</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<script src="/app.js?v=1.4.9-packages" defer></script>
+<script src="/packages.js?v=1.4.9-packages" defer></script>
 <script src="/routines.js?v=1.4.9-family-routines" defer></script>
 <script src="/rewards.js?v=1.4.9-family-rewards" defer></script>
 <script src="/children.js?v=1.4.9-family-children" defer></script>
