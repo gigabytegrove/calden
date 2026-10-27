@@ -50,7 +50,8 @@ func TestHubMultiTenantPostgres(t *testing.T){
  server:=httptest.NewServer(h.Handler())
  defer server.Close()
  install1:=uuid.New();install2:=uuid.New()
- cred1:=strings.Repeat("a",64);cred2:=strings.Repeat("b",64)
+ c1:=sha256.Sum256([]byte(install1.String()));c2:=sha256.Sum256([]byte(install2.String()))
+ cred1:=hex.EncodeToString(c1[:]);cred2:=hex.EncodeToString(c2[:])
  call:=func(token,path string,body any)(int,[]byte){
   data,_:=json.Marshal(body)
   req,_:=http.NewRequest("POST",server.URL+path,bytes.NewReader(data))
