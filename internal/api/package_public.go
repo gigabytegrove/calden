@@ -19,7 +19,7 @@ import (
 const publicTrackingUnavailable = "Live status is not available from this carrier's public page. Use Track with carrier for the official details."
 const publicTrackingMaxBody = 768 * 1024
 
-var publicTrackingTag = regexp.MustCompile("(?s)<[^>]{1,2048}>")
+var publicTrackingTag = regexp.MustCompile("(?s)<[^>]{1,512}>")
 var publicTrackingScript = regexp.MustCompile("(?is)<(?:script|style|noscript)\\b[^>]*>.*?</(?:script|style|noscript)\\s*>")
 var publicTrackingWhitespace = regexp.MustCompile(`\s+`)
 var publicTrackingStatusPrefix = regexp.MustCompile(`(?i)\b(?:current status|shipment status|delivery status|tracking status|package status|your package is|your item was)\b\s*[:\-]?\s*(delivered|out for delivery|in transit|on its way|label created|shipping label created|pre-shipment|pre shipment|delivery attempted|exception|return to sender|available for pickup)\b`)
