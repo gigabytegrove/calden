@@ -89,12 +89,13 @@ func claimTracking(ctx context.Context,db *pgxpool.Pool,id uuid.UUID)(dueTrackin
  err:=db.QueryRow(ctx,`UPDATE package_shipments SET next_tracking_check_at=now()+interval '3 hours'
  WHERE id=$1 AND NOT archived AND status!='delivered' AND next_tracking_check_at<=now()
  AND COALESCE((SELECT value='true' FROM app_settings WHERE key='packages_enabled'),false)
- AND COALESCE((SELECT enabled FROM package_tracking_provider WHERE id=1),false)
+
  RETURNING id,carrier,tracking_number,provider_tracking_id`,id).Scan(&job.ID,&job.Carrier,&job.Number,&job.ProviderID)
  if errors.Is(err,pgx.ErrNoRows){return job,false,nil}
  return job,err==nil,err
 }
 func (s *server) syncPackageTracking(ctx context.Context,job dueTracking,key string)error{
+ if key==""{return s.syncPublicTracking(ctx,job)}
  api:=newAftershipAPI(key)
  var tracking aftershipTracking
  var err error
@@ -152,16 +153,49 @@ func (s *server) syncPackageTracking(ctx context.Context,job dueTracking,key str
  }
  return tx.Commit(ctx)
 }
+// syncPublicTracking is best-effort: official carriers may expose only a
+// browser-rendered status behind access controls. Never mark a guessed status
+// as verified, and never ask for an external API key in the normal flow.
+func(s *server) syncPublicTracking(ctx context.Context,job dueTracking)error{
+ lookup,err:=fetchPublicCarrierTracking(ctx,job.Carrier,job.Number)
+ if err!=nil{
+  _,_=s.db.Exec(ctx,`UPDATE package_shipments SET
+    last_tracking_check_at=now(),tracking_error=$3
+    WHERE id=$1 AND tracking_number=$2 AND NOT archived`,
+   job.ID,job.Number,err.Error())
+  return err
+ }
+ tx,err:=s.db.Begin(ctx);if err!=nil{return err}
+ defer tx.Rollback(ctx)
+ tag,err:=tx.Exec(ctx,`UPDATE package_shipments SET status=$3,
+   status_source='provider',provider_slug=$4,last_tracking_check_at=now(),
+   tracking_error='',delivered_at=CASE WHEN $3='delivered' THEN COALESCE(delivered_at,now()) ELSE delivered_at END,
+   updated_at=now() WHERE id=$1 AND tracking_number=$2 AND NOT archived`,
+   job.ID,job.Number,lookup.Status,"public:"+job.Carrier)
+ if err!=nil{return err}
+ if tag.RowsAffected()!=1{return errors.New("Package was changed before public lookup completed")}
+ // Record a verified, visible public page observation, never a fabricated
+ // historical scan or estimated delivery timestamp.
+ _,err=tx.Exec(ctx,`INSERT INTO package_checkpoints(shipment_id,status,detail,source,provider_ref)
+   VALUES($1,$2,$3,'provider',$4) ON CONFLICT DO NOTHING`,
+   job.ID,lookup.Status,lookup.Detail,"public:current:"+lookup.Status)
+ if err!=nil{return err}
+ return tx.Commit(ctx)
+}
 func(s *server) refreshPackageTracking(w http.ResponseWriter,r *http.Request){
  id,ok:=s.packageByID(w,r,true);if !ok{return}
  key,err:=s.trackingProviderKey(r.Context())
  if err!=nil{writeError(w,500,"Tracking provider settings are unavailable");return}
- if key==""{writeError(w,409,"Configure and enable an AfterShip tracking API key in Packages settings");return}
  job,claimed,err:=claimTracking(r.Context(),s.db,id)
  if err!=nil{writeError(w,500,"Could not schedule tracking lookup");return}
  if !claimed{writeJSON(w,200,map[string]any{"status":"scheduled","message":"Tracking is already current or scheduled; requests run at most every three hours"});return}
  ctx,cancel:=context.WithTimeout(r.Context(),18*time.Second);defer cancel()
- if err=s.syncPackageTracking(ctx,job,key);err!=nil{writeError(w,502,err.Error());return}
+ if err=s.syncPackageTracking(ctx,job,key);err!=nil{
+  // A public lookup may be blocked or require browser interaction. Do not
+  // turn this ordinary carrier restriction into a 409 or pretend it worked.
+  if key==""{writeJSON(w,200,map[string]string{"status":"unavailable","message":err.Error(),"tracking_url":packageTrackingURL(job.Carrier,job.Number)});return}
+  writeError(w,502,err.Error());return
+ }
  writeJSON(w,200,map[string]string{"status":"updated"})
 }
 func StartPackageTracking(ctx context.Context,db *pgxpool.Pool,master []byte){
@@ -176,7 +210,7 @@ func StartPackageTracking(ctx context.Context,db *pgxpool.Pool,master []byte){
 }
 func processDuePackageTracking(ctx context.Context,db *pgxpool.Pool,master []byte){
  s:=&server{db:db,jwtSecret:master}
- key,err:=s.trackingProviderKey(ctx);if err!=nil||key==""{return}
+ key,err:=s.trackingProviderKey(ctx);if err!=nil{return}
  rows,err:=db.Query(ctx,`WITH due AS (
  SELECT id FROM package_shipments
  WHERE NOT archived AND status!='delivered' AND next_tracking_check_at<=now()
