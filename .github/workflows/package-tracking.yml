@@ -1,0 +1,46 @@
+name: Package Tracking CI
+
+on:
+  push:
+    branches: [feature/package-tracking-20261027]
+  pull_request:
+    paths:
+      - 'internal/api/packages*.go'
+      - 'internal/api/package_email.go'
+      - 'internal/store/migrations/04*.sql'
+      - 'web/packages.js'
+      - 'web/app.js'
+      - 'web/index.html'
+      - 'web/app.css'
+      - 'internal/api/settings.go'
+      - 'internal/api/api.go'
+      - '.github/workflows/package-tracking.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  package-tracking:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Compile application and run Go tests
+        run: |
+          go test ./...
+          go vet ./...
+      - name: Check JavaScript syntax
+        run: |
+          node --check web/app.js
+          node --check web/packages.js
+      - name: Run web regression suite
+        run: |
+          npm install --no-audit --no-fund --ignore-scripts
+          npm run test:web
