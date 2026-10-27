@@ -77,7 +77,7 @@
     host.innerHTML=shown.map(p=>'<article class="package-entry"><div class="package-entry-main">'+
       '<div class="package-entry-icon" aria-hidden="true">📦</div><div class="package-entry-description">'+
       '<strong>'+esc(p.label)+'</strong><span>'+esc(carriers[p.carrier]||p.carrier)+' · '+esc(p.tracking_number)+'</span>'+
-      '<small>'+esc(p.shared?"Shared with household":"Private")+' · '+esc(p.status_source==="manual"?"Manually maintained":p.status_source==="email"?"Imported from email":"Carrier verified")+'</small>'+ (p.tracking_error?'<small class="package-tracking-issue">Tracking check: '+esc(p.tracking_error)+'</small>':'')+'</div></div>'+
+      '<small>'+esc(p.shared?"Shared with household":"Private")+' · '+esc(p.status_source==="manual"?"Manually maintained":p.status_source==="email"?"Imported from email":p.provider_slug?.startsWith("public:")?"From public carrier page":"Carrier API update")+'</small>'+ (p.tracking_error?'<small class="package-tracking-issue">Tracking check: '+esc(p.tracking_error)+'</small>':'')+'</div></div>'+
       '<div class="package-entry-side"><span class="package-status package-status-'+attr(p.status)+'">'+esc(labelStatus(p.status))+'</span>'+
       '<span class="package-delivery">'+esc(p.expected_date?safeDate(p.expected_date):"Delivery date unknown")+'</span>'+
       '<button class="button secondary compact" type="button" data-package-open="'+attr(p.id)+'">'+(p.can_edit?"Open / edit":"View")+'</button></div></article>'
@@ -126,7 +126,7 @@
     formValue(form,"shared").checked=!!p?.shared;
     updateCarrierSuggestion();
     const checkDetail=$("#package-tracking-details");
-    checkDetail.textContent=p?.last_tracking_check?"Last carrier API check: "+new Date(p.last_tracking_check).toLocaleString()+". Next scheduled: "+(p.next_tracking_check?new Date(p.next_tracking_check).toLocaleString():"pending")+(p.tracking_error?". "+p.tracking_error:""):"No successful carrier API check yet. Next check runs within one minute when tracking is enabled.";
+    checkDetail.textContent=p?.last_tracking_check?"Last public tracking attempt: "+new Date(p.last_tracking_check).toLocaleString()+". Next scheduled: "+(p.next_tracking_check?new Date(p.next_tracking_check).toLocaleString():"pending")+(p.tracking_error?". "+p.tracking_error:""):"Not checked yet. Calden automatically attempts public tracking every three hours while this package is active.";
     const writable=canWrite()&&(!p||p.can_edit);
     form.querySelectorAll("input,select,textarea").forEach(el=>{el.disabled=!writable});
     $("#package-save").classList.toggle("hidden",!writable);
@@ -155,10 +155,10 @@
         method:id?"PUT":"POST",body:JSON.stringify(body)
       });
       $("#package-dialog").close();
-      let lookup="Tracking will update automatically every three hours.";
+      let lookup="Calden will attempt public tracking automatically every three hours.";
       try{
         const outcome=await api("/api/packages/"+encodeURIComponent(id||result.id)+"/refresh",{method:"POST",body:"{}"});
-        lookup=outcome.status==="updated"?"Live carrier tracking retrieved.":"Tracking checked or already scheduled for its next three-hour refresh.";
+        lookup=outcome.status==="updated"?"Public carrier status retrieved.":outcome.status==="unavailable"?outcome.message:"Tracking checked or already scheduled for its next three-hour refresh.";
       }catch(error){
         lookup="Automatic tracking not yet available: "+error.message;
       }
@@ -293,13 +293,13 @@
     const id=formValue($("#package-form"),"id").value;
     if(!id)return;
     const button=$("#package-update-status");button.disabled=true;
-    status("#package-tracking-details","Requesting an authorized carrier status update…");
+    status("#package-tracking-details","Checking the carrier’s public tracking page…");
     try{
       const result=await api("/api/packages/"+encodeURIComponent(id)+"/refresh",{method:"POST",body:"{}"});
       await load();
       const updated=shipments.find(item=>item.id===id);
       if(updated)openPackage(id);
-      status("#package-tracking-details",result.status==="updated"?"Tracking refreshed from the carrier.":result.message);
+      status("#package-tracking-details",result.status==="updated"?"Status retrieved from carrier tracking.":result.message);
     }catch(e){status("#package-tracking-details","Could not refresh carrier data: "+e.message)}
     finally{button.disabled=false}
   }
@@ -308,7 +308,7 @@
     const form=$("#package-provider-form");
     form.elements.namedItem("api_key").value="";
     form.elements.namedItem("enabled").checked=Boolean(data.enabled);
-    status("#package-provider-status",data.configured?(data.enabled?"API key configured (carrier access not yet verified). Active packages are checked every three hours.":"API key saved; automatic checks paused."):"No API key configured. Tracking-number format detection works, but live carrier updates require an authorized AfterShip key.");
+    status("#package-provider-status",data.configured?(data.enabled?"API key configured (carrier access not yet verified). Active packages are checked every three hours.":"API key saved; automatic checks paused."):"No API key configured. Calden will use public carrier tracking pages automatically; optional API integration is only for additional coverage.");
   }
   async function saveTrackingProvider(event){
     event.preventDefault();
@@ -324,11 +324,11 @@
     finally{btn.disabled=false}
   }
   async function disconnectTrackingProvider(){
-    if(!confirm("Disconnect automatic tracking? Saved package history will remain, but carrier API checks will stop."))return;
+    if(!confirm("Remove the optional API connection? Keyless public tracking attempts will continue. Saved package history will remain."))return;
     try{
       await api("/api/packages/provider",{method:"DELETE"});
       await loadTrackingProvider();
-      status("#package-provider-status","Provider disconnected. Packages remain stored.");
+      status("#package-provider-status","Optional API disconnected. Public tracking attempts continue every three hours.");
     }catch(e){status("#package-provider-status",e.message)}
   }
   function onToggle(){
