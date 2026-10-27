@@ -57,7 +57,7 @@ func preparePackageInput(in *packageInput) bool {
  in.Label=strings.TrimSpace(in.Label)
  in.Carrier=strings.ToLower(strings.TrimSpace(in.Carrier))
  if in.Carrier==""||in.Carrier=="auto"{in.Carrier=detectPackageCarrier(in.TrackingNumber)}
- in.TrackingNumber=strings.ToUpper(strings.TrimSpace(in.TrackingNumber))
+ in.TrackingNumber=normalizePackageTrackingNumber(in.TrackingNumber)
  in.Status=strings.ToLower(strings.TrimSpace(in.Status))
  in.ExpectedDate=strings.TrimSpace(in.ExpectedDate)
  in.Notes=strings.TrimSpace(in.Notes)
