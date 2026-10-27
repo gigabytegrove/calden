@@ -6,7 +6,10 @@ on:
   pull_request:
     paths:
       - 'internal/api/packages*.go'
-      - 'internal/api/package_email.go'
+      - 'internal/api/package_email*.go'
+      - 'internal/api/package_imap*.go'
+      - 'internal/api/package_mailbox.go'
+      - 'cmd/calden/main.go'
       - 'internal/store/migrations/04*.sql'
       - 'web/packages.js'
       - 'web/app.js'

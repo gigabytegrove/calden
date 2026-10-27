@@ -1297,6 +1297,30 @@
         <button type="button" class="button danger" id="package-token-revoke">Revoke token</button>
       </div>
     </div>
+    <section class="package-inbound-section" aria-label="Automatic mailbox discovery">
+      <h3>Automatically discover packages from your inbox</h3>
+      <p class="muted">Connect Gmail using a dedicated Google app password, or an administrator-approved IMAP server. Calden reads recent messages over verified TLS without marking them as read. Mailbox passwords are encrypted and never displayed again. Outlook and Microsoft 365 require OAuth and are not supported by this password-based connection.</p>
+      <form id="package-mailbox-form" class="stack">
+        <label>IMAP server
+          <input name="hostname" maxlength="253" value="imap.gmail.com" required autocomplete="off" spellcheck="false" aria-describedby="package-imap-host-help">
+        </label>
+        <p id="package-imap-host-help" class="muted">Default: imap.gmail.com (TLS port 993). Custom hosts require CALDEN_PACKAGE_IMAP_ALLOWED_HOSTS on the server.</p>
+        <label>Mailbox username / email
+          <input name="username" maxlength="254" type="text" autocomplete="username" required placeholder="you@gmail.com">
+        </label>
+        <label>IMAP app password
+          <input name="password" maxlength="1024" type="password" autocomplete="new-password" placeholder="Enter to connect or replace the saved password">
+        </label>
+        <label class="toggle-row"><input name="enabled" type="checkbox"><span>Automatically check this inbox for shipping emails</span></label>
+        <div class="package-form-actions">
+          <button class="button" type="submit" id="package-mailbox-save">Save connection</button>
+          <button class="button secondary" type="button" id="package-mailbox-check">Check now</button>
+          <button class="button secondary" type="button" id="package-mailbox-reload">Refresh status</button>
+          <button class="button danger" type="button" id="package-mailbox-remove">Disconnect</button>
+        </div>
+        <p id="package-mailbox-status" class="status-line" role="status" aria-live="polite">No mailbox connected.</p>
+      </form>
+    </section>
   </div>
 </dialog>
 

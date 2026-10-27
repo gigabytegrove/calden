@@ -61,6 +61,7 @@ func main() {
 	defer workerCancel()
 	reminders.Start(workerCtx, db, jwtSecret)
     api.StartNotificationMaintenance(workerCtx,db)
+    api.StartPackageMailSync(workerCtx,db,jwtSecret)
     push.Start(workerCtx, db, jwtSecret, env("CALDEN_FCM_SERVICE_ACCOUNT_FILE",""),
         env("CALDEN_FCM_PROJECT_ID",""))
 
