@@ -1549,7 +1549,7 @@ function renderSettings(){
   $("#settings-shopping-enabled").checked=state.settings?.shopping_enabled!==false;
   $("#settings-routines-enabled").checked=state.settings?.routines_enabled===true;
   $("#settings-rewards-enabled").checked=state.settings?.rewards_enabled===true;
-  for(const kind of ["school","maintenance","pets"]){
+  for(const kind of ["school","maintenance","pets","packages"]){
     $("#settings-"+kind+"-enabled").checked=state.settings?.[kind+"_enabled"]===true;
   }
   $("#settings-bills-enabled").checked=state.settings?.bills_enabled!==false;
@@ -3115,6 +3115,7 @@ for(const [name,label] of [["bills","Bills"],["agenda","Agenda"],["tasks","Tasks
       $(".packages-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.packages_enabled!==true));
       $$(".shopping-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.shopping_enabled===false));
       $$(".routines-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.routines_enabled!==true));
+      if(name==="packages"){if(value)loadPackages(false);else {packageState.items=[];renderCalendar();if(state.currentPage==="packages")navigate("calendar")}}
       if(name==="shopping"&&state.settings.shopping_enabled===false&&state.currentPage==="shopping")navigate("calendar");
       if(name==="routines"&&state.settings.routines_enabled!==true&&state.currentPage==="routines")navigate("calendar");
       $$(".rewards-nav").forEach(el=>el.classList.toggle("hidden",state.settings?.rewards_enabled!==true));
@@ -3535,3 +3536,66 @@ boot().catch(err=>{console.error("Calden failed before authentication",err);show
     }
   };
 })();
+
+const packageState={items:[]};
+const packageStatusLabels={pending:"Ordered",label_created:"Label created",in_transit:"In transit",out_for_delivery:"Out for delivery",delivered:"Delivered",delayed:"Delayed",exception:"Delivery exception"};
+function packageLink(p){
+ if(!p.tracking_number)return "";
+ const n=encodeURIComponent(p.tracking_number);
+ if(p.carrier==="usps")return "https://tools.usps.com/go/TrackConfirmAction?tLabels="+n;
+ if(p.carrier==="ups")return "https://www.ups.com/track?tracknum="+n;
+ if(p.carrier==="fedex")return "https://www.fedex.com/fedextrack/?trknbr="+n;
+ return "";
+}
+async function loadPackages(showError=true){
+ if(state.settings?.packages_enabled!==true||state.me?.is_child)return;
+ try{packageState.items=await api("/api/packages");renderPackages();renderCalendar()}
+ catch(e){if(showError)$("#package-feedback").textContent=e.message}
+}
+function renderPackages(){
+ const host=$("#package-list");if(!host)return;
+ host.innerHTML=packageState.items.length?packageState.items.map(p=>{
+ const link=packageLink(p);
+ return `<div class="package-item"><strong>${escapeHTML(p.title)}</strong><p class="muted">${escapeHTML(p.carrier.toUpperCase())} · ${escapeHTML(packageStatusLabels[p.status]||p.status)} · ${escapeHTML(p.expected_date||"Date unknown")} · ${p.shared?"Shared":"Private"}</p><div class="form-actions">
+ <button class="button secondary compact" type="button" data-package-edit="${escapeAttr(p.id)}">Edit</button><button class="button danger compact" type="button" data-package-delete="${escapeAttr(p.id)}">Delete</button>
+ ${link?`<a class="button secondary compact" href="${escapeAttr(link)}" target="_blank" rel="noopener noreferrer">Carrier website</a>`:""}</div></div>`;
+ }).join(""):'<div class="empty-state"><strong>No packages yet</strong><span>Add a shipment above to get started.</span></div>';
+ host.querySelectorAll("[data-package-edit]").forEach(button=>button.addEventListener("click",()=>{
+ const p=packageState.items.find(item=>item.id===button.dataset.packageEdit);if(!p)return;
+ const f=$("#package-form");for(const name of ["id","title","carrier","tracking_number","expected_date","status","notes"])f.elements.namedItem(name).value=p[name]||"";
+ f.elements.namedItem("shared").checked=p.shared;f.scrollIntoView({block:"start"});
+ }));
+ host.querySelectorAll("[data-package-delete]").forEach(button=>button.addEventListener("click",async()=>{
+ if(!confirm("Delete this shipment and remove its calendar marker?"))return;
+ try{await api("/api/packages/"+encodeURIComponent(button.dataset.packageDelete),{method:"DELETE"});await loadPackages();$("#package-feedback").textContent="Package deleted."}
+ catch(e){$("#package-feedback").textContent=e.message}
+ }));
+}
+function renderPackageCalendarMarkers(){
+ if(state.settings?.packages_enabled!==true||state.me?.is_child)return;
+ const view=$("#calendar-view");if(!view)return;
+ for(const p of packageState.items){
+  if(!p.expected_date)continue;
+  const key=p.expected_date;
+  const cells=[...view.querySelectorAll("[data-date]")].filter(el=>(el.dataset.date||"").slice(0,10)===key);
+  const lanes=[...view.querySelectorAll(".timed-lane[data-day]")].filter(el=>(el.dataset.day||"").slice(0,10)===key);
+  const targets=cells.map(el=>el.querySelector(".day-events")).concat(lanes.map(el=>el.previousElementSibling)).filter(Boolean);
+  for(const target of targets){
+   const button=document.createElement("button");button.type="button";button.className="calendar-event package-marker";button.style.setProperty("--cal","#b7791f");
+   button.textContent="📦 "+p.title;button.title=(packageStatusLabels[p.status]||p.status)+" · "+p.carrier.toUpperCase();
+   button.addEventListener("click",()=>navigate("packages"));target.appendChild(button);
+  }
+ }
+}
+document.addEventListener("DOMContentLoaded",()=>{
+ const form=$("#package-form");if(!form)return;
+ $("#package-clear").addEventListener("click",()=>{form.reset();form.elements.namedItem("id").value=""});
+ $("#package-reload").addEventListener("click",()=>loadPackages());
+ form.addEventListener("submit",async event=>{
+ event.preventDefault();const feedback=$("#package-feedback");const payload=Object.fromEntries(new FormData(form).entries());
+ const id=payload.id;delete payload.id;payload.shared=form.elements.namedItem("shared").checked;feedback.textContent="Saving…";
+ try{await api(id?"/api/packages/"+encodeURIComponent(id):"/api/packages",{method:id?"PUT":"POST",body:JSON.stringify(payload)});
+ $("#package-clear").click();await loadPackages();feedback.textContent="Package saved."}
+ catch(e){feedback.textContent=e.message}
+ });
+});
