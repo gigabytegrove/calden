@@ -225,6 +225,11 @@ func (m *Manager) Install(ctx context.Context, version string) (Status, error) {
 	if !eligibleForChannel(release, prefs.Channel) {
 		return Status{}, errors.New("release is not allowed by the selected update channel")
 	}
+	// Fail before changing updater state or starting a background install.
+	// A GitHub release without updater archives is an announcement, not an installable release.
+	if _, _, err := releaseAssets(*release, mustRuntimeAssetName()); err != nil {
+		return Status{}, errors.New("This release does not include the installable runtime and checksums for this system")
+	}
 
 	started := time.Now().UTC()
 	initial := Status{
@@ -507,10 +512,30 @@ func (m *Manager) releaseByVersion(ctx context.Context, version string) (*releas
 	return &release, nil
 }
 
+func mustRuntimeAssetName() string {
+	name, err := runtimeAssetName(runtime.GOOS, runtime.GOARCH)
+	if err != nil {
+		return ""
+	}
+	return name
+}
+
+// Update Check must never suggest a prerelease that is published without the
+// Linux runtime archives. Both supported arches and SHA256SUMS are mandatory
+// for Calden's standard release packaging.
+func releaseReadyForInstall(release releasePayload) bool {
+	for _, name := range []string{"calden-linux-amd64.tar.gz", "calden-linux-arm64.tar.gz"} {
+		if _, _, err := releaseAssets(release, name); err != nil {
+			return false
+		}
+	}
+	return true
+}
+
 func latestEligible(releases []releasePayload, channel string) *releasePayload {
 	var eligible []releasePayload
 	for _, release := range releases {
-		if release.Draft || !eligibleForChannel(&release, channel) {
+		if release.Draft || !eligibleForChannel(&release, channel) || !releaseReadyForInstall(release) {
 			continue
 		}
 		version := strings.TrimPrefix(release.TagName, "v")

@@ -1,0 +1,28 @@
+name: Calden updater missing-assets regression
+
+on:
+  push:
+    branches: [fix/alpha8-alpha9-missing-update-assets-20261027]
+    paths:
+      - internal/updater/**
+      - .github/workflows/updater-asset-gate-ci.yml
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  updater-assets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Test updater and missing-asset regression
+        run: |
+          go test ./internal/updater -count=1 -v
+          go vet ./internal/updater
+          go test ./...
