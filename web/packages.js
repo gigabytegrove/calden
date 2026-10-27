@@ -308,7 +308,7 @@
     const form=$("#package-provider-form");
     form.elements.namedItem("api_key").value="";
     form.elements.namedItem("enabled").checked=Boolean(data.enabled);
-    status("#package-provider-status",data.configured?(data.enabled?"Tracking API connected (key hidden). Shipments refresh every three hours.":"API key saved; automatic checks paused."):"No API key configured. Tracking-number format detection works, but live carrier updates require an authorized AfterShip key.");
+    status("#package-provider-status",data.configured?(data.enabled?"API key configured (carrier access not yet verified). Active packages are checked every three hours.":"API key saved; automatic checks paused."):"No API key configured. Tracking-number format detection works, but live carrier updates require an authorized AfterShip key.");
   }
   async function saveTrackingProvider(event){
     event.preventDefault();
