@@ -429,9 +429,9 @@
     </section>
     <section id="page-packages" class="app-page hidden packages-page">
       <div class="page-header">
-        <div><h2>Package Tracking</h2><p class="muted">Keep deliveries on your calendar. Packages are private unless you share them.</p></div>
+        <div><h2>Package Tracking</h2><p class="muted">Enter a tracking number to detect the carrier and retrieve available status updates. Calden checks active shipments every three hours. Packages are private unless shared.</p></div>
         <div class="package-head-actions">
-          <button type="button" class="button secondary" id="packages-refresh">Refresh list</button>
+          <button type="button" class="button secondary" id="packages-refresh">Reload saved packages</button>
           <button type="button" class="button secondary hidden" id="packages-provider-open">Optional API (advanced)</button>
           <button type="button" class="button secondary" id="packages-import-open">Import email</button>
           <button type="button" class="button" id="packages-add">+ Add package</button>
@@ -1310,7 +1310,7 @@
       <label>Carrier <select name="carrier" required><option value="auto" selected>Auto-detect</option><option value="ups">UPS</option><option value="usps">USPS</option><option value="fedex">FedEx</option><option value="amazon">Amazon Logistics</option><option value="other">Other</option></select></label>
       <label>Tracking number <input name="tracking_number" maxlength="100" minlength="4" spellcheck="false" autocomplete="off" required placeholder="Enter carrier tracking ID"></label>
     </div>
-    <p id="package-carrier-suggestion" class="muted" aria-live="polite">Carrier detected from tracking number; verified when a carrier API responds.</p>
+    <p id="package-carrier-suggestion" class="muted" aria-live="polite">Carrier detected from number format. Calden checks available public sources after saving.</p>
     <div class="package-form-row">
       <label>Status <select name="status"><option value="unknown">Not yet verified</option><option value="label_created">Label created</option><option value="in_transit">In transit</option><option value="out_for_delivery">Out for delivery</option><option value="delivered">Delivered</option><option value="exception">Delivery exception</option></select></label>
       <label>Expected delivery date <input type="date" name="expected_date"></label>
