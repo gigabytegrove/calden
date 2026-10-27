@@ -77,7 +77,7 @@
     host.innerHTML=shown.map(p=>'<article class="package-entry"><div class="package-entry-main">'+
       '<div class="package-entry-icon" aria-hidden="true">📦</div><div class="package-entry-description">'+
       '<strong>'+esc(p.label)+'</strong><span>'+esc(carriers[p.carrier]||p.carrier)+' · '+esc(p.tracking_number)+'</span>'+
-      '<small>'+esc(p.shared?"Shared with household":"Private")+' · '+esc(p.status_source==="manual"?"Manually maintained":p.status_source==="email"?"Imported from email":p.provider_slug?.startsWith("public:")?"From public carrier page":"Carrier API update")+'</small>'+ (p.tracking_error?'<small class="package-tracking-issue">Tracking check: '+esc(p.tracking_error)+'</small>':'')+'</div></div>'+
+      '<small>'+esc(p.shared?"Shared with household":"Private")+' · '+esc(p.status_source==="manual"?"Manually maintained":p.status_source==="email"?"Imported from email":p.provider_slug?.startsWith("local:")?"Carrier scans":p.provider_slug?.startsWith("public:")?"From public carrier page":"Carrier API update")+'</small>'+(p.latest_scan?'<small class="package-latest-scan">📍 '+esc(p.latest_scan)+'</small>':'')+ (p.tracking_error?'<small class="package-tracking-issue">Tracking check: '+esc(p.tracking_error)+'</small>':'')+'</div></div>'+
       '<div class="package-entry-side"><span class="package-status package-status-'+attr(p.status)+'">'+esc(labelStatus(p.status))+'</span>'+
       '<span class="package-delivery">'+esc(p.expected_date?safeDate(p.expected_date):"Delivery date unknown")+'</span>'+
       '<button class="button secondary compact" type="button" data-package-open="'+attr(p.id)+'">'+(p.can_edit?"Open / edit":"View")+'</button></div></article>'
@@ -126,7 +126,7 @@
     formValue(form,"shared").checked=!!p?.shared;
     updateCarrierSuggestion();
     const checkDetail=$("#package-tracking-details");
-    checkDetail.textContent=p?.last_tracking_check?"Last public tracking attempt: "+new Date(p.last_tracking_check).toLocaleString()+". Next scheduled: "+(p.next_tracking_check?new Date(p.next_tracking_check).toLocaleString():"pending")+(p.tracking_error?". "+p.tracking_error:""):"Not checked yet. Calden automatically attempts public tracking every three hours while this package is active.";
+    checkDetail.textContent=p?.last_tracking_check?"Last carrier tracking attempt: "+new Date(p.last_tracking_check).toLocaleString()+". Next scheduled: "+(p.next_tracking_check?new Date(p.next_tracking_check).toLocaleString():"pending")+(p.tracking_error?". "+p.tracking_error:""):"Not checked yet. Calden automatically attempts public tracking every three hours while this package is active.";
     const writable=canWrite()&&(!p||p.can_edit);
     form.querySelectorAll("input,select,textarea").forEach(el=>{el.disabled=!writable});
     $("#package-save").classList.toggle("hidden",!writable);
@@ -155,15 +155,17 @@
         method:id?"PUT":"POST",body:JSON.stringify(body)
       });
       $("#package-dialog").close();
-      let lookup="Calden will attempt public tracking automatically every three hours.";
-      try{
-        const outcome=await api("/api/packages/"+encodeURIComponent(id||result.id)+"/refresh",{method:"POST",body:"{}"});
-        lookup=outcome.status==="updated"?"Public carrier status retrieved.":outcome.status==="unavailable"?outcome.message:"Tracking checked or already scheduled for its next three-hour refresh.";
-      }catch(error){
-        lookup="Automatic tracking not yet available: "+error.message;
-      }
       await load();
-      status("#packages-status",(id?"Package updated. ":"Package added. ")+lookup);
+      status("#packages-status",(id?"Package updated. ":"Package added. ")+"Checking carrier tracking in the background…");
+      api("/api/packages/"+encodeURIComponent(id||result.id)+"/refresh",{method:"POST",body:"{}"})
+        .then(async outcome=>{
+          await load();
+          status("#packages-status",outcome.status==="updated"?"Carrier scans retrieved and saved.":outcome.status==="unavailable"?"Tracking is saved; no new carrier scan was returned. Automatic retry is scheduled.":outcome.message||"Carrier tracking scheduled.");
+        })
+        .catch(async error=>{
+          await load();
+          status("#packages-status","Package saved. Carrier scan currently unavailable ("+error.message+"); next automatic check is scheduled.");
+        });
     }catch(err){status("#package-form-error",err.message)}
     finally{button.disabled=false}
   }
@@ -293,7 +295,7 @@
     const id=formValue($("#package-form"),"id").value;
     if(!id)return;
     const button=$("#package-update-status");button.disabled=true;
-    status("#package-tracking-details","Checking the carrier’s public tracking page…");
+    status("#package-tracking-details","Retrieving the latest carrier scans…");
     try{
       const result=await api("/api/packages/"+encodeURIComponent(id)+"/refresh",{method:"POST",body:"{}"});
       await load();
@@ -308,7 +310,7 @@
     const form=$("#package-provider-form");
     form.elements.namedItem("api_key").value="";
     form.elements.namedItem("enabled").checked=Boolean(data.enabled);
-    status("#package-provider-status",data.configured?(data.enabled?"API key configured (carrier access not yet verified). Active packages are checked every three hours.":"API key saved; automatic checks paused."):"No API key configured. Calden will use public carrier tracking pages automatically; optional API integration is only for additional coverage.");
+    status("#package-provider-status",data.configured?(data.enabled?"API key configured (carrier access not yet verified). Active packages are checked every three hours.":"API key saved; automatic checks paused."):"No API key required. Calden includes a built-in local tracking engine. AfterShip is optional and not needed for normal operation.");
   }
   async function saveTrackingProvider(event){
     event.preventDefault();
