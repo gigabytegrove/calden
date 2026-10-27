@@ -38,7 +38,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 # The entire credential-free parcel tracking engine ships in this one Calden image.
 # No provider account, API service, sidecar, or additional installation is needed.
-FROM --platform=$BUILDPLATFORM node:26.12.1-trixie-slim AS parceldeps
+FROM node:26.12.1-trixie-slim AS parceldeps
 WORKDIR /opt/calden-parcel
 RUN npm install --no-audit --no-fund --ignore-scripts --no-save \
     universal-parcel-scraper@0.637.1 playwright-core@1.63.0 sharp@0.35.5 onnxruntime-web@1.30.0 \
