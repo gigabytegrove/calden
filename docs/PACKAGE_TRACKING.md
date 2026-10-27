@@ -10,7 +10,7 @@ Calden's Package Tracking is **disabled by default** for existing and new househ
 - Optional import of raw RFC 822 shipping emails from the UI (paste headers and body or upload an `.eml` file). Currently recognized IDs: UPS `1Z` numbers, USPS long numeric / international `US` numbers, Amazon Logistics `TBA` numbers and FedEx numeric IDs when FedEx is mentioned.
 - Email imports are unverified suggestions: they never overwrite an existing tracking status, and they never represent a successful carrier API request.
 - Owner-specific mail-gateway forwarding: generate a token in Packages → Import email. Calden stores only its SHA-256 digest and displays the raw value once. Configure an independently operated mail gateway to POST a raw RFC 822 email (up to 256 KiB) to `/api/packages/inbound-email` with `Authorization: Bearer cpk_...`. Rotating or revoking the token immediately invalidates the previous credential.
-- Carrier links open their official tracking services for live details. No carrier passwords are stored or scraped.
+- Calden attempts keyless status reads from official public carrier pages every three hours. When carriers require interaction or login, it preserves the package and provides the official tracking link. No carrier passwords are stored or scraped.
 
 ## Built-in mailbox scanning (opt-in)
 
@@ -29,7 +29,7 @@ If a shipping email says, for example, “Estimated delivery: 2026-10-30,” Cal
 
 ## External setup required
 
-Calden **does not** automatically log in to Amazon, Informed Delivery, My Choice or FedEx Delivery Manager, and **does not** poll carrier APIs by default. An independently managed mail service is required only if you choose HTTP forwarding instead of the built-in Gmail/approved-IMAP mailbox scanner. A POST endpoint is not itself an email server. Put the Calden endpoint behind HTTPS before routing any internet-originated mail, and never publish a token or full raw email in logs.
+Calden **does not** automatically log in to Amazon, Informed Delivery, My Choice or FedEx Delivery Manager. Without any API key, Calden attempts to read the official public tracking page for each active UPS, USPS or FedEx package every three hours. These public pages often require JavaScript, browser checks or authentication; when no reliable status is readable, Calden reports that public tracking data is unavailable and links to the official carrier website. There is no unrestricted public Amazon Logistics TBA tracking API. An authorized AfterShip integration is available only as an optional advanced alternative. An independently managed mail service is required only if you choose HTTP forwarding instead of the built-in Gmail/approved-IMAP mailbox scanner. A POST endpoint is not itself an email server. Put the Calden endpoint behind HTTPS before routing any internet-originated mail, and never publish a token or full raw email in logs.
 
 The feature is useful without any external credentials: paste tracking IDs, save estimated dates, and use the official carrier tracking links.
 
@@ -57,4 +57,4 @@ The import handler does not load embedded URLs, fetch untrusted images, save ema
 
 ## Limitations
 
-Automated carrier status polling, consumer Amazon OAuth, USPS Informed Delivery login, Gmail OAuth, Outlook OAuth, carrier tracking credentials and native Android screens are **not** provided by this change. They require separate credential/configuration workflows and carrier authorization. The interface does not misrepresent manual statuses as carrier-verified updates.
+Automatic **three-hour keyless public-page checks** are provided, but successful live tracking cannot be guaranteed where a carrier's website blocks unattended requests or does not expose machine-readable tracking. An optional authorized AfterShip integration can add coverage but is not mandatory. Consumer Amazon OAuth, USPS Informed Delivery login, Gmail OAuth, Outlook OAuth, carrier-account scraping, and native Android package screens are not implemented. Manual or email-based data is never represented as carrier-verified.
