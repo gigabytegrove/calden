@@ -22,7 +22,7 @@ import (
 	"github.com/gigabytegrove/calden/internal/store"
 )
 
-var version = "1.5.0-alpha.4"
+var version = "1.5.0-alpha.5"
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "version" {
@@ -61,6 +61,7 @@ func main() {
 	defer workerCancel()
 	reminders.Start(workerCtx, db, jwtSecret)
     api.StartNotificationMaintenance(workerCtx,db)
+    api.StartPackageMailSync(workerCtx,db,jwtSecret)
     push.Start(workerCtx, db, jwtSecret, env("CALDEN_FCM_SERVICE_ACCOUNT_FILE",""),
         env("CALDEN_FCM_PROJECT_ID",""))
 
