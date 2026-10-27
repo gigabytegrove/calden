@@ -27,6 +27,25 @@ func(s *server) trackingProviderKey(ctx context.Context)(string,error){
  if err!=nil||!strings.HasPrefix(raw,trackingSecretPrefix){return "",errors.New("Could not decrypt tracking provider key")}
  return strings.TrimPrefix(raw,trackingSecretPrefix),nil
 }
+func(s *server) trackingServiceInfo(w http.ResponseWriter,r *http.Request){
+ if !s.requirePackages(w,r){return}
+ origin,err:=trackingHubURL()
+ if err!=nil{writeError(w,500,"Shared tracking service configuration is invalid");return}
+ if origin!=""{
+  writeJSON(w,200,map[string]any{"mode":"shared","configured":true,"interval_hours":3,
+   "message":"Calden uses its managed carrier tracking service; no household API key is needed. Availability depends on service enrollment and operator capacity."})
+  return
+ }
+ key,err:=s.trackingProviderKey(r.Context())
+ if err!=nil{writeError(w,500,"Tracking configuration cannot be read");return}
+ if key!=""{
+  writeJSON(w,200,map[string]any{"mode":"individual","configured":true,"interval_hours":3,
+   "message":"This Calden installation uses an optional individually configured tracking API."})
+  return
+ }
+ writeJSON(w,200,map[string]any{"mode":"public","configured":false,"interval_hours":3,
+  "message":"No managed tracking service is configured. Public carrier pages may not provide live shipment scans."})
+}
 func(s *server) trackingProviderInfo(w http.ResponseWriter,r *http.Request){
  if currentActor(r).Role!="admin"{writeError(w,403,"Admin access required");return}
  var configured,enabled bool
