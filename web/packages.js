@@ -9,7 +9,7 @@
     unknown:"Not yet verified",label_created:"Label created",in_transit:"In transit",
     out_for_delivery:"Out for delivery",delivered:"Delivered",exception:"Delivery exception"
   };
-  const carriers={amazon:"Amazon",usps:"USPS",ups:"UPS",fedex:"FedEx",other:"Other"};
+  const carriers={auto:"Auto-detect",amazon:"Amazon",usps:"USPS",ups:"UPS",fedex:"FedEx",other:"Other"};
   let shipments=[];
   let loading=false;
   let visible=localStorage.getItem("calden_packages_calendar")!=="false";
@@ -29,6 +29,7 @@
     document.querySelectorAll(".packages-nav").forEach(el=>el.classList.toggle("hidden",!enabled()));
     $("#packages-calendar-toggle")?.classList.toggle("hidden",!enabled());
     if($("#packages-calendar-visible"))$("#packages-calendar-visible").checked=visible;
+    $("#packages-provider-open").classList.toggle("hidden",state.me?.role!=="admin");
     $("#packages-add").disabled=!canWrite();
     $("#packages-import-open").disabled=!canWrite();
     if(!enabled()&&state.currentPage==="packages")navigate("calendar",false);
@@ -76,7 +77,7 @@
     host.innerHTML=shown.map(p=>'<article class="package-entry"><div class="package-entry-main">'+
       '<div class="package-entry-icon" aria-hidden="true">📦</div><div class="package-entry-description">'+
       '<strong>'+esc(p.label)+'</strong><span>'+esc(carriers[p.carrier]||p.carrier)+' · '+esc(p.tracking_number)+'</span>'+
-      '<small>'+esc(p.shared?"Shared with household":"Private")+' · '+esc(p.status_source==="manual"?"Manually maintained":p.status_source==="email"?"Imported from email":"Carrier update")+'</small></div></div>'+
+      '<small>'+esc(p.shared?"Shared with household":"Private")+' · '+esc(p.status_source==="manual"?"Manually maintained":p.status_source==="email"?"Imported from email":"Carrier verified")+'</small>'+ (p.tracking_error?'<small class="package-tracking-issue">Tracking check: '+esc(p.tracking_error)+'</small>':'')+'</div></div>'+
       '<div class="package-entry-side"><span class="package-status package-status-'+attr(p.status)+'">'+esc(labelStatus(p.status))+'</span>'+
       '<span class="package-delivery">'+esc(p.expected_date?safeDate(p.expected_date):"Delivery date unknown")+'</span>'+
       '<button class="button secondary compact" type="button" data-package-open="'+attr(p.id)+'">'+(p.can_edit?"Open / edit":"View")+'</button></div></article>'
@@ -120,13 +121,17 @@
     status("#package-form-error","");
     formValue(form,"id").value=p?.id||"";
     for(const key of ["label","carrier","tracking_number","status","expected_date","notes"]){
-      formValue(form,key).value=p?.[key]??(key==="carrier"?"ups":key==="status"?"unknown":"");
+      formValue(form,key).value=p?.[key]??(key==="carrier"?"auto":key==="status"?"unknown":"");
     }
     formValue(form,"shared").checked=!!p?.shared;
+    updateCarrierSuggestion();
+    const checkDetail=$("#package-tracking-details");
+    checkDetail.textContent=p?.last_tracking_check?"Last carrier API check: "+new Date(p.last_tracking_check).toLocaleString()+". Next scheduled: "+(p.next_tracking_check?new Date(p.next_tracking_check).toLocaleString():"pending")+(p.tracking_error?". "+p.tracking_error:""):"No successful carrier API check yet. Next check runs within one minute when tracking is enabled.";
     const writable=canWrite()&&(!p||p.can_edit);
     form.querySelectorAll("input,select,textarea").forEach(el=>{el.disabled=!writable});
     $("#package-save").classList.toggle("hidden",!writable);
     $("#package-archive").classList.toggle("hidden",!p||!writable);
+    $("#package-update-status").classList.toggle("hidden",!p||!writable||p.status==="delivered");
     $("#package-form-heading").textContent=p?(writable?"Edit package":"Package details"):"Add package";
     const link=$("#package-track-link");
     link.classList.toggle("hidden",!p?.tracking_url);
@@ -146,12 +151,19 @@
     button.disabled=true;
     status("#package-form-error","");
     try{
-      await api(id?"/api/packages/"+encodeURIComponent(id):"/api/packages",{
+      const result=await api(id?"/api/packages/"+encodeURIComponent(id):"/api/packages",{
         method:id?"PUT":"POST",body:JSON.stringify(body)
       });
       $("#package-dialog").close();
+      let lookup="Tracking will update automatically every three hours.";
+      try{
+        const outcome=await api("/api/packages/"+encodeURIComponent(id||result.id)+"/refresh",{method:"POST",body:"{}"});
+        lookup=outcome.status==="updated"?"Live carrier tracking retrieved.":"Tracking checked or already scheduled for its next three-hour refresh.";
+      }catch(error){
+        lookup="Automatic tracking not yet available: "+error.message;
+      }
       await load();
-      status("#packages-status",id?"Package updated.":"Package added.");
+      status("#packages-status",(id?"Package updated. ":"Package added. ")+lookup);
     }catch(err){status("#package-form-error",err.message)}
     finally{button.disabled=false}
   }
@@ -260,6 +272,65 @@
       status("#package-token-status","Email forwarding token revoked.");
     }catch(err){status("#package-token-status",err.message)}
   }
+  function detectCarrier(number){
+    const n=String(number||"").trim().toUpperCase().replace(/\s+/g,"");
+    if(/^1Z[0-9A-Z]{16}$/.test(n))return "ups";
+    if(/^(TBA|TBM|TBC)[0-9]{12,15}$/.test(n))return "amazon";
+    if(/^(9[2345][0-9]{18,22}|[A-Z]{2}[0-9]{9}US)$/.test(n))return "usps";
+    if(/^([0-9]{12}|[0-9]{15})$/.test(n))return "fedex";
+    return "other";
+  }
+  function updateCarrierSuggestion(){
+    const f=$("#package-form"),number=formValue(f,"tracking_number").value;
+    const selected=formValue(f,"carrier").value,guess=detectCarrier(number);
+    const message=selected!=="auto"
+      ?"Manual carrier override: "+(carriers[selected]||selected)+". Live API results still require a connected provider."
+      :guess==="other"?"Carrier cannot be confidently determined from this format. An authorized tracking API will attempt detection."
+      :"Likely "+carriers[guess]+" (number format only). The tracking API will verify this.";
+    status("#package-carrier-suggestion",message);
+  }
+  async function refreshCurrentPackage(){
+    const id=formValue($("#package-form"),"id").value;
+    if(!id)return;
+    const button=$("#package-update-status");button.disabled=true;
+    status("#package-tracking-details","Requesting an authorized carrier status update…");
+    try{
+      const result=await api("/api/packages/"+encodeURIComponent(id)+"/refresh",{method:"POST",body:"{}"});
+      await load();
+      const updated=shipments.find(item=>item.id===id);
+      if(updated)openPackage(id);
+      status("#package-tracking-details",result.status==="updated"?"Tracking refreshed from the carrier.":result.message);
+    }catch(e){status("#package-tracking-details","Could not refresh carrier data: "+e.message)}
+    finally{button.disabled=false}
+  }
+  async function loadTrackingProvider(){
+    const data=await api("/api/packages/provider");
+    const form=$("#package-provider-form");
+    form.elements.namedItem("api_key").value="";
+    form.elements.namedItem("enabled").checked=Boolean(data.enabled);
+    status("#package-provider-status",data.configured?(data.enabled?"Tracking API connected (key hidden). Shipments refresh every three hours.":"API key saved; automatic checks paused."):"No API key configured. Tracking-number format detection works, but live carrier updates require an authorized AfterShip key.");
+  }
+  async function saveTrackingProvider(event){
+    event.preventDefault();
+    const f=$("#package-provider-form"),btn=$("#package-provider-save");
+    const body={api_key:f.elements.namedItem("api_key").value,enabled:f.elements.namedItem("enabled").checked};
+    btn.disabled=true;
+    status("#package-provider-status","Saving encrypted provider settings…");
+    try{
+      await api("/api/packages/provider",{method:"PUT",body:JSON.stringify(body)});
+      await loadTrackingProvider();
+      status("#package-provider-status","Settings saved. Check an active package to verify that your API credentials and plan are accepted.");
+    }catch(e){status("#package-provider-status",e.message)}
+    finally{btn.disabled=false}
+  }
+  async function disconnectTrackingProvider(){
+    if(!confirm("Disconnect automatic tracking? Saved package history will remain, but carrier API checks will stop."))return;
+    try{
+      await api("/api/packages/provider",{method:"DELETE"});
+      await loadTrackingProvider();
+      status("#package-provider-status","Provider disconnected. Packages remain stored.");
+    }catch(e){status("#package-provider-status",e.message)}
+  }
   function onToggle(){
     renderNav();
     if(enabled()){load()}else{shipments=[];render();renderCalendar()}
@@ -270,6 +341,16 @@
   $("#packages-refresh").addEventListener("click",load);
   $("#packages-add").addEventListener("click",()=>openPackage());
   $("#packages-import-open").addEventListener("click",openEmail);
+  $("#packages-provider-open").addEventListener("click",()=>{
+    $("#package-provider-dialog").showModal();
+    loadTrackingProvider().catch(e=>status("#package-provider-status",e.message));
+  });
+  $("#package-provider-close").addEventListener("click",()=>$("#package-provider-dialog").close());
+  $("#package-provider-form").addEventListener("submit",saveTrackingProvider);
+  $("#package-provider-remove").addEventListener("click",disconnectTrackingProvider);
+  $("#package-update-status").addEventListener("click",refreshCurrentPackage);
+  $("#package-form").elements.namedItem("tracking_number").addEventListener("input",updateCarrierSuggestion);
+  $("#package-form").elements.namedItem("carrier").addEventListener("change",updateCarrierSuggestion);
   $("#packages-filter").addEventListener("change",render);
   $("#packages-search").addEventListener("input",render);
   $("#packages-list").addEventListener("click",event=>{
