@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#f7f8fb">
-  <meta name="calden-version" content="1.5.0-alpha.4">
+  <meta name="calden-version" content="1.5.0-alpha.5">
   <link rel="icon" type="image/svg+xml" href="/assets/calden-icon.svg">
   
   <title>Calden</title>
-  <link rel="stylesheet" href="/styles.css?v=1.5.0-alpha.4">
+  <link rel="stylesheet" href="/styles.css?v=1.5.0-alpha.5">
 </head>
 <body class="bg-slate-50 text-slate-900">
 <div id="auth" class="auth-shell">
@@ -86,6 +86,7 @@
     <nav class="primary-nav" aria-label="Main navigation">
       <a class="nav-item" data-page="dashboard" href="/dashboard">My home</a>
       <a class="nav-item active" data-page="calendar" href="/calendar">Calendar</a>
+      <a class="nav-item packages-nav hidden" data-page="packages" href="/packages">Packages</a>
       <a class="nav-item shopping-nav" data-page="shopping" href="/shopping">Shopping</a>
       <a class="nav-item meals-nav" data-page="meals" href="/meals">Meal planning</a>
       <a class="nav-item routines-nav hidden" data-page="routines" href="/routines">Routines</a>
@@ -426,6 +427,25 @@
         </div>
       </div>
     </section>
+    <section id="page-packages" class="app-page hidden packages-page">
+      <div class="page-header">
+        <div><h2>Package Tracking</h2><p class="muted">Keep deliveries on your calendar. Packages are private unless you share them.</p></div>
+        <div class="package-head-actions">
+          <button type="button" class="button secondary" id="packages-refresh">Refresh list</button>
+          <button type="button" class="button secondary" id="packages-import-open">Import email</button>
+          <button type="button" class="button" id="packages-add">+ Add package</button>
+        </div>
+      </div>
+      <div class="package-totals" id="packages-summary" aria-label="Package totals"></div>
+      <div class="package-toolbar">
+        <label>Status <select id="packages-filter"><option value="active">Incoming</option><option value="all">All</option><option value="delivered">Delivered</option></select></label>
+        <label>Search <input id="packages-search" type="search" placeholder="Package, carrier or tracking number"></label>
+      </div>
+      <p id="packages-status" class="status-line" role="status" aria-live="polite"></p>
+      <div id="packages-list" class="package-list" aria-live="polite"></div>
+      <p class="muted package-disclaimer">Carrier tracking links open the carrier's own website. Status is manually maintained unless supplied by an imported email or an authorized tracking connection; Calden does not impersonate a carrier.</p>
+    </section>
+
     <section id="page-calendar" class="app-page">
       <div class="calendar-toolbar">
         <div class="date-nav">
@@ -444,6 +464,7 @@
         <div class="filter-field"><span>Category</span><select id="calendar-category-filter"><option value="">All categories</option></select></div>
         <div class="filter-field"><span>Person</span><select id="calendar-person-filter"><option value="">Everyone</option></select></div>
         <label class="calendar-search"><span>Search</span><input id="calendar-search" type="search" placeholder="Find an event"></label>
+        <label class="package-calendar-toggle hidden" id="packages-calendar-toggle"><input type="checkbox" id="packages-calendar-visible" checked> Package deliveries</label>
         <button id="clear-calendar-filters" class="button secondary compact hidden" type="button">Clear filters</button>
       </div>
       <div id="calendar-view" class="calendar-view"></div>
@@ -944,6 +965,8 @@
               <p class="muted">Allow chores, including repeating chores. Existing chores remain saved when hidden.</p>
               <label class="toggle-row"><input id="settings-shopping-enabled" type="checkbox"><span>Enable Shopping</span></label>
               <p class="muted">Show or hide shared household shopping lists. All lists and items remain saved.</p>
+              <label class="toggle-row"><input id="settings-packages-enabled" type="checkbox"><span>Enable Package Tracking</span></label>
+              <p class="muted">Optional private package tracking, email discovery and calendar markers. Disabling preserves shipments.</p>
               <label class="toggle-row"><input id="settings-meals-enabled" type="checkbox"><span>Enable Meal Planning</span></label>
               <p class="muted">Show or hide RecipeCove meal planning for everyone, without deleting recipes or plans in RecipeCove.</p>
               <label class="toggle-row"><input id="settings-routines-enabled" type="checkbox"><span>Enable Family Routines</span></label>
@@ -1259,13 +1282,89 @@
   </form>
 </dialog>
 
-<script src="/app.js?v=1.5.0-alpha.4" defer></script>
-<script src="/routines.js?v=1.5.0-alpha.4-family-routines" defer></script>
-<script src="/rewards.js?v=1.5.0-alpha.4-family-rewards" defer></script>
-<script src="/children.js?v=1.5.0-alpha.4-family-children" defer></script>
-<script src="/meals.js?v=1.5.0-alpha.4-recipecove-meals" defer></script>
-<script src="/family-care.js?v=1.5.0-alpha.4-family-care" defer></script>
-<script src="/family-appearance.js?v=1.5.0-alpha.4-family-appearance" defer></script>
-<script src="/notification-preferences.js?v=1.5.0-alpha.4-user-alerts" defer></script>
+<dialog id="package-dialog" class="package-dialog">
+  <form id="package-form" class="package-form stack">
+    <div class="package-dialog-head"><div><h2 id="package-form-heading">Add package</h2><p class="muted">Only the owner can edit or archive this shipment.</p></div><button type="button" class="button secondary compact" data-close-package aria-label="Close package editor">Close</button></div>
+    <input type="hidden" name="id">
+    <label>Package name <input name="label" maxlength="140" required placeholder="Replacement laptop battery"></label>
+    <div class="package-form-row">
+      <label>Carrier <select name="carrier" required><option value="ups">UPS</option><option value="usps">USPS</option><option value="fedex">FedEx</option><option value="amazon">Amazon Logistics</option><option value="other">Other</option></select></label>
+      <label>Tracking number <input name="tracking_number" maxlength="100" minlength="4" spellcheck="false" autocomplete="off" required placeholder="Enter carrier tracking ID"></label>
+    </div>
+    <div class="package-form-row">
+      <label>Status <select name="status"><option value="unknown">Not yet verified</option><option value="label_created">Label created</option><option value="in_transit">In transit</option><option value="out_for_delivery">Out for delivery</option><option value="delivered">Delivered</option><option value="exception">Delivery exception</option></select></label>
+      <label>Expected delivery date <input type="date" name="expected_date"></label>
+    </div>
+    <label>Notes <textarea name="notes" maxlength="2000" rows="2" placeholder="Optional delivery details"></textarea></label>
+    <label class="package-sharing"><input type="checkbox" name="shared"> Share this delivery with household members</label>
+    <p class="muted">Private by default. Shared packages are visible to other adult household accounts.</p>
+    <p id="package-form-error" class="error" role="alert"></p>
+    <div class="package-form-actions">
+      <button type="button" class="button danger hidden" id="package-archive">Archive</button>
+      <a id="package-track-link" class="button secondary hidden" target="_blank" rel="noopener noreferrer">Track with carrier</a>
+      <span class="grow"></span><button type="submit" class="button" id="package-save">Save package</button>
+    </div>
+    <div id="package-history-panel" class="hidden"><h3>Status history</h3><div id="package-history"></div></div>
+  </form>
+</dialog>
+
+<dialog id="package-email-dialog" class="package-dialog">
+  <div class="package-form stack">
+    <div class="package-dialog-head"><div><h2>Import shipping emails</h2><p class="muted">No carrier account passwords are required.</p></div><button type="button" class="button secondary compact" data-close-package-email>Close</button></div>
+    <form id="package-email-form" class="stack">
+      <label>Paste a complete shipping email (including headers)
+        <textarea name="raw_email" rows="7" maxlength="262144" placeholder="From: ...&#10;Subject: Your package shipped&#10;&#10;Tracking: 1Z..."></textarea>
+      </label>
+      <label>Or import an .eml file <input id="package-email-file" type="file" accept=".eml,message/rfc822,text/plain"></label>
+      <button class="button" type="submit">Extract tracking numbers</button>
+    </form>
+    <p id="package-email-status" class="status-line" aria-live="polite"></p>
+    <div class="package-inbound-section">
+      <h3>Automatic import from your mail gateway</h3>
+      <p class="muted">For a mail system that supports HTTP forwarding, POST the raw RFC 822 email as the request body to the endpoint below, with <code>Authorization: Bearer YOUR_TOKEN</code>. The token is generated per user and shown only once.</p>
+      <code id="package-inbound-url"></code>
+      <p id="package-token-status" class="muted"></p>
+      <label class="package-token-label">New one-time token <input id="package-email-token-value" readonly autocomplete="off" spellcheck="false" placeholder="Only shown after generating a new token"></label>
+      <div class="package-form-actions">
+        <button type="button" class="button secondary" id="package-token-generate">Generate / rotate token</button>
+        <button type="button" class="button danger" id="package-token-revoke">Revoke token</button>
+      </div>
+    </div>
+    <section class="package-inbound-section" aria-label="Automatic mailbox discovery">
+      <h3>Automatically discover packages from your inbox</h3>
+      <p class="muted">Connect Gmail using a dedicated Google app password, or an administrator-approved IMAP server. Calden reads recent messages over verified TLS without marking them as read. Mailbox passwords are encrypted and never displayed again. Outlook and Microsoft 365 require OAuth and are not supported by this password-based connection.</p>
+      <form id="package-mailbox-form" class="stack">
+        <label>IMAP server
+          <input name="hostname" maxlength="253" value="imap.gmail.com" required autocomplete="off" spellcheck="false" aria-describedby="package-imap-host-help">
+        </label>
+        <p id="package-imap-host-help" class="muted">Default: imap.gmail.com (TLS port 993). Custom hosts require CALDEN_PACKAGE_IMAP_ALLOWED_HOSTS on the server.</p>
+        <label>Mailbox username / email
+          <input name="username" maxlength="254" type="text" autocomplete="username" required placeholder="you@gmail.com">
+        </label>
+        <label>IMAP app password
+          <input name="password" maxlength="1024" type="password" autocomplete="new-password" placeholder="Enter to connect or replace the saved password">
+        </label>
+        <label class="toggle-row"><input name="enabled" type="checkbox"><span>Automatically check this inbox for shipping emails</span></label>
+        <div class="package-form-actions">
+          <button class="button" type="submit" id="package-mailbox-save">Save connection</button>
+          <button class="button secondary" type="button" id="package-mailbox-check">Check now</button>
+          <button class="button secondary" type="button" id="package-mailbox-reload">Refresh status</button>
+          <button class="button danger" type="button" id="package-mailbox-remove">Disconnect</button>
+        </div>
+        <p id="package-mailbox-status" class="status-line" role="status" aria-live="polite">No mailbox connected.</p>
+      </form>
+    </section>
+  </div>
+</dialog>
+
+<script src="/app.js?v=1.5.0-alpha.5" defer></script>
+<script src="/packages.js?v=1.5.0-alpha.5-packages" defer></script>
+<script src="/routines.js?v=1.5.0-alpha.5-family-routines" defer></script>
+<script src="/rewards.js?v=1.5.0-alpha.5-family-rewards" defer></script>
+<script src="/children.js?v=1.5.0-alpha.5-family-children" defer></script>
+<script src="/meals.js?v=1.5.0-alpha.5-recipecove-meals" defer></script>
+<script src="/family-care.js?v=1.5.0-alpha.5-family-care" defer></script>
+<script src="/family-appearance.js?v=1.5.0-alpha.5-family-appearance" defer></script>
+<script src="/notification-preferences.js?v=1.5.0-alpha.5-user-alerts" defer></script>
 </body>
 </html>
