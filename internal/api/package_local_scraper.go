@@ -35,6 +35,8 @@ type localResult struct {
   Status string `json:"status"`
   Events []localScan `json:"events"`
   ExpectedDelivery string `json:"expected_delivery"`
+  DeliveryTrackingNumber string `json:"delivery_tracking_number"`
+  CanonicalTrackingNumber string `json:"canonical_tracking_number"`
  } `json:"result"`
 }
 func normalizeLocalStage(value string) string {
@@ -65,6 +67,14 @@ func parseLocalScraperJSON(raw []byte,number string)(localResult,error){
  if response.Result.CurrentStage==""&&response.Result.Status==""&&len(response.Result.Events)==0{return response,errors.New("Carrier supplied no shipment events")}
  if len(response.Result.Events)>250{return response,errors.New("Carrier history exceeded safe event limit")}
  if len(number)<4||!localScraperNumberRE.MatchString(number){return response,errors.New("Invalid tracking number")}
+ // The source may provide a corrected/canonical number during an official
+ // handoff. Its primary delivery number, however, must never silently
+ // update a different household shipment.
+ if reported:=normalizePackageTrackingNumber(response.Result.DeliveryTrackingNumber);reported!=""&&reported!=number{
+  if canonical:=normalizePackageTrackingNumber(response.Result.CanonicalTrackingNumber);canonical!=number{
+   return response,errors.New("Carrier response describes a different tracking number")
+  }
+ }
  return response,nil
 }
 func localScannerExecutable()string{
