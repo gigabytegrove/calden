@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#f7f8fb">
-  <meta name="calden-version" content="1.5.0-alpha.6">
+  <meta name="calden-version" content="1.5.0-alpha.7">
   <link rel="icon" type="image/svg+xml" href="/assets/calden-icon.svg">
   
   <title>Calden</title>
-  <link rel="stylesheet" href="/styles.css?v=1.5.0-alpha.6">
+  <link rel="stylesheet" href="/styles.css?v=1.5.0-alpha.7">
 </head>
 <body class="bg-slate-50 text-slate-900">
 <div id="auth" class="auth-shell">
@@ -432,7 +432,7 @@
         <div><h2>Package Tracking</h2><p class="muted">Keep deliveries on your calendar. Packages are private unless you share them.</p></div>
         <div class="package-head-actions">
           <button type="button" class="button secondary" id="packages-refresh">Refresh list</button>
-          <button type="button" class="button secondary hidden" id="packages-provider-open">Tracking API settings</button>
+          <button type="button" class="button secondary hidden" id="packages-provider-open">Optional API (advanced)</button>
           <button type="button" class="button secondary" id="packages-import-open">Import email</button>
           <button type="button" class="button" id="packages-add">+ Add package</button>
         </div>
@@ -444,7 +444,7 @@
       </div>
       <p id="packages-status" class="status-line" role="status" aria-live="polite"></p>
       <div id="packages-list" class="package-list" aria-live="polite"></div>
-      <p class="muted package-disclaimer">Carrier tracking links open the carrier's own website. Statuses are carrier-verified only following an authorized tracking API response; Calden does not impersonate a carrier.</p>
+      <p class="muted package-disclaimer">Calden attempts public tracking every three hours without an API key. Some carriers only publish shipment updates in interactive pages, so live status may be unavailable. The official carrier tracking link always works as a fallback; Calden never invents scans or bypasses carrier protections.</p>
     </section>
 
     <section id="page-calendar" class="app-page">
@@ -1286,7 +1286,7 @@
 <dialog id="package-provider-dialog" class="package-dialog">
   <div class="package-form stack">
     <div class="package-dialog-head"><div><h2>Automatic carrier tracking</h2><p class="muted">A single authorized AfterShip connection for the household.</p></div><button type="button" class="button secondary compact" id="package-provider-close">Close</button></div>
-    <p class="muted">AfterShip identifies carriers and retrieves genuine tracking updates. Calden checks active shipments every three hours. An eligible AfterShip account and Tracking API key are required; plan restrictions and charges may apply.</p>
+    <p class="muted">Calden attempts public carrier tracking pages automatically every three hours without an API account. Some carriers block automated access or display tracking only after signing in. An optional AfterShip API connection can provide additional carrier coverage; it is not required for normal package tracking.</p>
     <form id="package-provider-form" class="stack">
       <label>AfterShip Tracking API key
         <input name="api_key" type="password" maxlength="512" autocomplete="new-password" placeholder="Enter key (leave blank to keep saved key)"></label>
@@ -1379,14 +1379,14 @@
   </div>
 </dialog>
 
-<script src="/app.js?v=1.5.0-alpha.6" defer></script>
-<script src="/packages.js?v=1.5.0-alpha.6-packages" defer></script>
-<script src="/routines.js?v=1.5.0-alpha.6-family-routines" defer></script>
-<script src="/rewards.js?v=1.5.0-alpha.6-family-rewards" defer></script>
-<script src="/children.js?v=1.5.0-alpha.6-family-children" defer></script>
-<script src="/meals.js?v=1.5.0-alpha.6-recipecove-meals" defer></script>
-<script src="/family-care.js?v=1.5.0-alpha.6-family-care" defer></script>
-<script src="/family-appearance.js?v=1.5.0-alpha.6-family-appearance" defer></script>
-<script src="/notification-preferences.js?v=1.5.0-alpha.6-user-alerts" defer></script>
+<script src="/app.js?v=1.5.0-alpha.7" defer></script>
+<script src="/packages.js?v=1.5.0-alpha.7-packages" defer></script>
+<script src="/routines.js?v=1.5.0-alpha.7-family-routines" defer></script>
+<script src="/rewards.js?v=1.5.0-alpha.7-family-rewards" defer></script>
+<script src="/children.js?v=1.5.0-alpha.7-family-children" defer></script>
+<script src="/meals.js?v=1.5.0-alpha.7-recipecove-meals" defer></script>
+<script src="/family-care.js?v=1.5.0-alpha.7-family-care" defer></script>
+<script src="/family-appearance.js?v=1.5.0-alpha.7-family-appearance" defer></script>
+<script src="/notification-preferences.js?v=1.5.0-alpha.7-user-alerts" defer></script>
 </body>
 </html>
