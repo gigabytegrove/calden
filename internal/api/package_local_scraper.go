@@ -21,6 +21,8 @@ var localScraperNumberRE=regexp.MustCompile(`^[A-Z0-9]{4,100}$`)
 
 type localScan struct {
  Time string `json:"time"`
+ Instant string `json:"instant"`
+ LocalTime string `json:"local_time"`
  Location string `json:"location"`
  Description string `json:"description"`
  Stage string `json:"stage"`
@@ -30,8 +32,11 @@ type localResult struct {
  Source string `json:"source"`
  Result struct {
   CurrentStage string `json:"current_stage"`
+  Status string `json:"status"`
   Events []localScan `json:"events"`
   ExpectedDelivery string `json:"expected_delivery"`
+  DeliveryTrackingNumber string `json:"delivery_tracking_number"`
+  CanonicalTrackingNumber string `json:"canonical_tracking_number"`
  } `json:"result"`
 }
 func normalizeLocalStage(value string) string {
@@ -39,8 +44,8 @@ func normalizeLocalStage(value string) string {
  switch value {
  case "delivered":return "delivered"
  case "out_for_delivery":return "out_for_delivery"
- case "in_transit","in_transit_to_destination","available_for_pickup","in_customs","customs_clearance":return "in_transit"
- case "label_created","info_received","pre_transit","not_yet_shipped","accepted":return "label_created"
+ case "in_transit","in_transit_to_destination","available_for_pickup","ready_for_pickup","in_customs","customs_clearance","customs":return "in_transit"
+ case "label_created","info_received","pre_transit","not_yet_shipped","accepted","registered":return "label_created"
  case "exception","failed_attempt","delivery_failed","returned","return_to_sender","lost":return "exception"
  default:return ""
  }
@@ -59,9 +64,17 @@ func parseLocalScraperJSON(raw []byte,number string)(localResult,error){
  var response localResult
  if len(raw)==0||len(raw)>2<<20{return response,errors.New("Tracking response exceeded safe size")}
  if err:=json.Unmarshal(raw,&response);err!=nil{return response,errors.New("Local tracker returned invalid JSON")}
- if response.Result.CurrentStage==""&&len(response.Result.Events)==0{return response,errors.New("Carrier supplied no shipment events")}
+ if response.Result.CurrentStage==""&&response.Result.Status==""&&len(response.Result.Events)==0{return response,errors.New("Carrier supplied no shipment events")}
  if len(response.Result.Events)>250{return response,errors.New("Carrier history exceeded safe event limit")}
  if len(number)<4||!localScraperNumberRE.MatchString(number){return response,errors.New("Invalid tracking number")}
+ // The source may provide a corrected/canonical number during an official
+ // handoff. Its primary delivery number, however, must never silently
+ // update a different household shipment.
+ if reported:=normalizePackageTrackingNumber(response.Result.DeliveryTrackingNumber);reported!=""&&reported!=number{
+  if canonical:=normalizePackageTrackingNumber(response.Result.CanonicalTrackingNumber);canonical!=number{
+   return response,errors.New("Carrier response describes a different tracking number")
+  }
+ }
  return response,nil
 }
 func localScannerExecutable()string{
@@ -80,7 +93,20 @@ func invokeLocalScraper(ctx context.Context,number,carrier string)(localResult,e
  // engine to recognize candidates rather than forcing an unverified guess.
  if carrier=="ups"||carrier=="usps"{args=append(args,"--carrier",carrier)}
  cmd:=exec.CommandContext(ctx,"node",args...)
- cmd.Env=append(os.Environ(),"TRACKING_CHROMIUM_PATH=/usr/bin/chromium")
+ // Do not hand Calden database passwords, JWT secrets, SMTP credentials, or
+ // other service configuration to an external tracking adapter subprocess.
+ // Explicitly allowlist its environment instead of inheriting os.Environ().
+ cmd.Env=[]string{
+  "PATH="+os.Getenv("PATH"),
+  "HOME="+os.Getenv("HOME"),
+  "LANG=C.UTF-8",
+  "NODE_OPTIONS=--max-old-space-size=512",
+  "TRACKING_CHROMIUM_PATH=/usr/bin/chromium",
+  "SCRAPER_PROVIDERS=ParcelsApp,Ship24,17TRACK,Postal Ninja,UPU",
+ }
+ if agents:=strings.TrimSpace(os.Getenv("CALDEN_TRACKING_USER_AGENT"));agents!=""&&len(agents)<180&&!strings.ContainsAny(agents,"\\r\\n"){
+  cmd.Env=append(cmd.Env,"SCRAPER_USER_AGENT="+agents)
+ }
  cmd.WaitDelay=3*time.Second
  // Only stdout may contain structured data. Never store command stderr,
  // which may include provider internals or raw tracking details.
@@ -107,15 +133,18 @@ func localScanRef(scan localScan)string {
  return "local:"+hex.EncodeToString(h[:])
 }
 func localScanTime(value string)time.Time{
- for _,format:=range []string{time.RFC3339Nano,time.RFC3339,"2006-01-02 15:04:05","2006-01-02T15:04:05","2006-01-02"}{
+ // Only use absolute times with an explicit offset. A carrier's unzoned
+ // local wall clock must not be silently treated as UTC.
+ for _,format:=range []string{time.RFC3339Nano,time.RFC3339,"2006-01-02T15:04:05-0700","2006-01-02 15:04:05 -0700"}{
   if t,err:=time.Parse(format,value);err==nil{return t.UTC()}
  }
- return time.Now().UTC()
+ return time.Time{}
 }
 func(s *server) syncLocalScraperTracking(ctx context.Context,job dueTracking)error{
  response,err:=invokeLocalScraper(ctx,job.Number,job.Carrier)
  if err!=nil{return err}
  stage:=normalizeLocalStage(response.Result.CurrentStage)
+ if stage==""{stage=normalizeLocalStage(response.Result.Status)}
  if stage==""{
   for _,event:=range response.Result.Events{
    if mapped:=normalizeLocalStage(event.Stage);mapped!=""{stage=mapped;break}
@@ -142,11 +171,17 @@ func(s *server) syncLocalScraperTracking(ctx context.Context,job dueTracking)err
   code:=normalizeLocalStage(e.Stage);if code==""{continue}
   desc:=strings.TrimSpace(e.Description)
   if loc:=strings.TrimSpace(e.Location);loc!=""{desc+=" · "+loc}
+  eventAt:=localScanTime(e.Instant)
+  if eventAt.IsZero(){eventAt=localScanTime(e.Time)}
+  // A human-visible local timestamp is useful but must not be converted
+  // into an invented UTC instant when the timezone is unknown.
+  if eventAt.IsZero()&&e.LocalTime!=""{desc+=" ("+strings.TrimSpace(e.LocalTime)+" local time)"}
   desc=cleanText(desc,480)
   if desc==""{desc="Carrier reported "+e.Stage}
+  if eventAt.IsZero(){eventAt=time.Now().UTC()}
   _,err=tx.Exec(ctx,`INSERT INTO package_checkpoints(shipment_id,status,detail,source,occurred_at,provider_ref)
   VALUES($1,$2,$3,'provider',$4,$5) ON CONFLICT DO NOTHING`,
-  job.ID,code,desc,localScanTime(e.Time),localScanRef(e))
+  job.ID,code,desc,eventAt,localScanRef(e))
   if err!=nil{return fmt.Errorf("Could not record carrier event: %w",err)}
  }
  if len(response.Result.Events)==0{
