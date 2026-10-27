@@ -35,7 +35,7 @@ printf '\n'
 printf '%s' "$AFTERSHIP_KEY" > tracking-hub-secrets/aftership-key
 unset AFTERSHIP_KEY DB_PASSWORD
 chmod 600 tracking-hub-secrets/*
-CALDEN_HUB_PUBLIC_ENROLLMENT=true docker compose -f compose.tracking-hub.yaml up -d --build
+CALDEN_HUB_PUBLIC_ENROLLMENT=true docker compose -f compose.tracking-hub.yaml up -d
 ```
 
 The listener binds to **127.0.0.1:8790**. Proxy it through your HTTPS reverse proxy (for example, an operator-controlled `https://tracking.example.net`), with modern TLS, request-size controls, request throttling and abuse monitoring. Do not expose 8790 directly to the internet. If the reverse proxy is on another Docker host, place the hub on a private trusted network rather than publishing an unrestricted port.
