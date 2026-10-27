@@ -36,18 +36,30 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
     go build -trimpath -ldflags="-s -w -X main.version=$VERSION" -o /out/calden ./cmd/calden
 
-FROM alpine:3.22
+# The entire credential-free parcel tracking engine ships in this one Calden image.
+# No provider account, API service, sidecar, or additional installation is needed.
+FROM --platform=$BUILDPLATFORM node:26.12.1-trixie-slim AS parceldeps
+WORKDIR /opt/calden-parcel
+RUN npm install --no-audit --no-fund --ignore-scripts --no-save \
+    universal-parcel-scraper@0.637.1 playwright-core@1.63.0 sharp@0.35.5 onnxruntime-web@1.30.0 \
+    && test -f node_modules/universal-parcel-scraper/dist/cli/index.js \
+    && node node_modules/universal-parcel-scraper/dist/cli/index.js detect 1Z999AA10123456784 >/dev/null
 
-RUN apk add --no-cache ca-certificates postgresql-client tzdata \
-    && addgroup -S calden \
-    && adduser -S -G calden calden \
-    && mkdir -p /data /app \
+FROM node:26.12.1-trixie-slim
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates postgresql-client tzdata chromium wget \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system calden \
+    && useradd --system --gid calden --create-home --shell /usr/sbin/nologin calden \
+    && mkdir -p /data /app /opt/calden-parcel \
     && chown -R calden:calden /data /app
 
 WORKDIR /app
 
 COPY --from=build /out/calden /app/calden
 COPY --from=webbuild /src/web /app/web
+COPY --from=parceldeps /opt/calden-parcel/node_modules /opt/calden-parcel/node_modules
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 
 USER root
@@ -58,7 +70,9 @@ USER calden
 
 ENV CALDEN_PORT=8787 \
     CALDEN_DATA_DIR=/data \
-    CALDEN_WEB_DIR=/app/web
+    CALDEN_WEB_DIR=/app/web \
+    TRACKING_CHROMIUM_PATH=/usr/bin/chromium \
+    NODE_OPTIONS=--max-old-space-size=512
 
 EXPOSE 8787
 
