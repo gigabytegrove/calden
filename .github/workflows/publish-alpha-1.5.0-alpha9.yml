@@ -1,0 +1,114 @@
+name: Publish Calden 1.5.0-alpha.9 Local Tracking
+
+on:
+  push:
+    branches: [alpha/v1.5.0-alpha.9]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: calden-alpha9-release
+  cancel-in-progress: false
+
+jobs:
+  verify-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: calden_test
+          POSTGRES_PASSWORD: calden_test_only
+          POSTGRES_DB: calden_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U calden_test -d calden_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify alpha version and preserved screens
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(cat VERSION)" = "1.5.0-alpha.9"
+          grep -Fq 'name="calden-version" content="1.5.0-alpha.9"' web/index.html
+          grep -Fq 'id="page-packages"' web/index.html
+          grep -Fq 'id="page-meals"' web/index.html
+          grep -Fq 'id="settings-packages-enabled"' web/index.html
+          grep -Fq 'id="settings-meals-enabled"' web/index.html
+          test -f internal/api/package_local_scraper.go
+          test -f docs/releases/v1.5.0-alpha.9.md
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Go and real PostgreSQL regression tests
+        env:
+          CALDEN_TEST_DATABASE_URL: postgres://calden_test:calden_test_only@127.0.0.1:5432/calden_test?sslmode=disable
+        run: |
+          go test ./...
+          go vet ./...
+      - name: Frontend and script syntax regression tests
+        run: |
+          npm install --no-audit --no-fund
+          npm run build:css
+          npm run test:web
+          node --check web/packages.js
+          node --check web/app.js
+      - name: Build complete amd64 local tracker image with real Node and Chromium
+        run: |
+          docker build --build-arg CALDEN_RUN_TESTS=1 -t calden-alpha9:ci .
+          docker run --rm --entrypoint node calden-alpha9:ci \
+            /opt/calden-parcel/node_modules/universal-parcel-scraper/dist/cli/index.js detect 1Z999AA10123456784 \
+            > /tmp/carrier-detection.json
+          grep -qi ups /tmp/carrier-detection.json
+          docker run --rm --entrypoint sh calden-alpha9:ci -c \
+            'test -x /usr/bin/chromium && test -f /opt/calden-parcel/node_modules/universal-parcel-scraper/LICENSE && test -x /app/calden'
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish isolated alpha9 Docker images
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            CALDEN_RUN_TESTS=1
+          tags: |
+            ghcr.io/gigabytegrove/calden:1.5.0-alpha.9
+          labels: |
+            org.opencontainers.image.title=Calden
+            org.opencontainers.image.source=https://github.com/gigabytegrove/calden
+            org.opencontainers.image.version=1.5.0-alpha.9
+            org.opencontainers.image.revision=${{ github.sha }}
+      - name: Publish alpha9 release notes after successful multiarch images
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="v1.5.0-alpha.9"
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "ERROR: $TAG already exists; refusing to overwrite it" >&2
+            exit 1
+          fi
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Calden 1.5.0-alpha.9 — Free Keyless Package Tracking" \
+            --notes-file docs/releases/v1.5.0-alpha.9.md \
+            --prerelease --latest=false
