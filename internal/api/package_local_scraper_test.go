@@ -14,7 +14,7 @@ func TestLocalTrackerStageAndCourierMapping(t *testing.T){
   {"in_transit","in_transit"},{"ready_for_pickup","in_transit"},{"customs","in_transit"},{"registered","label_created"},{"out_for_delivery","out_for_delivery"},
   {"delivered","delivered"},{"exception","exception"},
   {"pre_transit","label_created"},{"failed_attempt","exception"},
-  {"unrecognized_word",""},
+  {"unrecognized_word",""},{"in transit","in_transit"},{"out-for-delivery","out_for_delivery"},
  }{
   if got:=normalizeLocalStage(c.raw);got!=c.want{t.Fatalf("stage %q mapped to %q not %q",c.raw,got,c.want)}
  }
@@ -68,4 +68,21 @@ func TestTrackerReadinessIdentifiesMissingRuntime(t *testing.T){
  t.Setenv("CALDEN_LOCAL_PARCEL_CLI","/nonexistent/calden-parcel/cli.js")
  ready,browser,message:=trackerRuntimeReadiness(context.Background())
  if ready||browser||!strings.Contains(strings.ToLower(message),"preparing"){t.Fatalf("missing local engine not detected: %v %v %q",ready,browser,message)}
+}
+
+func TestLocalCarrierUnknownStageHistoryAndEventOrdering(t *testing.T){
+ status,detail,ok:=localScanCheckpoint(localScan{Stage:"Customs hold",Description:"Awaiting documentation",Location:"Memphis, TN"})
+ if !ok||status!="unknown"||!strings.Contains(detail,"Customs hold")||!strings.Contains(detail,"Memphis"){
+  t.Fatalf("carrier history lost or mislabelled: %s %q %v",status,detail,ok)
+ }
+ response:=localResult{}
+ response.Result.Events=[]localScan{
+  {Stage:"label_created",Instant:"2026-10-26T11:00:00Z"},
+  {Stage:"delivered",Instant:"2026-10-28T12:00:00Z"},
+  {Stage:"in_transit",Instant:"2026-10-27T12:00:00Z"},
+ }
+ if got:=localCurrentStage(response);got!="delivered"{t.Fatalf("did not select newest dated stage: %s",got)}
+ response.Result.Events=[]localScan{{Stage:"unmapped_customs_hold",Description:"Carrier has shipment"}}
+ if got:=localCurrentStage(response);got!=""{t.Fatalf("invented status from unknown stage: %s",got)}
+ if _,_,ok:=localScanCheckpoint(localScan{});ok{t.Fatal("empty event accepted")}
 }

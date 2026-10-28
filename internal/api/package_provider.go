@@ -176,8 +176,12 @@ func (s *server) syncPackageTracking(ctx context.Context,job dueTracking,key str
  for _,cp:=range tracking.Checkpoints{
   if strings.EqualFold(cp.Source,"user"){continue}
   mapped:=providerStatus(cp.Tag)
-  if mapped==""{continue}
   detail:=cleanText(strings.TrimSpace(cp.Message),480)
+  if mapped==""{
+   if detail==""&&strings.TrimSpace(cp.Tag)==""{continue}
+   mapped="unknown"
+   if tag:=cleanText(strings.TrimSpace(cp.Tag),64);tag!=""{detail="Carrier event ("+tag+"): "+detail}
+  }
   if detail==""{detail="Carrier reported "+cp.Tag}
   occurred:=cp.occurredAt()
   _,err=tx.Exec(ctx,`INSERT INTO package_checkpoints(shipment_id,status,detail,source,occurred_at,provider_ref)
@@ -190,7 +194,7 @@ func (s *server) syncPackageTracking(ctx context.Context,job dueTracking,key str
   ref:="aftership:current:"+tracking.Tag+":"+tracking.SubtagMessage
   if len(ref)>230{ref=ref[:230]}
   _,err=tx.Exec(ctx,`INSERT INTO package_checkpoints(shipment_id,status,detail,source,provider_ref)
-  VALUES($1,$2,$3,'provider',$4) ON CONFLICT DO NOTHING`,
+  VALUES($1,$2,$3,'provider_status',$4) ON CONFLICT DO NOTHING`,
   job.ID,status,cleanText(strings.TrimSpace(tracking.SubtagMessage),480),ref)
   if err!=nil{return err}
  }
@@ -220,7 +224,7 @@ func(s *server) syncPublicTracking(ctx context.Context,job dueTracking)error{
  // Record a verified, visible public page observation, never a fabricated
  // historical scan or estimated delivery timestamp.
  _,err=tx.Exec(ctx,`INSERT INTO package_checkpoints(shipment_id,status,detail,source,provider_ref)
-   VALUES($1,$2,$3,'provider',$4) ON CONFLICT DO NOTHING`,
+   VALUES($1,$2,$3,'provider_status',$4) ON CONFLICT DO NOTHING`,
    job.ID,lookup.Status,lookup.Detail,"public:current:"+lookup.Status)
  if err!=nil{return err}
  return tx.Commit(ctx)

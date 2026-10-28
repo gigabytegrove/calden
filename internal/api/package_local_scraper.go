@@ -43,10 +43,11 @@ type localResult struct {
 }
 func normalizeLocalStage(value string) string {
  value=strings.ToLower(strings.TrimSpace(value))
+ value=strings.NewReplacer("-","_"," ","_").Replace(value)
  switch value {
  case "delivered":return "delivered"
- case "out_for_delivery":return "out_for_delivery"
- case "in_transit","in_transit_to_destination","available_for_pickup","ready_for_pickup","in_customs","customs_clearance","customs":return "in_transit"
+ case "out_for_delivery","outfordelivery":return "out_for_delivery"
+ case "in_transit","intransit","in_transit_to_destination","available_for_pickup","ready_for_pickup","in_customs","customs_clearance","customs":return "in_transit"
  case "label_created","info_received","pre_transit","not_yet_shipped","accepted","registered":return "label_created"
  case "exception","failed_attempt","delivery_failed","returned","return_to_sender","lost":return "exception"
  default:return ""
@@ -82,6 +83,7 @@ func parseLocalScraperJSON(raw []byte,number string)(localResult,error){
 func localScannerExecutable()string{
  // Docker includes the engine in its own image; no separate service.
  if custom:=strings.TrimSpace(os.Getenv("CALDEN_LOCAL_PARCEL_CLI"));custom!=""{return custom}
+ if parcelManagedSelected()&&parcelExists(parcelBundledCLI()){return parcelBundledCLI()}
  if parcelExists("/opt/calden-parcel/node_modules/universal-parcel-scraper/dist/cli/index.js"){return "/opt/calden-parcel/node_modules/universal-parcel-scraper/dist/cli/index.js"}
  return parcelBundledCLI()
 }
@@ -95,7 +97,9 @@ func trackerRuntimeReadiness(ctx context.Context)(bool,bool,string){
   return false,false,message
  }
  node:="node"
- if parcelExists(parcelBundledNode()){node=parcelBundledNode()}
+ // Do not accidentally execute the healthy embedded CLI with a stale Node
+ // binary left in the managed directory after a failed earlier repair.
+ if path==parcelBundledCLI(){node=parcelBundledNode()}
  if _,err:=exec.LookPath(node);err!=nil{return false,false,"Calden is automatically preparing tracking."}
  chromium:=false
  if info,err:=os.Stat("/usr/bin/chromium");err==nil&&!info.IsDir()&&info.Mode()&0111!=0{chromium=true}
@@ -189,17 +193,41 @@ func localScanTime(value string)time.Time{
  }
  return time.Time{}
 }
+// Keep carrier activity with unfamiliar stage codes instead of silently
+// deleting it. Unknown carrier stages do not imply a delivery state.
+func localScanCheckpoint(e localScan)(string,string,bool){
+ code:=normalizeLocalStage(e.Stage)
+ desc:=strings.TrimSpace(e.Description)
+ if loc:=strings.TrimSpace(e.Location);loc!=""{desc+=" · "+loc}
+ if code==""{
+  if desc==""&&strings.TrimSpace(e.Stage)==""{return "","",false}
+  code="unknown"
+  if raw:=cleanText(strings.TrimSpace(e.Stage),64);raw!=""{desc="Carrier event ("+raw+"): "+desc}
+ }
+ desc=cleanText(desc,480)
+ if desc==""{desc="Carrier reported "+e.Stage}
+ return code,desc,true
+}
+func localCurrentStage(response localResult)string{
+ if stage:=normalizeLocalStage(response.Result.CurrentStage);stage!=""{return stage}
+ if stage:=normalizeLocalStage(response.Result.Status);stage!=""{return stage}
+ var newest time.Time
+ stage:=""
+ // A carrier's events may be oldest-first or unordered.
+ for _,e:=range response.Result.Events{
+  mapped:=normalizeLocalStage(e.Stage)
+  if mapped==""{continue}
+  at:=localScanTime(e.Instant)
+  if at.IsZero(){at=localScanTime(e.Time)}
+  if !at.IsZero()&&at.After(newest){newest=at;stage=mapped}
+ }
+ return stage
+}
 func(s *server) syncLocalScraperTracking(ctx context.Context,job dueTracking)error{
  response,err:=invokeLocalScraper(ctx,job.Number,job.Carrier)
  if err!=nil{return err}
- stage:=normalizeLocalStage(response.Result.CurrentStage)
- if stage==""{stage=normalizeLocalStage(response.Result.Status)}
- if stage==""{
-  for _,event:=range response.Result.Events{
-   if mapped:=normalizeLocalStage(event.Stage);mapped!=""{stage=mapped;break}
-  }
- }
- if stage==""{return errors.New("Carrier returned an unrecognized shipment state")}
+ stage:=localCurrentStage(response)
+ if stage==""&&len(response.Result.Events)==0{return errors.New("Carrier supplied no usable shipment activity")}
  carrier:=normalizeLocalCarrier(response.Carrier)
  if carrier=="other"{carrier=job.Carrier}
  date:=providerDate(response.Result.ExpectedDelivery)
@@ -208,7 +236,9 @@ func(s *server) syncLocalScraperTracking(ctx context.Context,job dueTracking)err
  label:="local:"+strings.ToLower(strings.TrimSpace(response.Source))
  if len(label)>128{label=label[:128]}
  tag,err:=tx.Exec(ctx,`UPDATE package_shipments SET
- status=$3,status_source='provider',carrier=$4,provider_slug=$5,
+ status=CASE WHEN $3='' THEN status ELSE $3 END,
+ status_source=CASE WHEN $3='' THEN status_source ELSE 'provider' END,
+ carrier=$4,provider_slug=$5,
  expected_date=COALESCE(NULLIF($6,'')::date,expected_date),
  delivered_at=CASE WHEN $3='delivered' THEN COALESCE(delivered_at,now()) ELSE delivered_at END,
  last_tracking_check_at=now(),tracking_error='',updated_at=now()
@@ -216,28 +246,30 @@ func(s *server) syncLocalScraperTracking(ctx context.Context,job dueTracking)err
  job.ID,job.Number,stage,carrier,label,date)
  if err!=nil{return err}
  if tag.RowsAffected()!=1{return errors.New("Shipment changed before carrier update completed")}
+ recorded:=0
  for _,e:=range response.Result.Events{
-  code:=normalizeLocalStage(e.Stage);if code==""{continue}
-  desc:=strings.TrimSpace(e.Description)
-  if loc:=strings.TrimSpace(e.Location);loc!=""{desc+=" · "+loc}
+  code,desc,ok:=localScanCheckpoint(e);if !ok{continue}
   eventAt:=localScanTime(e.Instant)
   if eventAt.IsZero(){eventAt=localScanTime(e.Time)}
   // A human-visible local timestamp is useful but must not be converted
   // into an invented UTC instant when the timezone is unknown.
   if eventAt.IsZero()&&e.LocalTime!=""{desc+=" ("+strings.TrimSpace(e.LocalTime)+" local time)"}
-  desc=cleanText(desc,480)
-  if desc==""{desc="Carrier reported "+e.Stage}
-  if eventAt.IsZero(){eventAt=time.Now().UTC()}
+  if eventAt.IsZero(){
+   desc=cleanText(desc+" (carrier did not provide a verified scan time)",480)
+   eventAt=time.Now().UTC()
+  }
   _,err=tx.Exec(ctx,`INSERT INTO package_checkpoints(shipment_id,status,detail,source,occurred_at,provider_ref)
   VALUES($1,$2,$3,'provider',$4,$5) ON CONFLICT DO NOTHING`,
   job.ID,code,desc,eventAt,localScanRef(e))
   if err!=nil{return fmt.Errorf("Could not record carrier event: %w",err)}
+  recorded++
  }
- if len(response.Result.Events)==0{
+ if recorded==0&&stage!=""{
   ref:="local:current:"+stage
   _,err=tx.Exec(ctx,`INSERT INTO package_checkpoints(shipment_id,status,detail,source,provider_ref)
-  VALUES($1,$2,'Carrier status retrieved','provider',$3) ON CONFLICT DO NOTHING`,job.ID,stage,ref)
+  VALUES($1,$2,'Carrier status reported (no scan supplied)','provider_status',$3) ON CONFLICT DO NOTHING`,job.ID,stage,ref)
   if err!=nil{return err}
  }
+ if recorded==0&&stage==""{return errors.New("Carrier did not supply usable scan details")}
  return tx.Commit(ctx)
 }

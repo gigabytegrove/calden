@@ -103,7 +103,7 @@
     host.innerHTML=shown.map(p=>'<article class="package-entry"><div class="package-entry-main">'+
       '<div class="package-entry-icon" aria-hidden="true">📦</div><div class="package-entry-description">'+
       '<strong>'+esc(p.label)+'</strong><span>'+esc(carriers[p.carrier]||p.carrier)+' · '+esc(p.tracking_number)+'</span>'+
-      '<small>'+esc(p.shared?"Shared with household":"Private")+' · '+esc(p.status_source==="manual"?"Manually maintained":p.status_source==="email"?"Imported from email":p.provider_slug?.startsWith("local:")?"Carrier scans":p.provider_slug?.startsWith("public:")?"From public carrier page":p.status_source==="provider"?"Carrier update":"Awaiting first verified carrier scan")+'</small>'+(p.latest_scan?'<small class="package-latest-scan"><strong>Latest carrier activity:</strong> '+esc(p.latest_scan)+'</small>':'<small class="package-latest-scan package-no-scans">No verified carrier scans recorded yet. Open history to review saved changes.</small>')+ '<small>Last checked: '+(p.last_tracking_check?esc(checkTime(p.last_tracking_check)):'Never')+' · Next: '+esc(checkTime(p.next_tracking_check))+'</small>'+(p.tracking_error?'<small class="package-tracking-issue" role="status">Carrier check failed: '+esc(p.tracking_error)+'</small>':'')+'</div></div>'+
+      '<small>'+esc(p.shared?"Shared with household":"Private")+' · '+esc(p.status_source==="manual"?"Manually maintained":p.status_source==="email"?"Imported from email":p.provider_slug?.startsWith("local:")?"Local carrier update":p.provider_slug?.startsWith("public:")?"From public carrier page":p.status_source==="provider"?"Carrier update":"Awaiting first verified carrier scan")+'</small>'+(p.latest_scan?'<small class="package-latest-scan"><strong>Latest carrier activity:</strong> '+esc(p.latest_scan)+'</small>':'<small class="package-latest-scan package-no-scans">No verified carrier scans recorded yet. Open history to review saved changes.</small>')+ '<small>Last checked: '+(p.last_tracking_check?esc(checkTime(p.last_tracking_check)):'Never')+' · Next: '+esc(checkTime(p.next_tracking_check))+'</small>'+(p.tracking_error?'<small class="package-tracking-issue" role="status">Carrier check failed: '+esc(p.tracking_error)+'</small>':'')+'</div></div>'+
       '<div class="package-entry-side"><span class="package-status package-status-'+attr(p.status)+'">'+esc(labelStatus(p.status))+'</span>'+
       '<span class="package-delivery">'+esc(p.expected_date?safeDate(p.expected_date):"Delivery date unknown")+'</span>'+
       (p.can_edit&&p.status!=="delivered"?'<button class="button secondary compact" type="button" data-package-check="'+attr(p.id)+'" '+(checking.has(p.id)||trackerPreparing()?'disabled':'')+'>'+(checking.has(p.id)?'Checking…':trackerPreparing()?'Preparing tracker…':'Check tracking now')+'</button>':'')+
@@ -135,7 +135,7 @@
   // Keep the actual source of every event visible: a manual entry must never
   // be misrepresented as a carrier-verified scan.
   const historySource=source=>source==="provider"?"Carrier scan":
-    source==="email"?"Shipping email":source==="manual"?"Entered in Calden":"Shipment update";
+    source==="provider_status"?"Carrier status":source==="email"?"Shipping email":source==="manual"?"Entered in Calden":"Shipment update";
   const historyDate=raw=>{
     const date=new Date(raw);
     return Number.isNaN(date.getTime())?"Time unavailable":date.toLocaleString();
@@ -265,7 +265,7 @@
       api("/api/packages/"+encodeURIComponent(id||result.id)+"/refresh",{method:"POST",body:"{}"})
         .then(async outcome=>{
           await load();
-          status("#packages-status",outcome.status==="updated"?"Carrier scans retrieved and saved.":outcome.status==="repairing"?"Package saved. Calden will check it automatically when the tracker is ready.":outcome.status==="unavailable"?"Tracking is saved; no new carrier scan was returned. Automatic retry is scheduled.":outcome.message||"Carrier tracking scheduled.");
+          status("#packages-status",outcome.status==="updated"?"Carrier status and available scan history updated.":outcome.status==="repairing"?"Package saved. Calden will check it automatically when the tracker is ready.":outcome.status==="unavailable"?"Tracking is saved; no new carrier scan was returned. Automatic retry is scheduled.":outcome.message||"Carrier tracking scheduled.");
           if(outcome.status==="repairing")loadTrackerHealth();
         })
         .catch(async error=>{
@@ -429,7 +429,7 @@
     try{
       const outcome=await api("/api/packages/"+encodeURIComponent(id)+"/refresh",{method:"POST",body:"{}"});
       await load();
-      status("#packages-status",outcome.status==="updated"?"Carrier scans updated.":outcome.message||"No new verified carrier scan available.");
+      status("#packages-status",outcome.status==="updated"?"Carrier status and history refreshed.":outcome.message||"No new verified carrier scan available.");
       if(outcome.status==="unavailable"||outcome.status==="repairing")loadTrackerHealth();
     }catch(error){
       await load();

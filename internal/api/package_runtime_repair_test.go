@@ -79,3 +79,24 @@ func TestTrackerRecoveryGatePreventsFalseCarrierAttempts(t *testing.T){
  parcelSetState("retrying","Download will be retried")
  if !parcelTrackingPending(""){t.Fatal("failed repair did not pause carrier polling")}
 }
+
+func TestTrackerProbeRejectsCorruptInstalledExecutables(t *testing.T){
+ root:=t.TempDir()
+ node:=filepath.Join(root,"node")
+ cli:=filepath.Join(root,"cli.js")
+ browser:=filepath.Join(root,"chromium")
+ if err:=os.WriteFile(cli,[]byte("// fixture"),0600);err!=nil{t.Fatal(err)}
+ if err:=os.WriteFile(node,[]byte("#!/bin/sh\necho UPS\n"),0700);err!=nil{t.Fatal(err)}
+ if err:=os.WriteFile(browser,[]byte("#!/bin/sh\nexit 1\n"),0700);err!=nil{t.Fatal(err)}
+ if parcelProbeExecutables(context.Background(),node,cli,browser,[]string{"PATH=/usr/bin:/bin"}){
+  t.Fatal("broken browser counted ready")
+ }
+ if err:=os.WriteFile(browser,[]byte("#!/bin/sh\necho Chromium\n"),0700);err!=nil{t.Fatal(err)}
+ if !parcelProbeExecutables(context.Background(),node,cli,browser,[]string{"PATH=/usr/bin:/bin"}){
+  t.Fatal("healthy fixture rejected")
+ }
+ if err:=os.WriteFile(node,[]byte("#!/bin/sh\nexit 1\n"),0700);err!=nil{t.Fatal(err)}
+ if parcelProbeExecutables(context.Background(),node,cli,browser,[]string{"PATH=/usr/bin:/bin"}){
+  t.Fatal("broken Node counted ready")
+ }
+}
