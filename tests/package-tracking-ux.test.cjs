@@ -38,3 +38,13 @@ test("Packages screen refreshes automatically while open",()=>{
  assert.match(ui,/state\.currentPage==="packages"/);
  assert.match(ui,/load\(true\)/);
 });
+
+test("the Packages page diagnoses an unavailable scraper instead of redirecting the user",()=>{
+ assert.match(page,/id="packages-tracker-health"/);
+ assert.match(ui,/\/api\/packages\/tracker-health/);
+ assert.match(ui,/loadTrackerHealth/);
+ const provider=fs.readFileSync("internal/api/package_provider.go","utf8");
+ assert.match(provider,/claimManualTracking/);
+ assert.match(provider,/last_tracking_check_at <= now\(\)-interval '2 minutes'/);
+ assert.doesNotMatch(provider,/return publicErr/);
+});
