@@ -14,7 +14,45 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  portable-arm64:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build arm64 recovery runtime natively
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p compat/arm64 dist
+          docker buildx build --platform linux/arm64 \
+            -f Dockerfile.tracker-compat --target export \
+            --output type=local,dest=compat/arm64 .
+          test -x compat/arm64/runtime/node
+          test -x compat/arm64/runtime/chromium/chromium
+          test -f compat/arm64/runtime/parcel/node_modules/universal-parcel-scraper/dist/cli/index.js
+          (cd compat/arm64 && tar --dereference -czf ../../dist/calden-tracker-linux-arm64.tar.gz runtime)
+      - name: Test arm64 recovery runtime as an unprivileged Alpine 3.22 user
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --user 10001:10001 \
+            -v "$PWD/compat/arm64/runtime:/tracker:ro" --entrypoint sh alpine:3.22 -ec '
+              export LD_LIBRARY_PATH=/tracker/lib:/tracker/chromium
+              /tracker/node --version
+              /tracker/node /tracker/parcel/node_modules/universal-parcel-scraper/dist/cli/index.js detect 1Z999AA10123456784 >/tmp/detect.json
+              grep -qi ups /tmp/detect.json
+              /tracker/chromium/chromium --version
+            '
+      - uses: actions/upload-artifact@v4
+        with:
+          name: calden-tracker-arm64-repair
+          path: dist/calden-tracker-linux-arm64.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
   verify-and-publish:
+    needs: portable-arm64
     runs-on: ubuntu-latest
     timeout-minutes: 75
     services:
@@ -109,21 +147,28 @@ jobs:
           test -f dist/calden-linux-arm64.tar.gz
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
-      - name: Produce portable rootless tracking runtimes for legacy containers
+      - name: Build AMD64 recovery runtime on native runner
         if: steps.existing_release.outputs.exists != 'true'
         shell: bash
         run: |
           set -euo pipefail
-          for ARCH in amd64 arm64; do
-            mkdir -p "compat/$ARCH"
-            docker buildx build --platform "linux/$ARCH" \
-              -f Dockerfile.tracker-compat --target export \
-              --output "type=local,dest=compat/$ARCH" .
-            test -x "compat/$ARCH/runtime/node"
-            test -x "compat/$ARCH/runtime/chromium/chromium"
-            test -f "compat/$ARCH/runtime/parcel/node_modules/universal-parcel-scraper/dist/cli/index.js"
-            (cd "compat/$ARCH" && tar --dereference -czf "../../dist/calden-tracker-linux-$ARCH.tar.gz" runtime)
-          done
+          mkdir -p compat/amd64
+          docker buildx build --platform linux/amd64 \
+            -f Dockerfile.tracker-compat --target export \
+            --output type=local,dest=compat/amd64 .
+          test -x compat/amd64/runtime/node
+          test -x compat/amd64/runtime/chromium/chromium
+          test -f compat/amd64/runtime/parcel/node_modules/universal-parcel-scraper/dist/cli/index.js
+          (cd compat/amd64 && tar --dereference -czf ../../dist/calden-tracker-linux-amd64.tar.gz runtime)
+      - uses: actions/download-artifact@v4
+        if: steps.existing_release.outputs.exists != 'true'
+        with:
+          name: calden-tracker-arm64-repair
+          path: dist
+      - name: Verify checksums cover BOTH updater archives and BOTH tracker runtimes
+        if: steps.existing_release.outputs.exists != 'true'
+        run: |
+          set -euo pipefail
           (cd dist && sha256sum calden-linux-amd64.tar.gz calden-linux-arm64.tar.gz \
             calden-tracker-linux-amd64.tar.gz calden-tracker-linux-arm64.tar.gz > SHA256SUMS \
             && sha256sum -c SHA256SUMS)
