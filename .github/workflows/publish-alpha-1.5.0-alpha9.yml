@@ -1,8 +1,8 @@
-name: Publish Calden 1.5.0-alpha.12 Local Tracking
+name: Publish Calden 1.5.0-alpha.13 Local Tracking
 
 on:
   push:
-    branches: [alpha/v1.5.0-alpha.12]
+    branches: [alpha/v1.5.0-alpha.13]
   workflow_dispatch:
 
 permissions:
@@ -10,7 +10,7 @@ permissions:
   packages: write
 
 concurrency:
-  group: calden-alpha12-release
+  group: calden-alpha13-release
   cancel-in-progress: true
 
 jobs:
@@ -39,17 +39,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TAG="v1.5.0-alpha.12"
+          TAG="v1.5.0-alpha.13"
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
             mkdir -p existing-release
             gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir existing-release \
               --pattern 'calden-linux-amd64.tar.gz' \
               --pattern 'calden-linux-arm64.tar.gz' \
+              --pattern 'calden-tracker-linux-amd64.tar.gz' \
+              --pattern 'calden-tracker-linux-arm64.tar.gz' \
               --pattern 'SHA256SUMS'
             (cd existing-release && sha256sum -c SHA256SUMS)
-            test "$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets | length')" = "3"
-            echo "Existing alpha12 already has both verified update bundles; Docker tag will not be overwritten."
+            test "$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets | length')" = "5"
+            echo "Existing alpha13 already has both verified update bundles; Docker tag will not be overwritten."
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
@@ -57,14 +59,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(cat VERSION)" = "1.5.0-alpha.12"
-          grep -Fq 'name="calden-version" content="1.5.0-alpha.12"' web/index.html
+          test "$(cat VERSION)" = "1.5.0-alpha.13"
+          grep -Fq 'name="calden-version" content="1.5.0-alpha.13"' web/index.html
           grep -Fq 'id="page-packages"' web/index.html
           grep -Fq 'id="page-meals"' web/index.html
           grep -Fq 'id="settings-packages-enabled"' web/index.html
           grep -Fq 'id="settings-meals-enabled"' web/index.html
           test -f internal/api/package_local_scraper.go
-          test -f docs/releases/v1.5.0-alpha.12.md
+          test -f docs/releases/v1.5.0-alpha.13.md
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
@@ -94,7 +96,7 @@ jobs:
           for ARCH in amd64 arm64; do
             mkdir -p "stage/$ARCH"
             CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" go build -trimpath \
-              -ldflags="-s -w -X main.version=1.5.0-alpha.12" \
+              -ldflags="-s -w -X main.version=1.5.0-alpha.13" \
               -o "stage/$ARCH/calden" ./cmd/calden
             chmod 0755 "stage/$ARCH/calden"
             cp -a web "stage/$ARCH/web"
@@ -103,25 +105,57 @@ jobs:
             grep -Fxq "calden" "dist/$ARCH.contents"
             grep -Fxq "web/index.html" "dist/$ARCH.contents"
           done
-          (cd dist && sha256sum calden-linux-amd64.tar.gz calden-linux-arm64.tar.gz > SHA256SUMS && sha256sum -c SHA256SUMS)
+          test -f dist/calden-linux-amd64.tar.gz
+          test -f dist/calden-linux-arm64.tar.gz
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Produce portable rootless tracking runtimes for legacy containers
+        if: steps.existing_release.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for ARCH in amd64 arm64; do
+            mkdir -p "compat/$ARCH"
+            docker buildx build --platform "linux/$ARCH" \
+              -f Dockerfile.tracker-compat --target export \
+              --output "type=local,dest=compat/$ARCH" .
+            test -x "compat/$ARCH/runtime/node"
+            test -x "compat/$ARCH/runtime/chromium/chromium"
+            test -f "compat/$ARCH/runtime/parcel/node_modules/universal-parcel-scraper/dist/cli/index.js"
+            (cd "compat/$ARCH" && tar --dereference -czf "../../dist/calden-tracker-linux-$ARCH.tar.gz" runtime)
+          done
+          (cd dist && sha256sum calden-linux-amd64.tar.gz calden-linux-arm64.tar.gz \
+            calden-tracker-linux-amd64.tar.gz calden-tracker-linux-arm64.tar.gz > SHA256SUMS \
+            && sha256sum -c SHA256SUMS)
+      - name: Verify automatic repair payload works without root on Alpine
+        if: steps.existing_release.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --user 10001:10001 \
+            -v "$PWD/compat/amd64/runtime:/tracker:ro" --entrypoint sh alpine:3.22 -ec '
+              export LD_LIBRARY_PATH=/tracker/lib:/tracker/chromium
+              /tracker/node --version
+              /tracker/node /tracker/parcel/node_modules/universal-parcel-scraper/dist/cli/index.js detect 1Z999AA10123456784 >/tmp/detect.json
+              grep -qi ups /tmp/detect.json
+              /tracker/chromium/chromium --version
+            '
       - name: Build complete amd64 local tracker image with real Node and Chromium
         if: steps.existing_release.outputs.exists != 'true'
         run: |
-          docker build --build-arg CALDEN_RUN_TESTS=1 -t calden-alpha12:ci .
-          docker run --rm --entrypoint node calden-alpha12:ci \
+          docker build --build-arg CALDEN_RUN_TESTS=1 -t calden-alpha13:ci .
+          docker run --rm --entrypoint node calden-alpha13:ci \
             /opt/calden-parcel/node_modules/universal-parcel-scraper/dist/cli/index.js detect 1Z999AA10123456784 \
             > /tmp/carrier-detection.json
           grep -qi ups /tmp/carrier-detection.json
-          docker run --rm --entrypoint sh calden-alpha12:ci -c \
+          docker run --rm --entrypoint sh calden-alpha13:ci -c \
             'test -x /usr/bin/chromium && test -f /opt/calden-parcel/node_modules/universal-parcel-scraper/LICENSE && test -x /app/calden'
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Publish isolated alpha12 Docker images
+      - name: Publish isolated alpha13 Docker images
         if: steps.existing_release.outputs.exists != 'true'
         uses: docker/build-push-action@v6
         with:
@@ -131,11 +165,11 @@ jobs:
           build-args: |
             CALDEN_RUN_TESTS=1
           tags: |
-            ghcr.io/gigabytegrove/calden:1.5.0-alpha.12
+            ghcr.io/gigabytegrove/calden:1.5.0-alpha.13
           labels: |
             org.opencontainers.image.title=Calden
             org.opencontainers.image.source=https://github.com/gigabytegrove/calden
-            org.opencontainers.image.version=1.5.0-alpha.12
+            org.opencontainers.image.version=1.5.0-alpha.13
             org.opencontainers.image.revision=${{ github.sha }}
       - name: Publish release with required runtime archives and checksums
         if: steps.existing_release.outputs.exists != 'true'
@@ -144,7 +178,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TAG="v1.5.0-alpha.12"
+          TAG="v1.5.0-alpha.13"
           if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Release appeared while publishing; refusing to overwrite it"
             exit 1
@@ -153,6 +187,6 @@ jobs:
             dist/calden-linux-amd64.tar.gz dist/calden-linux-arm64.tar.gz dist/SHA256SUMS \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "Calden 1.5.0-alpha.12 — Free Keyless Package Tracking" \
-            --notes-file docs/releases/v1.5.0-alpha.12.md \
+            --title "Calden 1.5.0-alpha.13 — Free Keyless Package Tracking" \
+            --notes-file docs/releases/v1.5.0-alpha.13.md \
             --prerelease --latest=false
