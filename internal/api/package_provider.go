@@ -84,6 +84,7 @@ type dueTracking struct {
  ID uuid.UUID
  Carrier,Number,ProviderID string
 }
+// claimTracking reserves a scheduled slot. This remains a three-hour interval.
 func claimTracking(ctx context.Context,db *pgxpool.Pool,id uuid.UUID)(dueTracking,bool,error){
  var job dueTracking
  err:=db.QueryRow(ctx,`UPDATE package_shipments SET next_tracking_check_at=now()+interval '3 hours'
@@ -91,6 +92,21 @@ func claimTracking(ctx context.Context,db *pgxpool.Pool,id uuid.UUID)(dueTrackin
  AND COALESCE((SELECT value='true' FROM app_settings WHERE key='packages_enabled'),false)
 
  RETURNING id,carrier,tracking_number,provider_tracking_id`,id).Scan(&job.ID,&job.Carrier,&job.Number,&job.ProviderID)
+ if errors.Is(err,pgx.ErrNoRows){return job,false,nil}
+ return job,err==nil,err
+}
+// claimManualTracking is independent of the three-hour background schedule.
+// A short two-minute cooldown prevents accidental repeated carrier requests
+// while still making a user-initiated check meaningful.
+func claimManualTracking(ctx context.Context,db *pgxpool.Pool,id uuid.UUID)(dueTracking,bool,error){
+ var job dueTracking
+ err:=db.QueryRow(ctx,`UPDATE package_shipments
+ SET last_tracking_check_at=now(), next_tracking_check_at=now()+interval '3 hours'
+ WHERE id=$1 AND NOT archived AND status!='delivered'
+ AND (last_tracking_check_at IS NULL OR last_tracking_check_at <= now()-interval '2 minutes')
+ AND COALESCE((SELECT value='true' FROM app_settings WHERE key='packages_enabled'),false)
+ RETURNING id,carrier,tracking_number,provider_tracking_id`,id).
+ Scan(&job.ID,&job.Carrier,&job.Number,&job.ProviderID)
  if errors.Is(err,pgx.ErrNoRows){return job,false,nil}
  return job,err==nil,err
 }
@@ -102,7 +118,12 @@ func (s *server) syncPackageTracking(ctx context.Context,job dueTracking,key str
   // unsupported adapters still get an official public-page attempt.
   publicErr:=s.syncPublicTracking(ctx,job)
   if publicErr==nil{return nil}
-  if errors.Is(localErr,errLocalScraperUnavailable){return publicErr}
+  if errors.Is(localErr,errLocalScraperUnavailable){
+   // The public-page fallback is not a substitute for the missing bundled
+   // runtime: report the actual installation fault instead of sending users
+   // to a carrier's website.
+   localErr=errors.New("Calden's bundled tracker is missing from this container. A binary-only update cannot install Node/Chromium. Install the complete Calden Docker image while preserving existing data volumes.")
+  }
   // Preserve the specific local-engine reason rather than converting it
   // to the old generic "open a website" message.
   _,_=s.db.Exec(ctx,`UPDATE package_shipments SET tracking_error=$3,last_tracking_check_at=now()
@@ -199,9 +220,9 @@ func(s *server) refreshPackageTracking(w http.ResponseWriter,r *http.Request){
  id,ok:=s.packageByID(w,r,true);if !ok{return}
  key,err:=s.trackingProviderKey(r.Context())
  if err!=nil{writeError(w,500,"Tracking provider settings are unavailable");return}
- job,claimed,err:=claimTracking(r.Context(),s.db,id)
+ job,claimed,err:=claimManualTracking(r.Context(),s.db,id)
  if err!=nil{writeError(w,500,"Could not schedule tracking lookup");return}
- if !claimed{writeJSON(w,200,map[string]any{"status":"scheduled","message":"Tracking is already current or scheduled; requests run at most every three hours"});return}
+ if !claimed{writeJSON(w,200,map[string]any{"status":"rate_limited","message":"A carrier check was attempted recently. Manual checks can run again after two minutes; automatic checks still run every three hours."});return}
  ctx,cancel:=context.WithTimeout(r.Context(),75*time.Second);defer cancel()
  if err=s.syncPackageTracking(ctx,job,key);err!=nil{
   // A public lookup may be blocked or require browser interaction. Do not
@@ -229,7 +250,7 @@ func processDuePackageTracking(ctx context.Context,db *pgxpool.Pool,master []byt
  WHERE NOT archived AND status!='delivered' AND next_tracking_check_at<=now()
  AND COALESCE((SELECT value='true' FROM app_settings WHERE key='packages_enabled'),false)
  ORDER BY next_tracking_check_at,id LIMIT 5 FOR UPDATE SKIP LOCKED
- ) UPDATE package_shipments p SET next_tracking_check_at=now()+interval '3 hours'
+ ) UPDATE package_shipments p SET next_tracking_check_at=now()+interval '3 hours',last_tracking_check_at=now()
  FROM due WHERE p.id=due.id RETURNING p.id,p.carrier,p.tracking_number,p.provider_tracking_id`)
  if err!=nil{return}
  jobs:=[]dueTracking{}
