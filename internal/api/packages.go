@@ -137,9 +137,16 @@ func (s *server) createPackage(w http.ResponseWriter,r *http.Request){
  if !s.requirePackages(w,r){return}
  if !packageCanWrite(r){writeError(w,403,"You cannot add packages");return}
  var in packageInput
- if decode(r,&in)!=nil||!preparePackageInput(&in){writeError(w,400,"Enter a package name, valid carrier, tracking number, status and optional date");return}
+ if decode(r,&in)!=nil||!preparePackageInput(&in){writeError(w,400,"Enter a package name and valid tracking number");return}
  tx,err:=s.db.Begin(r.Context());if err!=nil{writeError(w,500,"Could not add package");return}
  defer tx.Rollback(r.Context())
+ // Older versions only archived packages. Remove an archived match owned by
+ // this user so the same tracking number can be added again without retaining
+ // invisible, conflicting test records. Active duplicates still return 409.
+ _,err=tx.Exec(r.Context(),`DELETE FROM package_shipments
+ WHERE owner_id=$1 AND carrier=$2 AND upper(tracking_number)=upper($3) AND archived`,
+ currentActor(r).ID,in.Carrier,in.TrackingNumber)
+ if err!=nil{writeError(w,500,"Could not clear an old archived package");return}
  var id uuid.UUID
  err=tx.QueryRow(r.Context(),"INSERT INTO package_shipments(owner_id,shared,label,carrier,tracking_number,status,expected_date,notes,delivered_at) VALUES($1,$2,$3,$4,$5,$6,NULLIF($7,'')::date,$8,CASE WHEN $6='delivered' THEN now() ELSE NULL END) ON CONFLICT DO NOTHING RETURNING id",currentActor(r).ID,in.Shared,in.Label,in.Carrier,in.TrackingNumber,in.Status,in.ExpectedDate,in.Notes).Scan(&id)
  if errors.Is(err,pgx.ErrNoRows){writeError(w,409,"This tracking number is already in your packages");return}
@@ -171,12 +178,15 @@ func (s *server) updatePackage(w http.ResponseWriter,r *http.Request){
  s.audit(r,"update","package",&id,"Updated a package",nil)
  writeJSON(w,200,map[string]any{"id":id})
 }
-func (s *server) archivePackage(w http.ResponseWriter,r *http.Request){
+func (s *server) deletePackage(w http.ResponseWriter,r *http.Request){
  id,ok:=s.packageByID(w,r,true);if !ok{return}
- tag,err:=s.db.Exec(r.Context(),"UPDATE package_shipments SET archived=true,updated_at=now() WHERE id=$1 AND owner_id=$2",id,currentActor(r).ID)
- if err!=nil{writeError(w,500,"Could not archive package");return}
+ // The checkpoints foreign key cascades, and the audit log remains separate.
+ // Shared viewers cannot delete records that belong to another account.
+ tag,err:=s.db.Exec(r.Context(),`DELETE FROM package_shipments
+ WHERE id=$1 AND owner_id=$2 AND NOT archived`,id,currentActor(r).ID)
+ if err!=nil{writeError(w,500,"Could not delete package");return}
  if tag.RowsAffected()==0{writeError(w,404,"Package not found");return}
- s.audit(r,"archive","package",&id,"Archived a package",nil)
+ s.audit(r,"delete","package",&id,"Permanently deleted package",nil)
  w.WriteHeader(http.StatusNoContent)
 }
 func (s *server) packageHistory(w http.ResponseWriter,r *http.Request){
