@@ -81,3 +81,28 @@ func TestLatestEligibleSkipsBrokenPublishedReleases(t *testing.T) {
 		t.Fatal("valid release incorrectly rejected")
 	}
 }
+
+func TestApprovedBetaPromotesAlpha18AndPreservesUpdaterChannels(t *testing.T) {
+  alpha := "1.5.0-alpha.18"
+  beta := "1.5.0-beta"
+  stable := "1.5.0"
+  if compareVersions(beta,alpha)<=0 || compareVersions(stable,beta)<=0 {
+    t.Fatalf("incorrect prerelease upgrade order: %s -> %s -> %s",alpha,beta,stable)
+  }
+  if releaseChannel(beta)!="beta" || defaultChannelForVersion(beta)!="beta" {
+    t.Fatal("beta should default to the beta channel")
+  }
+  releases:=[]releasePayload{
+    testReadyRelease(t,"v"+alpha,time.Now().Add(-time.Hour)),
+    testReadyRelease(t,"v"+beta,time.Now()),
+  }
+  for _,channel:=range []string{"alpha","beta"}{
+    latest:=latestEligible(releases,channel)
+    if latest==nil || latest.TagName!="v"+beta{
+      t.Fatalf("%s channel did not offer the approved beta upgrade: %#v",channel,latest)
+    }
+  }
+  if eligibleForChannel(&releases[1],"stable") || eligibleForChannel(&releases[1],"rc"){
+    t.Fatal("beta must not be falsely advertised as stable or release-candidate")
+  }
+}

@@ -1,0 +1,295 @@
+name: Publish Calden 1.5.0 Beta — Frozen Feature Baseline
+
+on:
+  push:
+    branches: [beta/v1.5.0-beta]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: calden-beta-release
+  cancel-in-progress: true
+
+jobs:
+  portable-arm64:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build arm64 recovery runtime natively
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p compat/arm64 dist
+          # Avoid buildx --output=type=local, which hung during arm64 export.
+          # Build a local tagged image, then stream its runtime via Docker.
+          docker build --platform linux/arm64 -f Dockerfile.tracker-compat \
+            --target export -t calden-tracker-export:arm64 .
+          cid="$(docker create calden-tracker-export:arm64 /bin/true)"
+          trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
+          docker cp "$cid:/runtime" compat/arm64/runtime
+          docker rm -f "$cid" >/dev/null
+          trap - EXIT
+          test -x compat/arm64/runtime/node
+          test -x compat/arm64/runtime/chromium/chromium
+          test -f compat/arm64/runtime/parcel/node_modules/universal-parcel-scraper/dist/cli/index.js
+          (cd compat/arm64 && tar --dereference -czf ../../dist/calden-tracker-linux-arm64.tar.gz runtime)
+      - name: Test arm64 recovery runtime as an unprivileged Alpine 3.22 user
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --user 10001:10001 \
+            -v "$PWD/compat/arm64/runtime:/tracker:ro" --entrypoint sh alpine:3.22 -ec '
+              export LD_LIBRARY_PATH=/tracker/lib:/tracker/lib/pulseaudio:/tracker/chromium
+              /tracker/node --version
+              /tracker/node /tracker/parcel/node_modules/universal-parcel-scraper/dist/cli/index.js detect 1Z999AA10123456784 >/tmp/detect.json
+              grep -qi ups /tmp/detect.json
+              /tracker/chromium/chromium --version
+            '
+      - uses: actions/upload-artifact@v4
+        with:
+          name: calden-tracker-arm64-repair
+          path: dist/calden-tracker-linux-arm64.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  verify-and-publish:
+    needs: portable-arm64
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: calden_test
+          POSTGRES_PASSWORD: calden_test_only
+          POSTGRES_DB: calden_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U calden_test -d calden_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect existing release before publishing any mutable Docker tag
+        id: existing_release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="v1.5.0-beta"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            mkdir -p existing-release
+            gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir existing-release \
+              --pattern 'calden-linux-amd64.tar.gz' \
+              --pattern 'calden-linux-arm64.tar.gz' \
+              --pattern 'calden-tracker-linux-amd64.tar.gz' \
+              --pattern 'calden-tracker-linux-arm64.tar.gz' \
+              --pattern 'SHA256SUMS'
+            (cd existing-release && sha256sum -c SHA256SUMS)
+            test "$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets | length')" = "5"
+            echo "Existing beta already has both verified update bundles; Docker tag will not be overwritten."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Lock the approved alpha18 feature baseline — fail on unapproved runtime changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE=b29edf4381761ffbb4d83a4d719253eb5b8ed4fb
+          git cat-file -e "$BASE^{commit}"
+          # Promotion only: version identity, updater compatibility regression,
+          # release notes, and this publisher. No business logic or UI changes.
+          git diff --name-only "$BASE" "$GITHUB_SHA" > /tmp/beta-change-list
+          while IFS= read -r changed; do
+            case "$changed" in
+              VERSION|cmd/calden/main.go|web/index.html|internal/api/package_runtime_repair.go|internal/updater/manager_test.go|docs/releases/README.md|docs/releases/v1.5.0-beta.md|.github/workflows/publish-beta-1.5.0.yml) ;;
+              *) echo "Beta baseline changed unexpectedly: $changed" >&2; exit 1 ;;
+            esac
+          done < /tmp/beta-change-list
+          git diff --unified=0 "$BASE" "$GITHUB_SHA" -- cmd/calden/main.go web/index.html internal/api/package_runtime_repair.go VERSION |
+            grep -E '^[+-][^+-]' | grep -Ev '^[+-].*1\\.5\\.0-(alpha\\.18|beta)' |
+            grep . && { echo "Non-version production source changes are forbidden" >&2; exit 1; } || true
+          grep -Fq 'const parcelRuntimeTag="v1.5.0-beta"' internal/api/package_runtime_repair.go
+      - name: Verify beta version and preserved screens
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(cat VERSION)" = "1.5.0-beta"
+          grep -Fq 'name="calden-version" content="1.5.0-beta"' web/index.html
+          grep -Fq 'id="page-packages"' web/index.html
+          grep -Fq 'id="page-meals"' web/index.html
+          grep -Fq 'id="settings-packages-enabled"' web/index.html
+          grep -Fq 'id="settings-meals-enabled"' web/index.html
+          test -f internal/api/package_local_scraper.go
+          test -f docs/releases/v1.5.0-beta.md
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Go and real PostgreSQL regression tests
+        env:
+          CALDEN_TEST_DATABASE_URL: postgres://calden_test:calden_test_only@127.0.0.1:5432/calden_test?sslmode=disable
+        run: |
+          go test ./...
+          go vet ./...
+      - name: Frontend and script syntax regression tests
+        run: |
+          npm install --no-audit --no-fund
+          npm run build:css
+          npm run test:web
+          node --check web/packages.js
+          node --check web/app.js
+      - name: Build updater-installable amd64 and arm64 archives before release
+        if: steps.existing_release.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          for ARCH in amd64 arm64; do
+            mkdir -p "stage/$ARCH"
+            CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" go build -trimpath \
+              -ldflags="-s -w -X main.version=1.5.0-beta" \
+              -o "stage/$ARCH/calden" ./cmd/calden
+            chmod 0755 "stage/$ARCH/calden"
+            cp -a web "stage/$ARCH/web"
+            (cd "stage/$ARCH" && tar -czf "../../dist/calden-linux-$ARCH.tar.gz" calden web)
+            tar -tzf "dist/calden-linux-$ARCH.tar.gz" > "dist/$ARCH.contents"
+            grep -Fxq "calden" "dist/$ARCH.contents"
+            grep -Fxq "web/index.html" "dist/$ARCH.contents"
+          done
+          test -f dist/calden-linux-amd64.tar.gz
+          test -f dist/calden-linux-arm64.tar.gz
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Build AMD64 recovery runtime on native runner
+        if: steps.existing_release.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p compat/amd64
+          docker build --platform linux/amd64 -f Dockerfile.tracker-compat \
+            --target export -t calden-tracker-export:amd64 .
+          cid="$(docker create calden-tracker-export:amd64 /bin/true)"
+          trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
+          docker cp "$cid:/runtime" compat/amd64/runtime
+          docker rm -f "$cid" >/dev/null
+          trap - EXIT
+          test -x compat/amd64/runtime/node
+          test -x compat/amd64/runtime/chromium/chromium
+          test -f compat/amd64/runtime/parcel/node_modules/universal-parcel-scraper/dist/cli/index.js
+          (cd compat/amd64 && tar --dereference -czf ../../dist/calden-tracker-linux-amd64.tar.gz runtime)
+      - uses: actions/download-artifact@v4
+        if: steps.existing_release.outputs.exists != 'true'
+        with:
+          name: calden-tracker-arm64-repair
+          path: dist
+      - name: Verify checksums cover BOTH updater archives and BOTH tracker runtimes
+        if: steps.existing_release.outputs.exists != 'true'
+        run: |
+          set -euo pipefail
+          (cd dist && sha256sum calden-linux-amd64.tar.gz calden-linux-arm64.tar.gz \
+            calden-tracker-linux-amd64.tar.gz calden-tracker-linux-arm64.tar.gz > SHA256SUMS \
+            && sha256sum -c SHA256SUMS)
+      - name: Ensure the repair archives fit the application's bounded installer
+        if: steps.existing_release.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import tarfile
+          compressed_limit = 1200 << 20
+          expanded_limit = 4096 << 20
+          for arch in ("amd64", "arm64"):
+              path = f"dist/calden-tracker-linux-{arch}.tar.gz"
+              compressed = os.stat(path).st_size
+              if compressed > compressed_limit:
+                  raise SystemExit(f"{arch} repair bundle exceeds downloader limit: {compressed}")
+              expanded = 0
+              with tarfile.open(path, "r|gz") as archive:
+                  for member in archive:
+                      if member.name != "runtime" and not member.name.startswith("runtime/"):
+                          raise SystemExit(f"{arch} has an unsafe archive path")
+                      if not (member.isfile() or member.isdir()):
+                          raise SystemExit(f"{arch} has an unsupported archive member")
+                      if member.isfile():
+                          expanded += member.size
+                          if expanded > expanded_limit:
+                              raise SystemExit(f"{arch} exceeds unpacked safety limit")
+              print(f"{arch} tracker: {compressed:,} compressed bytes, {expanded:,} expanded bytes")
+          PY
+      - name: Verify automatic repair payload works without root on Alpine
+        if: steps.existing_release.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --user 10001:10001 \
+            -v "$PWD/compat/amd64/runtime:/tracker:ro" --entrypoint sh alpine:3.22 -ec '
+              export LD_LIBRARY_PATH=/tracker/lib:/tracker/lib/pulseaudio:/tracker/chromium
+              /tracker/node --version
+              /tracker/node /tracker/parcel/node_modules/universal-parcel-scraper/dist/cli/index.js detect 1Z999AA10123456784 >/tmp/detect.json
+              grep -qi ups /tmp/detect.json
+              /tracker/chromium/chromium --version
+            '
+      - name: Build complete amd64 local tracker image with real Node and Chromium
+        if: steps.existing_release.outputs.exists != 'true'
+        run: |
+          docker build --build-arg CALDEN_RUN_TESTS=1 -t calden-beta:ci .
+          docker run --rm --entrypoint node calden-beta:ci \
+            /opt/calden-parcel/node_modules/universal-parcel-scraper/dist/cli/index.js detect 1Z999AA10123456784 \
+            > /tmp/carrier-detection.json
+          grep -qi ups /tmp/carrier-detection.json
+          docker run --rm --entrypoint sh calden-beta:ci -c \
+            'test -x /usr/bin/chromium && test -f /opt/calden-parcel/node_modules/universal-parcel-scraper/LICENSE && test -x /app/calden'
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish isolated beta Docker images
+        if: steps.existing_release.outputs.exists != 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            CALDEN_RUN_TESTS=1
+          tags: |
+            ghcr.io/gigabytegrove/calden:1.5.0-beta
+          labels: |
+            org.opencontainers.image.title=Calden
+            org.opencontainers.image.source=https://github.com/gigabytegrove/calden
+            org.opencontainers.image.version=1.5.0-beta
+            org.opencontainers.image.revision=${{ github.sha }}
+      - name: Publish release with required runtime archives and checksums
+        if: steps.existing_release.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="v1.5.0-beta"
+          if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release appeared while publishing; refusing to overwrite it"
+            exit 1
+          fi
+          gh release create "$TAG" \
+            dist/calden-linux-amd64.tar.gz dist/calden-linux-arm64.tar.gz \
+            dist/calden-tracker-linux-amd64.tar.gz dist/calden-tracker-linux-arm64.tar.gz dist/SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Calden 1.5.0 Beta — Approved Feature Baseline" \
+            --notes-file docs/releases/v1.5.0-beta.md \
+            --prerelease --latest=false

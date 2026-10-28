@@ -1,6 +1,6 @@
 # CalDen release notes
 
-Current stable release: **1.2.2**.
+Current beta baseline: **v1.5.0-beta** (approved feature lock, not stable/GA).\n\n- [v1.5.0-beta](v1.5.0-beta.md) — locked v1.5.0 feature baseline, updater-ready archives, multiarch Docker and integrated carrier runtime\n\nHistorical stable releases are listed below.
 
 - [1.2.2](v1.2.2.md) — corrected Settings startup and updater cleanup
 - [1.2.1](v1.2.1.md) — Settings navigation, clearer allocation status and updater cleanup
