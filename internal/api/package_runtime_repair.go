@@ -19,6 +19,7 @@ import (
  "strings"
  "sync"
  "time"
+ "github.com/jackc/pgx/v5/pgxpool"
 )
 const parcelRuntimeTag="v1.5.0-alpha.13"
 const parcelDownloadLimit int64=650<<20
@@ -160,7 +161,7 @@ func parcelRepair(ctx context.Context)error{
  parcelSetState("ready","Calden repaired its tracking runtime automatically.")
  return nil
 }
-func StartParcelRuntimeRepair(ctx context.Context){
+func StartParcelRuntimeRepair(ctx context.Context,db *pgxpool.Pool){
  go func(){
   repair:=func(){
    if err:=parcelRepair(ctx);err!=nil{
