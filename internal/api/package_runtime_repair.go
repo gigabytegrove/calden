@@ -22,8 +22,8 @@ import (
  "github.com/jackc/pgx/v5/pgxpool"
 )
 const parcelRuntimeTag="v1.5.0-alpha.13"
-const parcelDownloadLimit int64=650<<20
-const parcelExpandedLimit int64=1800<<20
+const parcelDownloadLimit int64=1200<<20
+const parcelExpandedLimit int64=4096<<20
 
 var parcelInstallMu sync.Mutex
 var parcelInstallStatus=struct{sync.RWMutex;state,detail string}{state:"pending",detail:"Calden is preparing tracking automatically."}
