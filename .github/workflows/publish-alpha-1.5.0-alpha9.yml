@@ -44,7 +44,7 @@ jobs:
           set -euo pipefail
           docker run --rm --user 10001:10001 \
             -v "$PWD/compat/arm64/runtime:/tracker:ro" --entrypoint sh alpine:3.22 -ec '
-              export LD_LIBRARY_PATH=/tracker/lib:/tracker/chromium
+              export LD_LIBRARY_PATH=/tracker/lib:/tracker/lib/pulseaudio:/tracker/chromium
               /tracker/node --version
               /tracker/node /tracker/parcel/node_modules/universal-parcel-scraper/dist/cli/index.js detect 1Z999AA10123456784 >/tmp/detect.json
               grep -qi ups /tmp/detect.json
@@ -189,7 +189,7 @@ jobs:
           set -euo pipefail
           docker run --rm --user 10001:10001 \
             -v "$PWD/compat/amd64/runtime:/tracker:ro" --entrypoint sh alpine:3.22 -ec '
-              export LD_LIBRARY_PATH=/tracker/lib:/tracker/chromium
+              export LD_LIBRARY_PATH=/tracker/lib:/tracker/lib/pulseaudio:/tracker/chromium
               /tracker/node --version
               /tracker/node /tracker/parcel/node_modules/universal-parcel-scraper/dist/cli/index.js detect 1Z999AA10123456784 >/tmp/detect.json
               grep -qi ups /tmp/detect.json
