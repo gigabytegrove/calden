@@ -2,7 +2,7 @@ name: Publish Calden 1.5.0-alpha.11 Local Tracking
 
 on:
   push:
-    branches: [calden-alpha11-tracking-ui]
+    branches: [alpha/v1.5.0-alpha.11]
   workflow_dispatch:
 
 permissions:
