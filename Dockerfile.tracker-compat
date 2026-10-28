@@ -1,7 +1,7 @@
 # A musl-compatible, relocatable runtime for legacy Alpine Calden images.
 # This is NOT a second service. Alpha's in-app updater installs this bundle
 # automatically in the existing /data volume, as the existing calden user.
-FROM node:26.12.1-alpine3.22
+FROM node:26.12.1-alpine3.23
 RUN apk add --no-cache chromium fontconfig freetype harfbuzz nss \
     ttf-freefont ca-certificates coreutils
 WORKDIR /opt/calden-parcel
