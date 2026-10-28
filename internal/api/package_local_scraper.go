@@ -81,29 +81,36 @@ func parseLocalScraperJSON(raw []byte,number string)(localResult,error){
 func localScannerExecutable()string{
  // Docker includes the engine in its own image; no separate service.
  if custom:=strings.TrimSpace(os.Getenv("CALDEN_LOCAL_PARCEL_CLI"));custom!=""{return custom}
- return "/opt/calden-parcel/node_modules/universal-parcel-scraper/dist/cli/index.js"
+ if parcelExists("/opt/calden-parcel/node_modules/universal-parcel-scraper/dist/cli/index.js"){return "/opt/calden-parcel/node_modules/universal-parcel-scraper/dist/cli/index.js"}
+ return parcelBundledCLI()
 }
 // trackerRuntimeReadiness performs only offline checks and never sends a
 // household tracking number to an external website.
 func trackerRuntimeReadiness(ctx context.Context)(bool,bool,string){
  path:=localScannerExecutable()
  info,err:=os.Stat(path)
- if err!=nil||!info.Mode().IsRegular(){return false,false,"The built-in tracking engine is not installed in this container."}
- node,err:=exec.LookPath("node")
- if err!=nil{return false,false,"Node.js, required by the built-in tracking engine, is missing from this container."}
+ if err!=nil||!info.Mode().IsRegular(){
+  _,message:=parcelInstallSnapshot()
+  return false,false,message
+ }
+ node:="node"
+ if parcelExists(parcelBundledNode()){node=parcelBundledNode()}
+ if _,err:=exec.LookPath(node);err!=nil{return false,false,"Calden is automatically preparing tracking."}
  chromium:=false
  if info,err:=os.Stat("/usr/bin/chromium");err==nil&&!info.IsDir()&&info.Mode()&0111!=0{chromium=true}
+ if parcelExists(parcelBundledChromium()){chromium=true}
  probeCtx,cancel:=context.WithTimeout(ctx,6*time.Second)
  defer cancel()
  cmd:=exec.CommandContext(probeCtx,node,path,"detect","1Z999AA10123456784")
  cmd.Env=[]string{"PATH="+os.Getenv("PATH"),"LANG=C.UTF-8","HOME="+os.Getenv("HOME"),"NODE_OPTIONS=--max-old-space-size=512"}
+ if node==parcelBundledNode(){cmd.Env=parcelRuntimeEnv(filepath.Join(parcelStoreRoot(),"current"))}
  cmd.Stderr=io.Discard
  out:=&limitedTrackingBuffer{cap:128<<10}
  cmd.Stdout=out
  if cmd.Run()!=nil||!strings.Contains(strings.ToLower(out.String()),"ups"){
   return false,chromium,"The bundled tracking engine failed its offline startup test."
  }
- if !chromium{return true,false,"The tracker is available, but Chromium is missing; browser-only carriers may fail."}
+ if !chromium{return false,false,"Calden is repairing the browser required for tracking."}
  return true,true,"The bundled tracking engine and Chromium are ready. Carrier access varies by provider."
 }
 func (s *server) packageTrackerHealth(w http.ResponseWriter,r *http.Request){
@@ -122,7 +129,9 @@ func invokeLocalScraper(ctx context.Context,number,carrier string)(localResult,e
  // generic FedEx numeric identifiers overlap other carriers. Ask the
  // engine to recognize candidates rather than forcing an unverified guess.
  if carrier=="ups"||carrier=="usps"{args=append(args,"--carrier",carrier)}
- cmd:=exec.CommandContext(ctx,"node",args...)
+ node:="node"
+ if path==parcelBundledCLI(){node=parcelBundledNode()}
+ cmd:=exec.CommandContext(ctx,node,args...)
  // Do not hand Calden database passwords, JWT secrets, SMTP credentials, or
  // other service configuration to an external tracking adapter subprocess.
  // Explicitly allowlist its environment instead of inheriting os.Environ().
@@ -134,6 +143,7 @@ func invokeLocalScraper(ctx context.Context,number,carrier string)(localResult,e
   "TRACKING_CHROMIUM_PATH=/usr/bin/chromium",
   "SCRAPER_PROVIDERS=ParcelsApp,Ship24,17TRACK,Postal Ninja,UPU",
  }
+ if path==parcelBundledCLI(){cmd.Env=parcelRuntimeEnv(filepath.Join(parcelStoreRoot(),"current"))}
  if agents:=strings.TrimSpace(os.Getenv("CALDEN_TRACKING_USER_AGENT"));agents!=""&&len(agents)<180&&!strings.ContainsAny(agents,"\\r\\n"){
   cmd.Env=append(cmd.Env,"SCRAPER_USER_AGENT="+agents)
  }
