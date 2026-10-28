@@ -11,6 +11,7 @@ import (
  "errors"
  "fmt"
  "io"
+ "log"
  "net/http"
  "os"
  "os/exec"
@@ -163,12 +164,14 @@ func parcelRepair(ctx context.Context)error{
  if parcelNativeProbe(ctx){
   parcelChooseManaged(false)
   parcelSetState("ready","Calden's integrated tracking runtime passed its offline checks.")
+  if err:=parcelRememberReady("native");err!=nil{log.Printf("tracker: unable to persist verified native runtime: %v",err)}
   return nil
  }
  root:=parcelStoreRoot();current:=filepath.Join(root,"current")
  if parcelProbe(ctx,current){
   parcelChooseManaged(true)
   parcelSetState("ready","Calden's managed tracking runtime passed its offline checks.")
+  if err:=parcelRememberReady("managed");err!=nil{log.Printf("tracker: unable to persist verified managed runtime: %v",err)}
   return nil
  }
  parcelSetState("installing","Calden is automatically repairing its tracking runtime.")
@@ -190,6 +193,7 @@ func parcelRepair(ctx context.Context)error{
  _=os.RemoveAll(old)
  parcelChooseManaged(true)
  parcelSetState("ready","Calden repaired and verified its tracking runtime automatically.")
+ if err:=parcelRememberReady("managed");err!=nil{log.Printf("tracker: unable to persist recovered runtime: %v",err)}
  return nil
 }
 // The package feature is opt-in. Do not download a large browser runtime
@@ -218,54 +222,121 @@ func parcelTrackingPending(providerKey string)bool{
  state,_:=parcelInstallSnapshot()
  return state!="ready"||!parcelRuntimePresent()
 }
+// A syscall.Exec application update resets Go memory while preserving /data.
+// Recover known-good tracking readiness before the HTTP server starts so the
+// Packages UI never reports a fresh install just because Calden was updated.
+func parcelStartupVerify(ctx context.Context,query parcelSettingsQuerier){
+ settingCtx,cancel:=context.WithTimeout(ctx,5*time.Second)
+ enabled,err:=parcelTrackingEnabled(settingCtx,query)
+ cancel()
+ if err!=nil{
+  parcelSetState("retrying","Calden cannot read the Package Tracking setting; it will retry.")
+  log.Printf("tracker: startup settings read failed: %v",err)
+  return
+ }
+ if !enabled {
+  parcelSetState("disabled","Package Tracking is off.")
+  return
+ }
+ if parcelRestoreReady(){return}
+ // No receipt from an earlier version: test existing executables once,
+ // locally, before accepting web requests. Downloads never block startup.
+ probeCtx,stop:=context.WithTimeout(ctx,25*time.Second)
+ defer stop()
+ if parcelExists("/opt/calden-parcel/node_modules/universal-parcel-scraper/dist/cli/index.js")&&parcelNativeProbe(probeCtx){
+  parcelChooseManaged(false)
+  parcelSetState("ready","Calden's existing tracking runtime is ready.")
+  if err:=parcelRememberReady("native");err!=nil{log.Printf("tracker: native readiness receipt: %v",err)}
+  return
+ }
+ if parcelExists(parcelBundledCLI())&&parcelProbe(probeCtx,filepath.Join(parcelStoreRoot(),"current")){
+  parcelChooseManaged(true)
+  parcelSetState("ready","Calden's existing tracking runtime is ready.")
+  if err:=parcelRememberReady("managed");err!=nil{log.Printf("tracker: managed readiness receipt: %v",err)}
+  return
+ }
+ parcelForgetReceipt()
+ parcelSetState("installing","Calden is checking or repairing the tracker in the background.")
+}
+
+func parcelRepairMessage(err error)string{
+ if err==nil{return ""}
+ detail:=strings.TrimSpace(err.Error())
+ if len(detail)>200{detail=detail[:200]}
+ return "Automatic tracking repair failed: "+detail+". Calden will retry automatically."
+}
+
 func StartParcelRuntimeRepair(ctx context.Context,db *pgxpool.Pool){
+ parcelStartupVerify(ctx,db)
  go func(){
   var nextRetry time.Time
+  nextProbe:=time.Now().Add(parcelReceiptRecheckInterval)
   previouslyEnabled:=false
   repair:=func(){
    enabled,err:=parcelTrackingEnabled(ctx,db)
    if err!=nil{
-    parcelSetState("retrying","Calden will retry checking Package Tracking settings.")
+    parcelSetState("retrying","Cannot read Package Tracking settings; Calden will try again.")
+    log.Printf("tracker: settings poll failed: %v",err)
     return
    }
    if !enabled{
     previouslyEnabled=false
     nextRetry=time.Time{}
+    nextProbe=time.Time{}
     parcelSetState("disabled","Package Tracking is off.")
     return
    }
-   // A household enabling Packages should not inherit the backoff of an
-   // earlier failed attempt when the feature was subsequently disabled.
-   if !previouslyEnabled{nextRetry=time.Time{}}
+   if !previouslyEnabled{
+    nextRetry=time.Time{}
+    if state,_:=parcelInstallSnapshot();state!="ready"{nextProbe=time.Time{}}
+   }
    previouslyEnabled=true
-   if state,_:=parcelInstallSnapshot();state=="ready"&&parcelRuntimePresent(){
-    // Detect executables damaged by a partial container or volume update.
+   state,_:=parcelInstallSnapshot()
+   if state=="ready"&&parcelRuntimePresent(){
+    // Avoid repeatedly launching Node/Chromium every 30 seconds. A verified
+    // receipt is checked against file metadata on every restart, and the
+    // actual executables are re-probed every ten minutes while enabled.
+    if time.Now().Before(nextProbe){return}
+    healthy:=false
+    kind:="native"
     if parcelManagedSelected(){
-     if parcelProbe(ctx,filepath.Join(parcelStoreRoot(),"current")){return}
-    }else if parcelNativeProbe(ctx){return}
+     kind="managed"
+     healthy=parcelProbe(ctx,filepath.Join(parcelStoreRoot(),"current"))
+    }else{
+     healthy=parcelNativeProbe(ctx)
+    }
+    if healthy{
+     nextProbe=time.Now().Add(parcelReceiptRecheckInterval)
+     if err:=parcelRememberReady(kind);err!=nil{log.Printf("tracker: persist readiness: %v",err)}
+     return
+    }
+    parcelForgetReceipt()
+    parcelSetState("installing","Calden detected a damaged tracker and is repairing it automatically.")
    }
    if !nextRetry.IsZero()&&time.Now().Before(nextRetry){return}
    if err:=parcelRepair(ctx);err!=nil{
     nextRetry=time.Now().Add(10*time.Minute)
-    parcelSetState("retrying","Calden is retrying automatic tracking repair.")
+    parcelSetState("retrying",parcelRepairMessage(err))
+    log.Printf("tracker: automatic repair failed (retry in 10m): %v",err)
     return
    }
    nextRetry=time.Time{}
-   // Earlier polling attempts may have claimed a three-hour slot while the
-   // runtime was missing. Queue ALL active shipments once the repair succeeds,
-   // including shipments with an earlier provider-verified status.
-   _,_=db.Exec(ctx,`UPDATE package_shipments SET next_tracking_check_at=now()
+   nextProbe=time.Now().Add(parcelReceiptRecheckInterval)
+   // Only reactivate shipments after a genuinely unavailable tracker was
+   // repaired. Never restart everyone's three-hour carrier schedule merely
+   // because the application binary updated.
+   _,err=db.Exec(ctx,`UPDATE package_shipments SET next_tracking_check_at=now()
       WHERE NOT archived AND status!='delivered'
       AND COALESCE((SELECT value='true' FROM app_settings WHERE key='packages_enabled'),false)`)
+   if err!=nil{log.Printf("tracker: requeue after recovery failed: %v",err)}
   }
   repair()
-  // React to an enabled feature in at most 30 seconds without repeatedly
-  // downloading ~800MB on every tick after a network/storage failure.
-  timer:=time.NewTicker(30*time.Second);defer timer.Stop()
-  for {
+  ticker:=time.NewTicker(30*time.Second)
+  defer ticker.Stop()
+  for{
    select{
    case <-ctx.Done():return
-   case <-timer.C:repair()
+   case <-ticker.C:repair()
    }
   }
  }()
