@@ -64,3 +64,18 @@ func TestTrackerSelfRepairRespectsOptInSetting(t *testing.T){
   if got!=tc.want{t.Fatalf("packages_enabled=%s produced %v; expected %v",tc.value,got,tc.want)}
  }
 }
+
+func TestTrackerRecoveryGatePreventsFalseCarrierAttempts(t *testing.T){
+ previousState,previousDetail:=parcelInstallSnapshot()
+ t.Cleanup(func(){parcelSetState(previousState,previousDetail)})
+ t.Setenv("CALDEN_DATA_DIR",t.TempDir())
+ t.Setenv("CALDEN_LOCAL_PARCEL_CLI","")
+ parcelSetState("installing","Repair is active")
+ if !parcelTrackingPending(""){t.Fatal("keyless tracker was allowed to scan before repair")}
+ if parcelTrackingPending("configured-optional-provider"){t.Fatal("explicit configured carrier provider was blocked by local repair")}
+ t.Setenv("CALDEN_LOCAL_PARCEL_CLI","/test-only/local-scanner.js")
+ if parcelTrackingPending(""){t.Fatal("explicit local scanner override was blocked")}
+ t.Setenv("CALDEN_LOCAL_PARCEL_CLI","")
+ parcelSetState("retrying","Download will be retried")
+ if !parcelTrackingPending(""){t.Fatal("failed repair did not pause carrier polling")}
+}
