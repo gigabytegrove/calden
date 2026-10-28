@@ -43,10 +43,10 @@
     try{
       const result=await api("/api/packages/tracker-health");
       box.classList.toggle("hidden",result.ready===true&&result.browser_ready===true);
-      box.classList.toggle("package-tracker-warning",result.ready!==true);
+      box.classList.toggle("package-tracker-warning",result.ready!==true&&result.message.toLowerCase().includes("retrying"));
       box.textContent=result.ready===true
         ?(result.browser_ready===true?"":result.message)
-        :result.message+" Calden's in-app binary update does not replace the Docker container. Install the complete Calden image to enable automatic carrier checks; existing package data can remain.";
+        :result.message;
     }catch(error){
       box.classList.remove("hidden");
       box.classList.add("package-tracker-warning");
