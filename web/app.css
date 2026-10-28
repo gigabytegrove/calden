@@ -1953,33 +1953,3 @@ body.calden-family-dark dialog .dialog-close:hover{
   .workspace .app-page .bill-payment-summary,
   .workspace .app-page .bill-breakdown-grid{grid-template-columns:minmax(0,1fr)}
 }
-
-
-/* Tailwind's later utility layer can override legacy form/panel backgrounds
-   even when the shared component tokens resolve correctly. These narrowly
-   scoped dark appearance rules keep the actual painted controls compliant. */
-body.calden-family-dark .workspace .app-page :is(.panel,.settings-card,
-  .settings-section,.integration-card,.notification-schedule,
-  .rewards-balance-card,.bill-stat){
-  background:var(--ui-surface)!important;
-  color:var(--ui-foreground);
-  border-color:var(--ui-border);
-}
-body.calden-family-dark .workspace .app-page :is(
-  input:not([type=checkbox]):not([type=radio]):not([type=color]),
-  select,textarea){
-  background:var(--ui-field)!important;
-  color:var(--ui-foreground)!important;
-  border-color:var(--ui-border-strong);
-}
-body.calden-family-dark dialog:is(.package-dialog,.scope-dialog,
-  #event-dialog,#event-details-dialog){
-  background:var(--ui-surface)!important;
-  color:var(--ui-foreground);
-}
-body.calden-family-dark dialog :is(
-  input:not([type=checkbox]):not([type=radio]):not([type=color]),
-  select,textarea){
-  background:var(--ui-field)!important;
-  color:var(--ui-foreground)!important;
-}
