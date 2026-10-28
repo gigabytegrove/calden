@@ -53,11 +53,15 @@ const assert=require("node:assert/strict");
     assert.ok(light.inputHeight>=40,width+" input too small");
     assert.ok(light.buttonHeight>=39,width+" button too small");
     assert.ok(light.scrollWidth<=light.clientWidth+1,width+" packages page overflow");
-    await page.evaluate(()=>document.body.classList.add("calden-family-dark"));
     const dark=await page.evaluate(()=>{
+     // Evaluate the theme switch and its computed styles atomically. The
+     // first-run application can apply dashboard preferences asynchronously.
+     document.body.classList.add("calden-family-dark");
      const el=s=>document.querySelector("#ui-contract-fixture "+s);
      const computed=s=>getComputedStyle(el(s));
      return {
+      themeActive:document.body.classList.contains("calden-family-dark"),
+      token:getComputedStyle(document.body).getPropertyValue("--ui-surface").trim(),
       panel:computed(".panel").backgroundColor,
       field:computed("input").backgroundColor,
       widget:computed(".family-widget").backgroundColor,
@@ -65,6 +69,8 @@ const assert=require("node:assert/strict");
       overflow:el(".app-page").scrollWidth>el(".app-page").clientWidth+1
      };
     });
+    console.log(JSON.stringify({width,light,dark}));
+    assert.equal(dark.themeActive,true,width+" dark class not active");
     assert.notEqual(dark.panel,light.panel,width+" dark panel stayed white");
     assert.notEqual(dark.field,light.field,width+" dark field stayed white");
     assert.notEqual(dark.widget,light.panel,width+" family widget stayed white in dark");
