@@ -1733,3 +1733,59 @@ body :is(.app-shell,dialog,.auth-shell) :is(button,input,select,textarea)[disabl
   .workspace .app-page :is(.button,.management-card,.agenda-event,.routine-meter span,
     .package-entry,.nav-item){transition:none!important;transform:none!important}
 }
+
+
+/* First-class parcel tracking timeline. Events remain visible for shared
+   read-only viewers; only server-authorized data appears in this dialog. */
+.package-history-dialog{width:min(94vw,770px)}
+.package-history-dialog .package-form{overflow-y:auto;max-height:calc(100dvh - 36px)}
+.package-history-overview{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:12px;flex-wrap:wrap;padding:14px 16px;
+  background:var(--ui-surface-raised);border:1px solid var(--ui-border);
+  border-radius:var(--ui-radius)
+}
+.package-history-overview>div{display:grid;gap:3px;min-width:0}
+.package-history-overview strong{font-size:1.02rem;overflow-wrap:anywhere}
+.package-history-overview span{overflow-wrap:anywhere}
+.package-history-tools{
+  display:flex;justify-content:space-between;align-items:center;
+  flex-wrap:wrap;gap:12px
+}
+.package-history-tools h3{margin:0}
+.package-history-content{min-width:0}
+.package-history-timeline{margin:4px 0 12px 9px;padding:0 0 0 24px;list-style:none;border-left:2px solid var(--ui-border)}
+.package-history-event{position:relative;padding:0 0 18px 8px;min-width:0}
+.package-history-event:last-child{padding-bottom:4px}
+.package-history-dot{
+  position:absolute;left:-32px;top:5px;
+  height:13px;width:13px;background:var(--ui-surface);
+  border:3px solid var(--ui-focus);border-radius:50%
+}
+.package-history-body{
+  min-width:0;border:1px solid var(--ui-border);
+  background:var(--ui-surface-raised);border-radius:var(--ui-radius);
+  padding:12px 14px;display:grid;gap:7px
+}
+.package-history-event-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.package-history-event-head strong{font-weight:750;color:var(--ui-foreground)}
+.package-history-source{
+  border:1px solid var(--ui-border-strong);border-radius:999px;
+  font-size:.75rem;font-weight:700;padding:3px 9px;
+  color:var(--ui-subtext);background:var(--ui-surface)
+}
+.package-history-body p{margin:0;line-height:1.55;overflow-wrap:anywhere;color:var(--ui-foreground)}
+.package-history-body time{font-size:.77rem;color:var(--ui-subtext);font-variant-numeric:tabular-nums}
+.package-history-empty{
+  background:var(--ui-surface-raised);border:1px dashed var(--ui-border-strong);
+  border-radius:var(--ui-radius);padding:20px;line-height:1.55;color:var(--ui-foreground)
+}
+.package-history-empty p{margin:8px 0 0;color:var(--ui-subtext)}
+.package-history-dialog #package-history-older{align-self:flex-start}
+@media(max-width:620px){
+  .package-history-dialog{width:calc(100vw - 18px)}
+  .package-history-overview{align-items:flex-start}
+  .package-history-event-head{align-items:flex-start}
+  .package-history-body{padding:12px}
+  .package-history-tools .button{width:100%}
+}
