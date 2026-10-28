@@ -1789,3 +1789,167 @@ body :is(.app-shell,dialog,.auth-shell) :is(button,input,select,textarea)[disabl
   .package-history-body{padding:12px}
   .package-history-tools .button{width:100%}
 }
+
+
+/* Cross-module compliance: Settings, Bill Pay, integrations and notifications
+   have the same selected/action/surface semantics as the family modules. */
+.workspace .app-page :is(.settings-nav-item,.settings-calendar-choice,
+  .account-detail-grid,.account-detail-grid>div,.integration-card,
+  .import-dropzone,.import-file-summary,.google-import-calendar,
+  .google-repair-panel,.google-duplicate-summary>div,
+  .google-duplicate-example,.bill-row,.bill-row-payment,
+  .bill-payment-assignment,.bill-payment-history-row,
+  .bill-payment-summary>div,.notification-schedule-head,
+  .scheduled-reminder,.notification-inbox-row,.bill-allocation-current){
+  border-color:var(--ui-border);
+}
+.workspace .app-page .settings-nav{gap:7px;min-width:0}
+.workspace .app-page .settings-nav-item{
+  min-height:54px;padding:12px 14px;border:1px solid transparent;
+  border-radius:var(--ui-radius);
+  color:var(--ui-foreground);background:transparent;
+}
+.workspace .app-page .settings-nav-item span{
+  color:var(--ui-subtext);font-size:.76rem;line-height:1.4;
+}
+.workspace .app-page .settings-nav-item:hover{
+  background:var(--ui-surface-raised);border-color:var(--ui-border);
+}
+.workspace .app-page .settings-nav-item.active{
+  background:var(--ui-surface-selected);
+  border-color:var(--ui-focus);color:var(--ui-foreground);
+  box-shadow:none;
+}
+.workspace .app-page :is(.settings-calendar-choice,.import-file-summary,
+  .google-import-calendar,.google-duplicate-summary>div,.google-duplicate-example,
+  .bill-row,.bill-payment-history-row,.bill-payment-summary>div){
+  background:var(--ui-surface);color:var(--ui-foreground);
+}
+.workspace .app-page :is(.migration-steps,.import-dropzone,
+  .google-repair-panel,.bill-row-payment,.notification-schedule-head,
+  .bill-payment-assignment){
+  background:var(--ui-surface-raised);color:var(--ui-foreground);
+}
+.workspace .app-page :is(.migration-step strong,.import-dropzone strong,
+  .google-import-calendar strong,.google-duplicate-example strong,
+  .google-duplicate-summary strong,.bill-payment-history-row strong,
+  .bill-payment-assignment strong,.bill-payment-summary strong,
+  .bill-paid-status strong){
+  color:var(--ui-foreground);
+}
+.workspace .app-page :is(.migration-step p,.import-dropzone>span:last-child,
+  .google-import-calendar small,.google-duplicate-example span,
+  .google-duplicate-summary span,.import-file-summary span,
+  .bill-payment-history-row span,.bill-payment-history-row small,
+  .bill-payment-assignment span,.bill-payment-summary span,
+  .bill-paid-status small,.scheduled-reminder-main small,
+  .scheduled-reminder-when small,.notification-stat small,
+  .account-detail-grid span){
+  color:var(--ui-subtext);
+}
+.workspace .app-page .bill-row-payment{min-width:0}
+.workspace .app-page .bill-row-edit{color:var(--ui-foreground)}
+.workspace .app-page .bill-row-edit:hover{background:var(--ui-surface-selected)}
+.workspace .app-page :is(.bill-row.is-paid,.bill-row.is-partial,
+  .bill-row.is-allocated,.bill-row.is-cleared,.bill-row.is-no_balance){
+  background:var(--ui-surface);
+}
+.workspace .app-page .bill-payment-history-actions{border-color:var(--ui-border)}
+.workspace .app-page .bill-stat.paid-stat,
+.workspace .app-page .bill-payment-existing,
+.workspace .app-page .bill-no-balance-state{
+  background:var(--ui-success-bg);border-color:var(--ui-border);
+  color:var(--ui-success-fg);
+}
+.workspace .app-page .bill-stat.paid-stat strong,
+.workspace .app-page .bill-payment-existing :is(strong,span),
+.workspace .app-page .bill-no-balance-state :is(strong,span){
+  color:var(--ui-success-fg);
+}
+.workspace .app-page .bill-stat.outstanding-stat{
+  background:var(--ui-warning-bg);
+  border-color:var(--ui-border);color:var(--ui-warning-fg);
+}
+.workspace .app-page .bill-stat.outstanding-stat strong{color:var(--ui-warning-fg)}
+.workspace .app-page .bill-status-pill :is(strong,small){color:inherit}
+body.calden-family-dark .workspace .app-page :is(.bill-row,.bill-row-payment,
+  .bill-payment-history-row,.bill-payment-summary>div,.bill-payment-assignment,
+  .google-import-calendar,.google-repair-panel,.google-duplicate-summary>div,
+  .google-duplicate-example,.import-file-summary,.migration-steps,
+  .import-dropzone,.settings-calendar-choice,.account-detail-grid,
+  .notification-schedule-head){
+  background:var(--ui-surface-raised);
+  color:var(--ui-foreground);
+  border-color:var(--ui-border);
+}
+body.calden-family-dark .workspace .app-page :is(.bill-row.is-paid,.bill-row.is-partial,
+  .bill-row.is-allocated,.bill-row.is-cleared,.bill-row.is-no_balance,
+  .bill-row.is-paid .bill-row-payment){
+  background:var(--ui-surface-raised);
+}
+body.calden-family-dark .workspace .app-page .bill-row-edit:hover{
+  background:var(--ui-surface-selected);
+}
+body.calden-family-dark .workspace .app-page :is(.bill-status-pill.paid,
+  .bill-status-pill.cleared){
+  color:#b8efcb;background:#214536;border-color:#477e62;
+}
+body.calden-family-dark .workspace .app-page :is(.bill-status-pill.due,
+  .bill-status-pill.partial){
+  color:#ffe0a5;background:#45371f;border-color:#91713f;
+}
+body.calden-family-dark .workspace .app-page .bill-status-pill.allocated{
+  color:#d0d8ff;background:#2d365e;border-color:#647ac4;
+}
+body.calden-family-dark .workspace .app-page .bill-status-pill.no-balance{
+  color:#c2eaff;background:#17425c;border-color:#427e9f;
+}
+body.calden-family-dark .workspace .app-page .bill-payment-existing,
+body.calden-family-dark .workspace .app-page .bill-no-balance-state{
+  color:var(--ui-success-fg);background:var(--ui-success-bg);
+}
+body.calden-family-dark .workspace .app-page .import-dropzone:hover{
+  background:var(--ui-surface-selected);border-color:var(--ui-focus);
+}
+body.calden-family-dark .workspace .app-page .integration-badge{
+  background:var(--ui-surface-selected);color:var(--ui-foreground);
+}
+body.calden-family-dark .workspace .app-page :is(.google-repair-confirm,
+  .safety-note,.update-state){
+  background:var(--ui-surface-raised);
+  color:var(--ui-foreground);border-color:var(--ui-border);
+}
+body.calden-family-dark dialog :is(.bill-payment-summary>div,.bill-payment-history-row,
+  .bill-payment-assignment,.bill-payment-existing,.bill-no-balance-state){
+  background:var(--ui-surface-raised);color:var(--ui-foreground);
+  border-color:var(--ui-border);
+}
+body.calden-family-dark dialog :is(.bill-payment-summary strong,
+  .bill-payment-history-row strong,.bill-payment-assignment strong){
+  color:var(--ui-foreground);
+}
+body.calden-family-dark dialog :is(.bill-payment-summary span,
+  .bill-payment-history-row span,.bill-payment-history-row small,
+  .bill-payment-assignment span){
+  color:var(--ui-subtext);
+}
+body.calden-family-dark dialog :is(.bill-payment-existing,.bill-no-balance-state){
+  background:var(--ui-success-bg);color:var(--ui-success-fg);
+}
+body.calden-family-dark dialog .dialog-close{
+  background:var(--ui-surface-raised);color:var(--ui-foreground);
+}
+body.calden-family-dark dialog .dialog-close:hover{
+  background:var(--ui-surface-selected);
+}
+@media(max-width:620px){
+  .workspace .app-page .settings-nav{grid-template-columns:1fr}
+  .workspace .app-page .settings-nav-item{text-align:left}
+  .workspace .app-page .bill-payment-history-actions{justify-content:stretch}
+  .workspace .app-page .bill-payment-history-actions .button{flex:1 1 auto;white-space:normal}
+  .workspace .app-page .google-import-grid,
+  .workspace .app-page .google-duplicate-summary,
+  .workspace .app-page .google-duplicate-examples,
+  .workspace .app-page .bill-payment-summary,
+  .workspace .app-page .bill-breakdown-grid{grid-template-columns:minmax(0,1fr)}
+}
