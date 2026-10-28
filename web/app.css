@@ -1427,3 +1427,10 @@ body.calden-family-dark .recipecove-integration-card code{color:#bfdbfe}
 
 .package-latest-scan{display:block;margin-top:4px;overflow-wrap:anywhere;color:inherit;opacity:.85;line-height:1.4}
 .package-tracking-issue{display:block;margin-top:4px;overflow-wrap:anywhere;color:var(--text-muted,#6b7280);font-size:.76rem}
+
+/* Package onboarding: reveal technical options only on request. */
+.package-inbound-section > summary{cursor:pointer;font-weight:750;color:#253147;padding:9px 0;line-height:1.45}
+.package-inbound-section > summary:focus-visible{outline:3px solid #446899;outline-offset:3px}
+.package-inbound-section[open] > summary{margin-bottom:12px}
+#package-mailbox-form .package-form-actions{flex-wrap:wrap}
+#package-email-dialog .package-inbound-section{margin-block:12px}

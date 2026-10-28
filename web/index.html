@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#f7f8fb">
-  <meta name="calden-version" content="1.5.0-alpha.10">
+  <meta name="calden-version" content="1.5.0-alpha.11">
   <link rel="icon" type="image/svg+xml" href="/assets/calden-icon.svg">
   
   <title>Calden</title>
-  <link rel="stylesheet" href="/styles.css?v=1.5.0-alpha.10">
+  <link rel="stylesheet" href="/styles.css?v=1.5.0-alpha.11">
 </head>
 <body class="bg-slate-50 text-slate-900">
 <div id="auth" class="auth-shell">
@@ -433,7 +433,7 @@
         <div class="package-head-actions">
           <button type="button" class="button secondary" id="packages-refresh">Reload saved packages</button>
           <button type="button" class="button secondary hidden" id="packages-provider-open">Optional API (advanced)</button>
-          <button type="button" class="button secondary" id="packages-import-open">Import email</button>
+          <button type="button" class="button secondary" id="packages-import-open">Connect email</button>
           <button type="button" class="button" id="packages-add">+ Add package</button>
         </div>
       </div>
@@ -1303,25 +1303,30 @@
 
 <dialog id="package-dialog" class="package-dialog">
   <form id="package-form" class="package-form stack">
-    <div class="package-dialog-head"><div><h2 id="package-form-heading">Add package</h2><p class="muted">Only the owner can edit or archive this shipment.</p></div><button type="button" class="button secondary compact" data-close-package aria-label="Close package editor">Close</button></div>
+    <div class="package-dialog-head"><div><h2 id="package-form-heading">Add package</h2><p class="muted">Enter a name and tracking number; Calden finds the carrier and checks for updates automatically.</p></div><button type="button" class="button secondary compact" data-close-package aria-label="Close package editor">Close</button></div>
     <input type="hidden" name="id">
     <label>Package name <input name="label" maxlength="140" required placeholder="Replacement laptop battery"></label>
-    <div class="package-form-row">
-      <label>Carrier <select name="carrier" required><option value="auto" selected>Auto-detect</option><option value="ups">UPS</option><option value="usps">USPS</option><option value="fedex">FedEx</option><option value="amazon">Amazon Logistics</option><option value="other">Other</option></select></label>
-      <label>Tracking number <input name="tracking_number" maxlength="100" minlength="4" spellcheck="false" autocomplete="off" required placeholder="Enter carrier tracking ID"></label>
-    </div>
-    <p id="package-carrier-suggestion" class="muted" aria-live="polite">Carrier detected from number format. Calden checks available public sources after saving.</p>
-    <div class="package-form-row">
-      <label>Status <select name="status"><option value="unknown">Not yet verified</option><option value="label_created">Label created</option><option value="in_transit">In transit</option><option value="out_for_delivery">Out for delivery</option><option value="delivered">Delivered</option><option value="exception">Delivery exception</option></select></label>
-      <label>Expected delivery date <input type="date" name="expected_date"></label>
-    </div>
-    <label>Notes <textarea name="notes" maxlength="2000" rows="2" placeholder="Optional delivery details"></textarea></label>
-    <label class="package-sharing"><input type="checkbox" name="shared"> Share this delivery with household members</label>
-    <p class="muted">Private by default. Shared packages are visible to other adult household accounts.</p>
+    <label>Tracking number
+      <input name="tracking_number" maxlength="100" minlength="4" spellcheck="false" autocomplete="off" required placeholder="Paste your tracking number">
+    </label>
+    <p id="package-carrier-suggestion" class="muted" aria-live="polite">Carrier is detected automatically. Available scan data will appear after saving.</p>
+    <details id="package-more-details" class="package-inbound-section">
+      <summary>More options (optional)</summary>
+      <p class="muted">Calden manages these automatically. Change them only when needed.</p>
+      <label>Carrier override <select name="carrier" required>
+        <option value="auto" selected>Auto-detect</option><option value="ups">UPS</option><option value="usps">USPS</option><option value="fedex">FedEx</option><option value="amazon">Amazon Logistics</option><option value="other">Other</option>
+      </select></label>
+      <div class="package-form-row">
+        <label>Shipment status <select name="status"><option value="unknown">Not yet verified</option><option value="label_created">Label created</option><option value="in_transit">In transit</option><option value="out_for_delivery">Out for delivery</option><option value="delivered">Delivered</option><option value="exception">Delivery exception</option></select></label>
+        <label>Expected delivery <input type="date" name="expected_date"></label>
+      </div>
+      <label>Notes <textarea name="notes" maxlength="2000" rows="2" placeholder="Optional delivery instructions"></textarea></label>
+      <label class="package-sharing"><input type="checkbox" name="shared"> Share with other adults in my household</label>
+    </details>
     <p id="package-form-error" class="error" role="alert"></p>
     <p id="package-tracking-details" class="muted" role="status" aria-live="polite"></p>
     <div class="package-form-actions">
-      <button type="button" class="button danger hidden" id="package-archive">Archive</button>
+      <button type="button" class="button danger hidden" id="package-delete">Delete package</button>
       <button type="button" class="button secondary hidden" id="package-update-status">Check tracking now</button>
       <a id="package-track-link" class="button secondary hidden" target="_blank" rel="noopener noreferrer">Track with carrier</a>
       <span class="grow"></span><button type="submit" class="button" id="package-save">Save package</button>
@@ -1332,61 +1337,76 @@
 
 <dialog id="package-email-dialog" class="package-dialog">
   <div class="package-form stack">
-    <div class="package-dialog-head"><div><h2>Import shipping emails</h2><p class="muted">No carrier account passwords are required.</p></div><button type="button" class="button secondary compact" data-close-package-email>Close</button></div>
-    <form id="package-email-form" class="stack">
-      <label>Paste a complete shipping email (including headers)
-        <textarea name="raw_email" rows="7" maxlength="262144" placeholder="From: ...&#10;Subject: Your package shipped&#10;&#10;Tracking: 1Z..."></textarea>
-      </label>
-      <label>Or import an .eml file <input id="package-email-file" type="file" accept=".eml,message/rfc822,text/plain"></label>
-      <button class="button" type="submit">Extract tracking numbers</button>
-    </form>
-    <p id="package-email-status" class="status-line" aria-live="polite"></p>
-    <div class="package-inbound-section">
-      <h3>Automatic import from your mail gateway</h3>
-      <p class="muted">For a mail system that supports HTTP forwarding, POST the raw RFC 822 email as the request body to the endpoint below, with <code>Authorization: Bearer YOUR_TOKEN</code>. The token is generated per user and shown only once.</p>
+    <div class="package-dialog-head"><div><h2>Automatic package discovery</h2><p class="muted">Connect an inbox once and let Calden look for shipping emails.</p></div><button type="button" class="button secondary compact" data-close-package-email>Close</button></div>
+    <section class="package-inbound-section" aria-label="Connect inbox">
+      <h3>Connect your email</h3>
+      <p class="muted">Calden checks for new shipping notices every 15 minutes, imports tracking numbers, and then checks available carrier data. Your messages stay in your inbox.</p>
+      <form id="package-mailbox-form" class="stack">
+        <label>Email provider
+          <select id="package-email-provider">
+            <option value="gmail">Gmail — guided setup</option>
+            <option value="other">Other email service — advanced</option>
+          </select>
+        </label>
+        <label>Your email address
+          <input name="username" maxlength="254" type="email" autocomplete="username" required placeholder="you@gmail.com" aria-describedby="package-email-account-hint">
+        </label>
+        <p id="package-email-account-hint" class="muted" aria-live="polite">For Gmail, enter your Gmail address. Calden chooses the secure mail server automatically.</p>
+        <label>App password (not your normal email password)
+          <input name="password" maxlength="1024" type="password" autocomplete="new-password" placeholder="Paste a Google app password" aria-describedby="package-mailbox-password-help">
+        </label>
+        <p id="package-mailbox-password-help" class="muted">For Gmail, turn on Google 2-Step Verification, then open <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer">Google App Passwords</a>, create one for Calden, and paste it here. Google may not offer app passwords on every account. Calden does not need your normal Google password.</p>
+        <details id="package-mailbox-advanced" class="package-inbound-section">
+          <summary>Advanced server settings</summary>
+          <p class="muted">Gmail needs no server configuration. Other inboxes require a mail server explicitly approved by your Calden administrator. OAuth-only accounts such as Microsoft 365 cannot connect with an app password here.</p>
+          <label>Secure IMAP hostname
+            <input name="hostname" maxlength="253" value="auto" required autocomplete="off" spellcheck="false" placeholder="imap.example.com">
+          </label>
+        </details>
+        <label class="toggle-row"><input name="enabled" type="checkbox" checked><span>Automatically check for packages every 15 minutes</span></label>
+        <div class="package-form-actions">
+          <button class="button" type="submit" id="package-mailbox-save">Connect inbox</button>
+          <button class="button secondary" type="button" id="package-mailbox-check">Check inbox now</button>
+          <button class="button secondary" type="button" id="package-mailbox-reload">Refresh connection</button>
+          <button class="button danger" type="button" id="package-mailbox-remove">Disconnect</button>
+        </div>
+        <p id="package-mailbox-status" class="status-line" role="status" aria-live="polite">No inbox connected.</p>
+      </form>
+    </section>
+    <details class="package-inbound-section" id="package-email-manual">
+      <summary>Import a shipping email manually</summary>
+      <p class="muted">For a one-off email, upload its .eml file or paste the complete email, including headers.</p>
+      <form id="package-email-form" class="stack">
+        <label>Shipping email
+          <textarea name="raw_email" rows="5" maxlength="262144" placeholder="From: shipping@example.com&#10;Subject: Your package shipped&#10;&#10;Tracking number..."></textarea>
+        </label>
+        <label>Or select an .eml file <input id="package-email-file" type="file" accept=".eml,message/rfc822,text/plain"></label>
+        <button class="button secondary" type="submit">Import tracking numbers</button>
+      </form>
+      <p id="package-email-status" class="status-line" aria-live="polite"></p>
+    </details>
+    <details class="package-inbound-section" id="package-inbound-advanced">
+      <summary>Advanced: connect your own mail gateway</summary>
+      <p class="muted">For administrators who already operate an email gateway. Send raw RFC 822 messages with a per-user bearer token to this HTTPS endpoint. Most households do not need this.</p>
       <code id="package-inbound-url"></code>
       <p id="package-token-status" class="muted"></p>
-      <label class="package-token-label">New one-time token <input id="package-email-token-value" readonly autocomplete="off" spellcheck="false" placeholder="Only shown after generating a new token"></label>
+      <label class="package-token-label">One-time forwarding token <input id="package-email-token-value" readonly autocomplete="off" spellcheck="false"></label>
       <div class="package-form-actions">
         <button type="button" class="button secondary" id="package-token-generate">Generate / rotate token</button>
         <button type="button" class="button danger" id="package-token-revoke">Revoke token</button>
       </div>
-    </div>
-    <section class="package-inbound-section" aria-label="Automatic mailbox discovery">
-      <h3>Automatically discover packages from your inbox</h3>
-      <p class="muted">Connect Gmail using a dedicated Google app password, or an administrator-approved IMAP server. Calden reads recent messages over verified TLS without marking them as read. Mailbox passwords are encrypted and never displayed again. Outlook and Microsoft 365 require OAuth and are not supported by this password-based connection.</p>
-      <form id="package-mailbox-form" class="stack">
-        <label>IMAP server
-          <input name="hostname" maxlength="253" value="imap.gmail.com" required autocomplete="off" spellcheck="false" aria-describedby="package-imap-host-help">
-        </label>
-        <p id="package-imap-host-help" class="muted">Default: imap.gmail.com (TLS port 993). Custom hosts require CALDEN_PACKAGE_IMAP_ALLOWED_HOSTS on the server.</p>
-        <label>Mailbox username / email
-          <input name="username" maxlength="254" type="text" autocomplete="username" required placeholder="you@gmail.com">
-        </label>
-        <label>IMAP app password
-          <input name="password" maxlength="1024" type="password" autocomplete="new-password" placeholder="Enter to connect or replace the saved password">
-        </label>
-        <label class="toggle-row"><input name="enabled" type="checkbox"><span>Automatically check this inbox for shipping emails</span></label>
-        <div class="package-form-actions">
-          <button class="button" type="submit" id="package-mailbox-save">Save connection</button>
-          <button class="button secondary" type="button" id="package-mailbox-check">Check now</button>
-          <button class="button secondary" type="button" id="package-mailbox-reload">Refresh status</button>
-          <button class="button danger" type="button" id="package-mailbox-remove">Disconnect</button>
-        </div>
-        <p id="package-mailbox-status" class="status-line" role="status" aria-live="polite">No mailbox connected.</p>
-      </form>
-    </section>
+    </details>
   </div>
 </dialog>
 
-<script src="/app.js?v=1.5.0-alpha.10" defer></script>
-<script src="/packages.js?v=1.5.0-alpha.10-packages" defer></script>
-<script src="/routines.js?v=1.5.0-alpha.10-family-routines" defer></script>
-<script src="/rewards.js?v=1.5.0-alpha.10-family-rewards" defer></script>
-<script src="/children.js?v=1.5.0-alpha.10-family-children" defer></script>
-<script src="/meals.js?v=1.5.0-alpha.10-recipecove-meals" defer></script>
-<script src="/family-care.js?v=1.5.0-alpha.10-family-care" defer></script>
-<script src="/family-appearance.js?v=1.5.0-alpha.10-family-appearance" defer></script>
-<script src="/notification-preferences.js?v=1.5.0-alpha.10-user-alerts" defer></script>
+<script src="/app.js?v=1.5.0-alpha.11" defer></script>
+<script src="/packages.js?v=1.5.0-alpha.11-packages" defer></script>
+<script src="/routines.js?v=1.5.0-alpha.11-family-routines" defer></script>
+<script src="/rewards.js?v=1.5.0-alpha.11-family-rewards" defer></script>
+<script src="/children.js?v=1.5.0-alpha.11-family-children" defer></script>
+<script src="/meals.js?v=1.5.0-alpha.11-recipecove-meals" defer></script>
+<script src="/family-care.js?v=1.5.0-alpha.11-family-care" defer></script>
+<script src="/family-appearance.js?v=1.5.0-alpha.11-family-appearance" defer></script>
+<script src="/notification-preferences.js?v=1.5.0-alpha.11-user-alerts" defer></script>
 </body>
 </html>

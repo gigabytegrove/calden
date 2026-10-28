@@ -136,7 +136,7 @@ func New(cfg Config) http.Handler {
     mux.Handle("GET /api/packages/{id}", s.auth(http.HandlerFunc(s.getPackage)))
     mux.Handle("GET /api/packages/{id}/history", s.auth(http.HandlerFunc(s.packageHistory)))
     mux.Handle("PUT /api/packages/{id}", s.auth(http.HandlerFunc(s.updatePackage)))
-    mux.Handle("DELETE /api/packages/{id}", s.auth(http.HandlerFunc(s.archivePackage)))
+    mux.Handle("DELETE /api/packages/{id}", s.auth(http.HandlerFunc(s.deletePackage)))
     mux.Handle("POST /api/packages/import-email", s.auth(http.HandlerFunc(s.importPackageEmail)))
     mux.Handle("GET /api/packages/email-token", s.auth(http.HandlerFunc(s.packageEmailTokenInfo)))
     mux.Handle("POST /api/packages/email-token", s.auth(http.HandlerFunc(s.rotatePackageEmailToken)))

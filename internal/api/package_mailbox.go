@@ -30,6 +30,18 @@ type packageMailboxRecord struct {
  LastError string `json:"last_error,omitempty"`
  LastImported int `json:"last_imported"`
 }
+// Only trusted, explicitly supported providers can be selected automatically.
+// Never derive an arbitrary dial target from an email address.
+func resolvePackageIMAPHost(host,user string) string {
+ host=strings.ToLower(strings.TrimSpace(host))
+ if host!=""&&host!="auto"{return host}
+ at:=strings.LastIndexByte(strings.ToLower(strings.TrimSpace(user)),'@')
+ if at<0{return ""}
+ switch strings.ToLower(strings.TrimSpace(user[at+1:])) {
+ case "gmail.com","googlemail.com":return "imap.gmail.com"
+ default:return ""
+ }
+}
 func allowedPackageIMAPHost(host string) bool{
  // Custom servers require deployment-side opt-in to avoid arbitrary internal
  // network connections and credential exfiltration to user-supplied hosts.
@@ -55,10 +67,10 @@ func (s *server) savePackageMailbox(w http.ResponseWriter,r *http.Request){
  if !packageCanWrite(r){writeError(w,403,"Mailboxes require an adult account");return}
  var in packageMailboxConfig
  if decode(r,&in)!=nil{writeError(w,400,"Check the mailbox settings");return}
- in.Hostname=strings.ToLower(strings.TrimSpace(in.Hostname))
  in.Username=strings.TrimSpace(in.Username)
+ in.Hostname=resolvePackageIMAPHost(in.Hostname,in.Username)
  if !allowedPackageIMAPHost(in.Hostname)||strings.ContainsAny(in.Hostname," /\\:@")||len(in.Username)<3||len(in.Username)>254{
-  writeError(w,400,"Choose a server authorized by your Calden administrator and a valid mailbox username");return
+  writeError(w,400,"For automatic email setup, enter a Gmail address. Other mailboxes require an administrator-approved server");return
  }
  if _,err:=imapQuote(in.Username);err!=nil{writeError(w,400,"Invalid mailbox username");return}
  if len(in.Password)>1024||strings.ContainsAny(in.Password,"\r\n\x00"){writeError(w,400,"Invalid app password");return}

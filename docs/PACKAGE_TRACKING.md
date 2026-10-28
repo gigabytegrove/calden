@@ -53,7 +53,7 @@ The import handler does not load embedded URLs, fetch untrusted images, save ema
 - Migration `041_package_tracking.sql` adds shipment and checkpoint storage. Migration `042_package_inbound_tokens.sql` adds hashed per-user ingress credentials. Migration `043_package_mailboxes.sql` stores encrypted mailbox settings and UID cursors.
 - Neither migration changes regular calendar records. Existing data and UI are preserved when Packages is disabled.
 - Delivery dates are user-supplied dates (not guaranteed carrier estimates). Updating the date moves the calendar overlay automatically.
-- Archive is a soft archive; past records remain in PostgreSQL.
+- **Delete is permanent**: removing a package deletes the owner's shipment and tracking history. Existing archived test records are cleared when the same owner re-adds that number.
 
 ## Limitations
 
@@ -70,3 +70,9 @@ The bundled engine uses site adapters and browser/HTTP sources; carriers frequen
 ### Alpha.9 tracking safeguards
 
 The scanner uses the provider's real stage vocabulary, including registered, customs and ready-for-pickup. It records facility descriptions and scan timestamps only when the source provides a timezone, avoiding silently interpreting unzoned local clocks as UTC. It verifies any primary tracking number supplied by the adapter before applying a status; updates for an unrelated shipment are rejected. Carrier events remain deduplicated across three-hour updates. The Node subprocess receives a **strictly allowlisted environment**, excluding Calden's database, JWT and SMTP secrets. End-to-end integration tests simulate the actual Node CLI and verify PostgreSQL persistence without requiring paid credentials.
+
+## Guided Packages workflow (v1.5.0-alpha.11)
+
+A package requires only a **name and tracking number**. Advanced carrier/status/date controls are optional and collapsed, and the saved package is sent to Calden's local tracking flow. Owned packages can be permanently deleted from their row or editor after confirmation; other household members cannot delete them. When the Packages view is open, it refreshes automatically every minute to show newly discovered information.
+
+**Connect email** defaults to Gmail and chooses `imap.gmail.com` automatically based on the entered Gmail email address. Create a dedicated app password from Google's [App Passwords](https://myaccount.google.com/apppasswords) page (when available) and paste it into Calden. The normal Google account password is not appropriate. Connections are stored encrypted, and enabled inboxes are polled approximately every 15 minutes without marking messages read. Admin-approved custom IMAP servers and HTTP gateway tokens remain under Advanced. This is **not Google OAuth** and it cannot automatically connect to Microsoft 365/Outlook OAuth-only inboxes.
