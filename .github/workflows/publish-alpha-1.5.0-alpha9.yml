@@ -182,6 +182,34 @@ jobs:
           (cd dist && sha256sum calden-linux-amd64.tar.gz calden-linux-arm64.tar.gz \
             calden-tracker-linux-amd64.tar.gz calden-tracker-linux-arm64.tar.gz > SHA256SUMS \
             && sha256sum -c SHA256SUMS)
+      - name: Ensure the repair archives fit the application's bounded installer
+        if: steps.existing_release.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import tarfile
+          compressed_limit = 1200 << 20
+          expanded_limit = 4096 << 20
+          for arch in ("amd64", "arm64"):
+              path = f"dist/calden-tracker-linux-{arch}.tar.gz"
+              compressed = os.stat(path).st_size
+              if compressed > compressed_limit:
+                  raise SystemExit(f"{arch} repair bundle exceeds downloader limit: {compressed}")
+              expanded = 0
+              with tarfile.open(path, "r|gz") as archive:
+                  for member in archive:
+                      if member.name != "runtime" and not member.name.startswith("runtime/"):
+                          raise SystemExit(f"{arch} has an unsafe archive path")
+                      if not (member.isfile() or member.isdir()):
+                          raise SystemExit(f"{arch} has an unsupported archive member")
+                      if member.isfile():
+                          expanded += member.size
+                          if expanded > expanded_limit:
+                              raise SystemExit(f"{arch} exceeds unpacked safety limit")
+              print(f"{arch} tracker: {compressed:,} compressed bytes, {expanded:,} expanded bytes")
+          PY
       - name: Verify automatic repair payload works without root on Alpine
         if: steps.existing_release.outputs.exists != 'true'
         shell: bash
