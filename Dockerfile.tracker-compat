@@ -17,6 +17,7 @@ RUN set -eux; \
     cp -RL /usr/share/. /out/runtime/share/; \
     cp -RL /etc/fonts /out/runtime/etc/fonts; \
     cp -RL /usr/lib/chromium/. /out/runtime/chromium/; \
+    rm -rf /out/runtime/lib/chromium; \
     if test -x /usr/lib/chromium/chromium; then :; \
     elif test -x /usr/lib/chromium/chrome; then cp /usr/lib/chromium/chrome /out/runtime/chromium/chromium; \
     else echo 'Chrome executable not found' >&2; exit 1; fi; \
