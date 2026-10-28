@@ -216,24 +216,37 @@ func(s *server) syncLocalScraperTracking(ctx context.Context,job dueTracking)err
  job.ID,job.Number,stage,carrier,label,date)
  if err!=nil{return err}
  if tag.RowsAffected()!=1{return errors.New("Shipment changed before carrier update completed")}
+ eventsSaved:=0
  for _,e:=range response.Result.Events{
-  code:=normalizeLocalStage(e.Stage);if code==""{continue}
+  // Preserve the carrier's actual history even when its event-stage vocabulary
+  // is newer than Calden's shipment status mapping. Unknown stages are
+  // historical observations, not fabricated delivery status transitions.
+  code:=normalizeLocalStage(e.Stage)
+  if code==""{code="unknown"}
   desc:=strings.TrimSpace(e.Description)
-  if loc:=strings.TrimSpace(e.Location);loc!=""{desc+=" · "+loc}
+  if loc:=strings.TrimSpace(e.Location);loc!=""{
+   if desc!=""{desc+=" · "}
+   desc+=loc
+  }
+  if desc==""{desc="Carrier event: "+strings.TrimSpace(e.Stage)}
   eventAt:=localScanTime(e.Instant)
   if eventAt.IsZero(){eventAt=localScanTime(e.Time)}
-  // A human-visible local timestamp is useful but must not be converted
-  // into an invented UTC instant when the timezone is unknown.
-  if eventAt.IsZero()&&e.LocalTime!=""{desc+=" ("+strings.TrimSpace(e.LocalTime)+" local time)"}
+  // Unzoned carrier times are descriptions, not absolute timestamps.
+  if eventAt.IsZero(){
+   local:=strings.TrimSpace(e.LocalTime)
+   if local==""{local=strings.TrimSpace(e.Time)}
+   if local!=""{desc+=" ("+local+"; carrier time zone not provided)"}
+   desc+=" [Recorded by Calden; scan time not verified]"
+   eventAt=time.Now().UTC()
+  }
   desc=cleanText(desc,480)
-  if desc==""{desc="Carrier reported "+e.Stage}
-  if eventAt.IsZero(){eventAt=time.Now().UTC()}
   _,err=tx.Exec(ctx,`INSERT INTO package_checkpoints(shipment_id,status,detail,source,occurred_at,provider_ref)
   VALUES($1,$2,$3,'provider',$4,$5) ON CONFLICT DO NOTHING`,
   job.ID,code,desc,eventAt,localScanRef(e))
   if err!=nil{return fmt.Errorf("Could not record carrier event: %w",err)}
+  eventsSaved++
  }
- if len(response.Result.Events)==0{
+ if eventsSaved==0{
   ref:="local:current:"+stage
   _,err=tx.Exec(ctx,`INSERT INTO package_checkpoints(shipment_id,status,detail,source,provider_ref)
   VALUES($1,$2,'Carrier status retrieved','provider',$3) ON CONFLICT DO NOTHING`,job.ID,stage,ref)
