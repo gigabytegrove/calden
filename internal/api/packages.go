@@ -83,6 +83,9 @@ func packageTrackingURL(carrier,number string)string{
  }
 }
 func (s *server) requirePackages(w http.ResponseWriter,r *http.Request)bool{
+ // Child accounts cannot access package metadata or tracking history,
+ // regardless of a stale client, direct URL, or shared package flag.
+ if currentActor(r).IsChild {writeError(w,http.StatusForbidden,"Package tracking is unavailable to child accounts");return false}
  var enabled bool
  err:=s.db.QueryRow(r.Context(),"SELECT COALESCE((SELECT value='true' FROM app_settings WHERE key='packages_enabled'),false)").Scan(&enabled)
  if err!=nil {writeError(w,500,"Could not check package tracking settings");return false}
