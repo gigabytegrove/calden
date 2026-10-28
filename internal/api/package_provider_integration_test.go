@@ -46,6 +46,15 @@ func TestPackageProviderDatabaseIntegration(t *testing.T){
  if err!=nil||!claimed||job.Carrier!="ups"{t.Fatalf("first provider claim %#v %v %v",job,claimed,err)}
  _,again,err:=claimTracking(ctx,db,id)
  if err!=nil||again{t.Fatalf("three-hour throttling bypass: %v / %v",again,err)}
+ // A user-initiated check must not be blocked by the three-hour scheduler.
+ manualJob,manualClaim,err:=claimManualTracking(ctx,db,id)
+ if err!=nil||!manualClaim||manualJob.ID!=id{t.Fatalf("manual carrier check incorrectly blocked: %#v %v %v",manualJob,manualClaim,err)}
+ _,manualAgain,err:=claimManualTracking(ctx,db,id)
+ if err!=nil||manualAgain{t.Fatalf("manual check cooldown ignored: %v %v",manualAgain,err)}
+ _,err=db.Exec(ctx,"UPDATE package_shipments SET last_tracking_check_at=now()-interval '3 minutes' WHERE id=$1",id)
+ if err!=nil{t.Fatal(err)}
+ _,manualAgain,err=claimManualTracking(ctx,db,id)
+ if err!=nil||!manualAgain{t.Fatalf("manual check still blocked after cooldown: %v %v",manualAgain,err)}
  var next time.Time
  if err=db.QueryRow(ctx,"SELECT next_tracking_check_at FROM package_shipments WHERE id=$1",id).Scan(&next);err!=nil{t.Fatal(err)}
  if next.Before(time.Now().Add(2*time.Hour+58*time.Minute)){t.Fatalf("next poll isn't 3 hours out: %v",next)}
