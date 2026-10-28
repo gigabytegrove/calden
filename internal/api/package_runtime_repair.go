@@ -166,6 +166,8 @@ func StartParcelRuntimeRepair(ctx context.Context,db *pgxpool.Pool){
   repair:=func(){
    if err:=parcelRepair(ctx);err!=nil{
     parcelSetState("retrying","Calden is retrying automatic tracking repair.")
+   }else{
+    _,_=db.Exec(ctx,"UPDATE package_shipments SET next_tracking_check_at=now() WHERE NOT archived AND status!='delivered' AND status_source!='provider'")
    }
   }
   repair()
