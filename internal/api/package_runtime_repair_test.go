@@ -8,6 +8,8 @@ import (
  "path/filepath"
  "strings"
  "testing"
+ "time"
+ "github.com/gigabytegrove/calden/internal/store"
 )
 func writeTestTrackerTar(t *testing.T,entry string,kind byte) string {
  t.Helper()
@@ -43,4 +45,22 @@ func TestTrackerRepairKeepsDataRootPrivate(t *testing.T) {
 }
 func TestTrackerRepairDoesNotAcceptMissingCLI(t *testing.T) {
  if parcelProbe(context.Background(),t.TempDir()){t.Fatal("missing CLI accepted as ready")}
+}
+
+func TestTrackerSelfRepairRespectsOptInSetting(t *testing.T){
+ conn:=os.Getenv("CALDEN_TEST_DATABASE_URL")
+ if conn==""{t.Skip("requires isolated PostgreSQL test database")}
+ ctx,cancel:=context.WithTimeout(context.Background(),90*time.Second);defer cancel()
+ db,err:=store.Open(ctx,conn);if err!=nil{t.Fatal(err)};defer db.Close()
+ if err=store.Migrate(ctx,db);err!=nil{t.Fatal(err)}
+ // Test both settings without changing other suites' global feature state.
+ tx,err:=db.Begin(ctx);if err!=nil{t.Fatal(err)};defer tx.Rollback(ctx)
+ for _,tc:=range []struct{value string;want bool}{{"false",false},{"true",true}}{
+  _,err=tx.Exec(ctx,`INSERT INTO app_settings(key,value)
+  VALUES('packages_enabled',$1) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value`,tc.value)
+  if err!=nil{t.Fatal(err)}
+  got,err:=parcelTrackingEnabled(ctx,tx)
+  if err!=nil{t.Fatal(err)}
+  if got!=tc.want{t.Fatalf("packages_enabled=%s produced %v; expected %v",tc.value,got,tc.want)}
+ }
 }
