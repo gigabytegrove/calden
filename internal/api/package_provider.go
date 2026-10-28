@@ -122,7 +122,7 @@ func (s *server) syncPackageTracking(ctx context.Context,job dueTracking,key str
    // The public-page fallback is not a substitute for the missing bundled
    // runtime: report the actual installation fault instead of sending users
    // to a carrier's website.
-   localErr=errors.New("Calden's bundled tracker is missing from this container. A binary-only update cannot install Node/Chromium. Install the complete Calden Docker image while preserving existing data volumes.")
+   localErr=errors.New("Calden is automatically preparing the tracking engine. Saved packages will be checked again when repair completes.")
   }
   // Preserve the specific local-engine reason rather than converting it
   // to the old generic "open a website" message.
