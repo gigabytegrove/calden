@@ -1,8 +1,8 @@
-name: Publish Calden 1.5.0-alpha.9 Local Tracking
+name: Publish Calden 1.5.0-alpha.10 Local Tracking
 
 on:
   push:
-    branches: [alpha/v1.5.0-alpha.9]
+    branches: [calden-alpha10-tracking-ui]
   workflow_dispatch:
 
 permissions:
@@ -10,7 +10,7 @@ permissions:
   packages: write
 
 concurrency:
-  group: calden-alpha9-release
+  group: calden-alpha10-release
   cancel-in-progress: true
 
 jobs:
@@ -39,7 +39,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TAG="v1.5.0-alpha.9"
+          TAG="v1.5.0-alpha.10"
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
             mkdir -p existing-release
@@ -49,7 +49,7 @@ jobs:
               --pattern 'SHA256SUMS'
             (cd existing-release && sha256sum -c SHA256SUMS)
             test "$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets | length')" = "3"
-            echo "Existing alpha9 already has both verified update bundles; Docker tag will not be overwritten."
+            echo "Existing alpha10 already has both verified update bundles; Docker tag will not be overwritten."
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
@@ -57,14 +57,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(cat VERSION)" = "1.5.0-alpha.9"
-          grep -Fq 'name="calden-version" content="1.5.0-alpha.9"' web/index.html
+          test "$(cat VERSION)" = "1.5.0-alpha.10"
+          grep -Fq 'name="calden-version" content="1.5.0-alpha.10"' web/index.html
           grep -Fq 'id="page-packages"' web/index.html
           grep -Fq 'id="page-meals"' web/index.html
           grep -Fq 'id="settings-packages-enabled"' web/index.html
           grep -Fq 'id="settings-meals-enabled"' web/index.html
           test -f internal/api/package_local_scraper.go
-          test -f docs/releases/v1.5.0-alpha.9.md
+          test -f docs/releases/v1.5.0-alpha.10.md
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
@@ -94,7 +94,7 @@ jobs:
           for ARCH in amd64 arm64; do
             mkdir -p "stage/$ARCH"
             CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" go build -trimpath \
-              -ldflags="-s -w -X main.version=1.5.0-alpha.9" \
+              -ldflags="-s -w -X main.version=1.5.0-alpha.10" \
               -o "stage/$ARCH/calden" ./cmd/calden
             chmod 0755 "stage/$ARCH/calden"
             cp -a web "stage/$ARCH/web"
@@ -107,12 +107,12 @@ jobs:
       - name: Build complete amd64 local tracker image with real Node and Chromium
         if: steps.existing_release.outputs.exists != 'true'
         run: |
-          docker build --build-arg CALDEN_RUN_TESTS=1 -t calden-alpha9:ci .
-          docker run --rm --entrypoint node calden-alpha9:ci \
+          docker build --build-arg CALDEN_RUN_TESTS=1 -t calden-alpha10:ci .
+          docker run --rm --entrypoint node calden-alpha10:ci \
             /opt/calden-parcel/node_modules/universal-parcel-scraper/dist/cli/index.js detect 1Z999AA10123456784 \
             > /tmp/carrier-detection.json
           grep -qi ups /tmp/carrier-detection.json
-          docker run --rm --entrypoint sh calden-alpha9:ci -c \
+          docker run --rm --entrypoint sh calden-alpha10:ci -c \
             'test -x /usr/bin/chromium && test -f /opt/calden-parcel/node_modules/universal-parcel-scraper/LICENSE && test -x /app/calden'
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
@@ -121,7 +121,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Publish isolated alpha9 Docker images
+      - name: Publish isolated alpha10 Docker images
         if: steps.existing_release.outputs.exists != 'true'
         uses: docker/build-push-action@v6
         with:
@@ -131,11 +131,11 @@ jobs:
           build-args: |
             CALDEN_RUN_TESTS=1
           tags: |
-            ghcr.io/gigabytegrove/calden:1.5.0-alpha.9
+            ghcr.io/gigabytegrove/calden:1.5.0-alpha.10
           labels: |
             org.opencontainers.image.title=Calden
             org.opencontainers.image.source=https://github.com/gigabytegrove/calden
-            org.opencontainers.image.version=1.5.0-alpha.9
+            org.opencontainers.image.version=1.5.0-alpha.10
             org.opencontainers.image.revision=${{ github.sha }}
       - name: Publish release with required runtime archives and checksums
         if: steps.existing_release.outputs.exists != 'true'
@@ -144,7 +144,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TAG="v1.5.0-alpha.9"
+          TAG="v1.5.0-alpha.10"
           if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Release appeared while publishing; refusing to overwrite it"
             exit 1
@@ -153,6 +153,6 @@ jobs:
             dist/calden-linux-amd64.tar.gz dist/calden-linux-arm64.tar.gz dist/SHA256SUMS \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "Calden 1.5.0-alpha.9 — Free Keyless Package Tracking" \
-            --notes-file docs/releases/v1.5.0-alpha.9.md \
+            --title "Calden 1.5.0-alpha.10 — Free Keyless Package Tracking" \
+            --notes-file docs/releases/v1.5.0-alpha.10.md \
             --prerelease --latest=false
