@@ -127,6 +127,7 @@ func New(cfg Config) http.Handler {
     mux.Handle("PUT /api/packages/provider", s.auth(s.admin(http.HandlerFunc(s.saveTrackingProvider))))
     mux.Handle("DELETE /api/packages/provider", s.auth(s.admin(http.HandlerFunc(s.deleteTrackingProvider))))
     mux.Handle("POST /api/packages/{id}/refresh", s.auth(http.HandlerFunc(s.refreshPackageTracking)))
+    mux.Handle("GET /api/packages/tracker-health", s.auth(http.HandlerFunc(s.packageTrackerHealth)))
     mux.Handle("GET /api/packages/mailbox", s.auth(http.HandlerFunc(s.packageMailboxInfo)))
     mux.Handle("PUT /api/packages/mailbox", s.auth(http.HandlerFunc(s.savePackageMailbox)))
     mux.Handle("DELETE /api/packages/mailbox", s.auth(http.HandlerFunc(s.deletePackageMailbox)))
