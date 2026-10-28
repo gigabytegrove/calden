@@ -112,18 +112,27 @@ func claimManualTracking(ctx context.Context,db *pgxpool.Pool,id uuid.UUID)(dueT
 }
 func (s *server) syncPackageTracking(ctx context.Context,job dueTracking,key string)error{
  if key==""{
+  // Recovery can begin between claiming a check and starting the subprocess.
+  // Never consume the 3-hour slot, or disclose a tracking number to a public
+  // fallback solely because a managed runtime was temporarily unavailable.
+  if parcelTrackingPending(key){
+   _,_=s.db.Exec(ctx,`UPDATE package_shipments
+    SET next_tracking_check_at=now(),tracking_error=''
+    WHERE id=$1 AND tracking_number=$2 AND NOT archived`,job.ID,job.Number)
+   return errors.New("Calden is preparing the tracking engine automatically.")
+  }
   localErr:=s.syncLocalScraperTracking(ctx,job)
   if localErr==nil{return nil}
-  // Native runtimes without the bundled Node engine and carriers with
-  // unsupported adapters still get an official public-page attempt.
+  if errors.Is(localErr,errLocalScraperUnavailable)&&parcelTrackingPending(key){
+   _,_=s.db.Exec(ctx,`UPDATE package_shipments
+    SET next_tracking_check_at=now(),tracking_error=''
+    WHERE id=$1 AND tracking_number=$2 AND NOT archived`,job.ID,job.Number)
+   return errors.New("Calden is preparing the tracking engine automatically.")
+  }
+  // A functioning tracker may encounter a carrier that blocks automation.
+  // Only then is the public-page fallback a useful second attempt.
   publicErr:=s.syncPublicTracking(ctx,job)
   if publicErr==nil{return nil}
-  if errors.Is(localErr,errLocalScraperUnavailable){
-   // The public-page fallback is not a substitute for the missing bundled
-   // runtime: report the actual installation fault instead of sending users
-   // to a carrier's website.
-   localErr=errors.New("Calden is automatically preparing the tracking engine. Saved packages will be checked again when repair completes.")
-  }
   // Preserve the specific local-engine reason rather than converting it
   // to the old generic "open a website" message.
   _,_=s.db.Exec(ctx,`UPDATE package_shipments SET tracking_error=$3,last_tracking_check_at=now()
@@ -220,6 +229,20 @@ func(s *server) refreshPackageTracking(w http.ResponseWriter,r *http.Request){
  id,ok:=s.packageByID(w,r,true);if !ok{return}
  key,err:=s.trackingProviderKey(r.Context())
  if err!=nil{writeError(w,500,"Tracking provider settings are unavailable");return}
+ if parcelTrackingPending(key){
+  // Repair runs in the application's background worker. Do not spend a manual
+  // request or mark a failed carrier attempt before it has finished.
+  _,err=s.db.Exec(r.Context(),`UPDATE package_shipments
+   SET next_tracking_check_at=now(),tracking_error=''
+   WHERE id=$1 AND NOT archived AND status!='delivered'`,id)
+  if err!=nil{writeError(w,500,"Could not queue tracking after repair");return}
+  writeJSON(w,http.StatusAccepted,map[string]any{
+   "status":"repairing",
+   "message":"Calden is preparing its tracking engine. This package will be checked automatically when recovery completes.",
+   "retry_after_seconds":30,
+  })
+  return
+ }
  job,claimed,err:=claimManualTracking(r.Context(),s.db,id)
  if err!=nil{writeError(w,500,"Could not schedule tracking lookup");return}
  if !claimed{writeJSON(w,200,map[string]any{"status":"rate_limited","message":"A carrier check was attempted recently. Manual checks can run again after two minutes; automatic checks still run every three hours."});return}
@@ -245,6 +268,9 @@ func StartPackageTracking(ctx context.Context,db *pgxpool.Pool,master []byte){
 func processDuePackageTracking(ctx context.Context,db *pgxpool.Pool,master []byte){
  s:=&server{db:db,jwtSecret:master}
  key,err:=s.trackingProviderKey(ctx);if err!=nil{return}
+ // A startup repair is not a carrier attempt. Leave all due records eligible
+ // until the bundled engine passes validation and can perform real lookups.
+ if parcelTrackingPending(key){return}
  rows,err:=db.Query(ctx,`WITH due AS (
  SELECT id FROM package_shipments
  WHERE NOT archived AND status!='delivered' AND next_tracking_check_at<=now()
