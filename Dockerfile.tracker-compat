@@ -11,14 +11,18 @@ RUN node node_modules/universal-parcel-scraper/dist/cli/index.js detect 1Z999AA1
     && grep -qi UPS /tmp/detect.json
 RUN set -eux; \
     mkdir -p /out/runtime/lib /out/runtime/chromium /out/runtime/parcel /out/runtime/share /out/runtime/etc; \
-    cp -a /usr/lib/. /out/runtime/lib/; \
+    cp -RL /usr/lib/. /out/runtime/lib/; \
     cp /usr/local/bin/node /out/runtime/node; \
-    cp -a /opt/calden-parcel/node_modules /out/runtime/parcel/node_modules; \
-    cp -a /usr/share/. /out/runtime/share/; \
-    cp -a /etc/fonts /out/runtime/etc/fonts; \
-    cp -a /usr/lib/chromium/. /out/runtime/chromium/; \
+    cp -RL /opt/calden-parcel/node_modules /out/runtime/parcel/node_modules; \
+    cp -RL /usr/share/. /out/runtime/share/; \
+    cp -RL /etc/fonts /out/runtime/etc/fonts; \
+    cp -RL /usr/lib/chromium/. /out/runtime/chromium/; \
     if test -x /usr/lib/chromium/chromium; then :; \
     elif test -x /usr/lib/chromium/chrome; then cp /usr/lib/chromium/chrome /out/runtime/chromium/chromium; \
     else echo 'Chrome executable not found' >&2; exit 1; fi; \
     test -x /out/runtime/node; \
     test -x /out/runtime/chromium/chromium
+
+# Export only the portable runtime, never the whole build-image filesystem.
+FROM scratch AS export
+COPY --from=0 /out /
