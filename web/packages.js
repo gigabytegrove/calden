@@ -37,6 +37,22 @@
     $("#packages-import-open").disabled=!canWrite();
     if(!enabled()&&state.currentPage==="packages")navigate("calendar",false);
   }
+  async function loadTrackerHealth(){
+    const box=$("#packages-tracker-health");
+    if(!enabled()){box.classList.add("hidden");return}
+    try{
+      const result=await api("/api/packages/tracker-health");
+      box.classList.toggle("hidden",result.ready===true&&result.browser_ready===true);
+      box.classList.toggle("package-tracker-warning",result.ready!==true);
+      box.textContent=result.ready===true
+        ?(result.browser_ready===true?"":result.message)
+        :result.message+" Calden's in-app binary update does not replace the Docker container. Install the complete Calden image to enable automatic carrier checks; existing package data can remain.";
+    }catch(error){
+      box.classList.remove("hidden");
+      box.classList.add("package-tracker-warning");
+      box.textContent="Could not verify the tracking engine: "+error.message;
+    }
+  }
   async function load(quiet=false){
     if(!enabled()){shipments=[];render();renderCalendar();return}
     if(loading)return;
@@ -171,6 +187,7 @@
         .catch(async error=>{
           await load();
           status("#packages-status","Package saved. Carrier scan currently unavailable ("+error.message+"); next automatic check is scheduled.");
+          loadTrackerHealth();
         });
     }catch(err){status("#package-form-error",err.message)}
     finally{button.disabled=false}
@@ -329,8 +346,10 @@
       const outcome=await api("/api/packages/"+encodeURIComponent(id)+"/refresh",{method:"POST",body:"{}"});
       await load();
       status("#packages-status",outcome.status==="updated"?"Carrier scans updated.":outcome.message||"No new verified carrier scan available.");
+      if(outcome.status==="unavailable")loadTrackerHealth();
     }catch(error){
       await load();
+      loadTrackerHealth();
       status("#packages-status","Carrier check unsuccessful: "+error.message);
     }finally{checking.delete(id);render()}
   }
@@ -345,6 +364,7 @@
       const updated=shipments.find(item=>item.id===id);
       if(updated)openPackage(id);
       status("#package-tracking-details",result.status==="updated"?"Status retrieved from carrier tracking.":result.message);
+      if(result.status==="unavailable")loadTrackerHealth();
     }catch(e){status("#package-tracking-details","Could not refresh carrier data: "+e.message)}
     finally{button.disabled=false}
   }
@@ -378,10 +398,11 @@
   }
   function onToggle(){
     renderNav();
+    if(enabled())loadTrackerHealth();
     if(enabled()){load()}else{shipments=[];render();renderCalendar()}
   }
   function enter(page){
-    if(page==="packages"&&enabled())load();
+    if(page==="packages"&&enabled()){load();loadTrackerHealth()}
   }
   $("#packages-refresh").addEventListener("click",load);
   $("#packages-add").addEventListener("click",()=>openPackage());
