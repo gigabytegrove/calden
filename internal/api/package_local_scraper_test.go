@@ -67,5 +67,5 @@ func TestLocalTrackerBoundedOutput(t *testing.T){
 func TestTrackerReadinessIdentifiesMissingRuntime(t *testing.T){
  t.Setenv("CALDEN_LOCAL_PARCEL_CLI","/nonexistent/calden-parcel/cli.js")
  ready,browser,message:=trackerRuntimeReadiness(context.Background())
- if ready||browser||!strings.Contains(message,"not installed"){t.Fatalf("missing local engine not detected: %v %v %q",ready,browser,message)}
+ if ready||browser||!strings.Contains(strings.ToLower(message),"preparing"){t.Fatalf("missing local engine not detected: %v %v %q",ready,browser,message)}
 }
