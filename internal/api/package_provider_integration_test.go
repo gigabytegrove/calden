@@ -67,4 +67,30 @@ func TestPackageProviderDatabaseIntegration(t *testing.T){
  if deleteResp.Code!=204{t.Fatalf("provider disconnect failed: %d",deleteResp.Code)}
  key,err:=s.trackingProviderKey(ctx)
  if err!=nil||key!=""{t.Fatalf("provider credentials persisted after disconnect: %q %v",key,err)}
+ // Reproduces the old-container startup defect: manual refresh must queue
+ // recovery, not consume the manual cooldown or push tracking out three hours.
+ previousState,previousDetail:=parcelInstallSnapshot()
+ t.Cleanup(func(){parcelSetState(previousState,previousDetail)})
+ t.Setenv("CALDEN_LOCAL_PARCEL_CLI","")
+ parcelSetState("installing","Calden is repairing its tracking runtime.")
+ _,err=db.Exec(ctx,`UPDATE package_shipments SET status='in_transit',
+    next_tracking_check_at=now(),last_tracking_check_at=now()-interval '10 minutes'
+    WHERE id=$1`,id)
+ if err!=nil{t.Fatal(err)}
+ before:=time.Time{}
+ if err=db.QueryRow(ctx,"SELECT last_tracking_check_at FROM package_shipments WHERE id=$1",id).Scan(&before);err!=nil{t.Fatal(err)}
+ pendingRequest:=req("POST","/api/packages/"+id.String()+"/refresh","{}")
+ pendingRequest.SetPathValue("id",id.String())
+ pendingResponse:=httptest.NewRecorder()
+ s.refreshPackageTracking(pendingResponse,pendingRequest)
+ if pendingResponse.Code!=http.StatusAccepted||!strings.Contains(pendingResponse.Body.String(),`"status":"repairing"`){
+  t.Fatalf("manual refresh should report recovery without lookup: %d %s",pendingResponse.Code,pendingResponse.Body.String())
+ }
+ var last,next time.Time
+ if err=db.QueryRow(ctx,"SELECT last_tracking_check_at,next_tracking_check_at FROM package_shipments WHERE id=$1",id).Scan(&last,&next);err!=nil{t.Fatal(err)}
+ if !last.Equal(before){t.Fatalf("repairing consumed manual cooldown: %v != %v",last,before)}
+ if next.After(time.Now().Add(time.Minute)){t.Fatalf("repairing postponed carrier check: %v",next)}
+ processDuePackageTracking(ctx,db,secret)
+ if err=db.QueryRow(ctx,"SELECT next_tracking_check_at FROM package_shipments WHERE id=$1",id).Scan(&next);err!=nil{t.Fatal(err)}
+ if next.After(time.Now().Add(time.Minute)){t.Fatalf("scheduled scanner consumed a 3h slot while repairing: %v",next)}
 }
