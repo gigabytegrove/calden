@@ -37,16 +37,16 @@
     $("#packages-import-open").disabled=!canWrite();
     if(!enabled()&&state.currentPage==="packages")navigate("calendar",false);
   }
-  async function load(){
+  async function load(quiet=false){
     if(!enabled()){shipments=[];render();renderCalendar();return}
     if(loading)return;
     loading=true;
-    status("#packages-status","Loading packages…");
+    if(quiet!==true)status("#packages-status","Loading packages…");
     try{
       const res=await api("/api/packages");
       if(!enabled())return;
       shipments=Array.isArray(res?.items)?res.items:[];
-      status("#packages-status","");
+      if(quiet!==true)status("#packages-status","");
       render();
       renderCalendar();
     }catch(err){
@@ -425,5 +425,9 @@
     localStorage.setItem("calden_packages_calendar",String(visible));
     renderCalendar();
   });
+  // Keep carrier and mailbox discoveries visible without making users reload.
+  window.setInterval(()=>{
+    if(enabled()&&state.currentPage==="packages"&&!loading)load(true);
+  },60000);
   window.caldenPackages={load,render,renderNav,enter,onToggle,calendarForDay,bindCalendar};
 })();
