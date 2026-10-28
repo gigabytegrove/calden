@@ -122,15 +122,23 @@ func (s *server) packageTrackerHealth(w http.ResponseWriter,r *http.Request){
  if !s.requirePackages(w,r){return}
  if currentActor(r).IsChild{writeError(w,http.StatusForbidden,"Package tracking is unavailable to child accounts");return}
  state,detail:=parcelInstallSnapshot()
- if state=="installing"||state=="retrying"||state=="pending"{
-  // A download can take time. The UI should show background recovery, not
-  // probe half-extracted binaries or present a carrier lookup error.
-  writeJSON(w,http.StatusOK,map[string]any{"ready":false,"browser_ready":false,"state":state,"message":detail})
+ // The recovery worker already executed both Node and Chromium before
+ // publishing "ready". Do not run a competing six-second Node probe on
+ // every page load: it can time out under ARM CPU load and falsely show
+ // a newly installed, otherwise healthy tracker as unavailable.
+ ready:=state=="ready"&&parcelRuntimePresent()
+ if ready{
+  writeJSON(w,http.StatusOK,map[string]any{"ready":true,"browser_ready":true,"state":"ready","message":detail})
   return
  }
- ready,browser,message:=trackerRuntimeReadiness(r.Context())
- if ready{state="ready"}
- writeJSON(w,http.StatusOK,map[string]any{"ready":ready,"browser_ready":browser,"state":state,"message":message})
+ if state=="ready"{
+  // Actual files disappeared or became inaccessible after verification.
+  state="installing"
+  detail="The installed tracking runtime changed; Calden is repairing it automatically."
+  parcelForgetReceipt()
+  parcelSetState(state,detail)
+ }
+ writeJSON(w,http.StatusOK,map[string]any{"ready":false,"browser_ready":false,"state":state,"message":detail})
 }
 func invokeLocalScraper(ctx context.Context,number,carrier string)(localResult,error){
  var empty localResult
