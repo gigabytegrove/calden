@@ -107,7 +107,7 @@
       '<div class="package-entry-side"><span class="package-status package-status-'+attr(p.status)+'">'+esc(labelStatus(p.status))+'</span>'+
       '<span class="package-delivery">'+esc(p.expected_date?safeDate(p.expected_date):"Delivery date unknown")+'</span>'+
       (p.can_edit&&p.status!=="delivered"?'<button class="button secondary compact" type="button" data-package-check="'+attr(p.id)+'" '+(checking.has(p.id)||trackerPreparing()?'disabled':'')+'>'+(checking.has(p.id)?'Checking…':trackerPreparing()?'Preparing tracker…':'Check tracking now')+'</button>':'')+
-      '<button class="button secondary compact" type="button" data-package-history="'+attr(p.id)+'" aria-label="View full tracking history for '+attr(p.label)+'">View full history</button>'+
+      '<button class="button secondary compact" type="button" data-package-history="'+attr(p.id)+'" aria-label="View full tracking history for '+attr(p.label)+'">Tracking history</button>'+
       (p.can_edit?'<button class="button danger compact" type="button" data-package-delete="'+attr(p.id)+'" aria-label="Delete '+attr(p.label)+' permanently">Delete</button>':'')+
       '<button class="button secondary compact" type="button" data-package-open="'+attr(p.id)+'">'+(p.can_edit?"Open / edit":"View")+'</button></div></article>'
     ).join("");
