@@ -22,7 +22,7 @@ import (
  "github.com/jackc/pgx/v5"
  "github.com/jackc/pgx/v5/pgxpool"
 )
-const parcelRuntimeTag="v1.5.0-alpha.14"
+const parcelRuntimeTag="v1.5.0-alpha.16"
 const parcelDownloadLimit int64=1200<<20
 const parcelExpandedLimit int64=4096<<20
 
