@@ -13,6 +13,9 @@
   let shipments=[];
   let loading=false;
   let trackerState="unknown";
+  let historyPackageID="";
+  let historyOffset=0;
+  let historyRequest=0;
   const checking=new Set();
   const trackerPreparing=()=>["pending","installing","retrying"].includes(trackerState);
   const checkTime=v=>v?new Date(v).toLocaleString():"Pending";
@@ -100,10 +103,11 @@
     host.innerHTML=shown.map(p=>'<article class="package-entry"><div class="package-entry-main">'+
       '<div class="package-entry-icon" aria-hidden="true">📦</div><div class="package-entry-description">'+
       '<strong>'+esc(p.label)+'</strong><span>'+esc(carriers[p.carrier]||p.carrier)+' · '+esc(p.tracking_number)+'</span>'+
-      '<small>'+esc(p.shared?"Shared with household":"Private")+' · '+esc(p.status_source==="manual"?"Manually maintained":p.status_source==="email"?"Imported from email":p.provider_slug?.startsWith("local:")?"Carrier scans":p.provider_slug?.startsWith("public:")?"From public carrier page":"Carrier API update")+'</small>'+(p.latest_scan?'<small class="package-latest-scan">📍 '+esc(p.latest_scan)+'</small>':'')+ '<small>Last checked: '+(p.last_tracking_check?esc(checkTime(p.last_tracking_check)):'Never')+' · Next: '+esc(checkTime(p.next_tracking_check))+'</small>'+(p.tracking_error?'<small class="package-tracking-issue" role="status">Carrier check failed: '+esc(p.tracking_error)+'</small>':'')+'</div></div>'+
+      '<small>'+esc(p.shared?"Shared with household":"Private")+' · '+esc(p.status_source==="manual"?"Manually maintained":p.status_source==="email"?"Imported from email":p.provider_slug?.startsWith("local:")?"Carrier scans":p.provider_slug?.startsWith("public:")?"From public carrier page":p.status_source==="provider"?"Carrier update":"Awaiting first verified carrier scan")+'</small>'+(p.latest_scan?'<small class="package-latest-scan"><strong>Latest carrier activity:</strong> '+esc(p.latest_scan)+'</small>':'<small class="package-latest-scan package-no-scans">No verified carrier scans recorded yet. Open history to review saved changes.</small>')+ '<small>Last checked: '+(p.last_tracking_check?esc(checkTime(p.last_tracking_check)):'Never')+' · Next: '+esc(checkTime(p.next_tracking_check))+'</small>'+(p.tracking_error?'<small class="package-tracking-issue" role="status">Carrier check failed: '+esc(p.tracking_error)+'</small>':'')+'</div></div>'+
       '<div class="package-entry-side"><span class="package-status package-status-'+attr(p.status)+'">'+esc(labelStatus(p.status))+'</span>'+
       '<span class="package-delivery">'+esc(p.expected_date?safeDate(p.expected_date):"Delivery date unknown")+'</span>'+
       (p.can_edit&&p.status!=="delivered"?'<button class="button secondary compact" type="button" data-package-check="'+attr(p.id)+'" '+(checking.has(p.id)||trackerPreparing()?'disabled':'')+'>'+(checking.has(p.id)?'Checking…':trackerPreparing()?'Preparing tracker…':'Check tracking now')+'</button>':'')+
+      '<button class="button secondary compact" type="button" data-package-history="'+attr(p.id)+'" aria-label="View full tracking history for '+attr(p.label)+'">Tracking history</button>'+
       (p.can_edit?'<button class="button danger compact" type="button" data-package-delete="'+attr(p.id)+'" aria-label="Delete '+attr(p.label)+' permanently">Delete</button>':'')+
       '<button class="button secondary compact" type="button" data-package-open="'+attr(p.id)+'">'+(p.can_edit?"Open / edit":"View")+'</button></div></article>'
     ).join("");
@@ -127,17 +131,93 @@
       if(shipments.some(p=>p.id===packageID))openPackage(packageID);
     });
   }
-  async function historyFor(id){
+  // Tracking history is a direct, read-only package action, not a form field.
+  // Keep the actual source of every event visible: a manual entry must never
+  // be misrepresented as a carrier-verified scan.
+  const historySource=source=>source==="provider"?"Carrier scan":
+    source==="email"?"Shipping email":source==="manual"?"Entered in Calden":"Shipment update";
+  const historyDate=raw=>{
+    const date=new Date(raw);
+    return Number.isNaN(date.getTime())?"Time unavailable":date.toLocaleString();
+  };
+  function closePackageHistory(){
+    historyRequest++;
+    historyPackageID="";
+    historyOffset=0;
+    $("#package-history-dialog").close();
+  }
+  async function historyFor(id,append=false){
+    if(!id||historyPackageID!==id)return;
+    const token=++historyRequest;
     const host=$("#package-history");
-    host.innerHTML='<p class="muted">Loading status history…</p>';
+    const older=$("#package-history-older");
+    const feedback=$("#package-history-feedback");
+    const refresh=$("#package-history-refresh");
+    const offset=append?historyOffset:0;
+    older.disabled=true;refresh.disabled=true;
+    if(!append){host.innerHTML='<p class="muted">Loading shipment activity…</p>'}
+    feedback.textContent=append?"Loading older activity…":"Loading tracking history…";
     try{
-      const data=await api("/api/packages/"+encodeURIComponent(id)+"/history");
+      const data=await api("/api/packages/"+encodeURIComponent(id)+"/history?offset="+offset);
+      if(historyPackageID!==id||token!==historyRequest||!$("#package-history-dialog").open)return;
       const items=Array.isArray(data?.items)?data.items:[];
-      host.innerHTML=items.length?'<ol class="package-history">'+items.map(item=>
-        '<li><strong>'+esc(labelStatus(item.status))+'</strong><span>'+esc(item.detail)+'</span>'+
-        '<small>'+esc(new Date(item.occurred_at).toLocaleString())+' · '+esc(item.source)+'</small></li>'
-      ).join("")+'</ol>':'<p class="muted">No status changes yet.</p>';
-    }catch(err){host.textContent="Could not load history: "+err.message}
+      const content=items.map(item=>
+        '<li class="package-history-event">'+
+          '<span class="package-history-dot" aria-hidden="true"></span>'+
+          '<div class="package-history-body">'+
+            '<div class="package-history-event-head"><strong>'+esc(labelStatus(item.status))+'</strong>'+
+            '<span class="package-history-source">'+esc(historySource(item.source))+'</span></div>'+
+            '<p>'+esc(item.detail||"Status recorded")+'</p>'+
+            '<time datetime="'+attr(item.occurred_at||"")+'">'+esc(historyDate(item.occurred_at))+'</time>'+
+          '</div></li>'
+      ).join("");
+      if(append){
+        const list=host.querySelector(".package-history-timeline");
+        if(list)list.insertAdjacentHTML("beforeend",content);
+      }else{
+        host.innerHTML=items.length?'<ol class="package-history-timeline">'+content+'</ol>':
+          '<div class="package-history-empty"><strong>No tracking activity recorded yet.</strong>'+
+          '<p>When the carrier provides scans, they will appear here automatically. A saved package does not mean the carrier has confirmed a shipment.</p></div>';
+      }
+      historyOffset=Number.isSafeInteger(data?.next_offset)?data.next_offset:offset+items.length;
+      older.classList.toggle("hidden",data?.has_more!==true);
+      feedback.textContent=items.length?
+        "Showing "+historyOffset+" recorded "+(historyOffset===1?"event":"events")+
+          (data?.has_more?" · older activity available":"")+".": 
+        append?"No more activity available.":"";
+    }catch(error){
+      if(historyPackageID!==id||token!==historyRequest)return;
+      if(!append)host.innerHTML='<div class="package-history-empty"><strong>History unavailable</strong>'+
+        '<p>The saved history could not be loaded. Try Refresh history.</p></div>';
+      feedback.textContent="Could not load tracking history: "+error.message;
+      older.classList.toggle("hidden",!append);
+    }finally{
+      if(historyPackageID===id&&token===historyRequest){
+        older.disabled=false;refresh.disabled=false;
+      }
+    }
+  }
+  function openPackageHistory(id){
+    const p=shipments.find(item=>item.id===id);
+    if(!p)return;
+    const edit=$("#package-dialog");
+    if(edit.open)edit.close();
+    const dialog=$("#package-history-dialog");
+    if(dialog.open)dialog.close();
+    historyPackageID=id;historyOffset=0;historyRequest++;
+    $("#package-history-name").textContent=p.label;
+    $("#package-history-carrier").textContent=(carriers[p.carrier]||p.carrier)+" · "+p.tracking_number;
+    const badge=$("#package-history-current-status");
+    badge.className="package-status package-status-"+(statusLabels[p.status]?p.status:"unknown");
+    badge.textContent=labelStatus(p.status);
+    $("#package-history-check-status").textContent=p.last_tracking_check?
+      "Last tracking attempt: "+checkTime(p.last_tracking_check)+(p.tracking_error?". Calden will retry: "+p.tracking_error:""):
+      "No carrier lookup completed yet. Calden will check this package automatically.";
+    $("#package-history-older").classList.add("hidden");
+    $("#package-history-feedback").textContent="";
+    dialog.showModal();
+    $("#package-history-title").focus();
+    historyFor(id);
   }
   function openPackage(id=""){
     const p=shipments.find(item=>item.id===id);
@@ -162,8 +242,7 @@
     const link=$("#package-track-link");
     link.classList.toggle("hidden",!p?.tracking_url);
     if(p?.tracking_url){link.href=p.tracking_url}else{link.removeAttribute("href")}
-    $("#package-history-panel").classList.toggle("hidden",!p);
-    if(p)historyFor(p.id);
+    $("#package-open-history").classList.toggle("hidden",!p);
     $("#package-dialog").showModal();
     if(writable)formValue(form,"label").focus();
   }
@@ -427,6 +506,8 @@
   $("#packages-list").addEventListener("click",event=>{
     const check=event.target.closest("[data-package-check]");
     if(check){checkPackage(check.dataset.packageCheck);return}
+    const history=event.target.closest("[data-package-history]");
+    if(history){openPackageHistory(history.dataset.packageHistory);return}
     const remove=event.target.closest("[data-package-delete]");
     if(remove){deletePackage(remove.dataset.packageDelete);return}
     const button=event.target.closest("[data-package-open]");
@@ -434,6 +515,13 @@
   });
   $("#package-form").addEventListener("submit",save);
   $("#package-delete").addEventListener("click",()=>deletePackage(formValue($("#package-form"),"id").value));
+  $("#package-open-history").addEventListener("click",()=>openPackageHistory(formValue($("#package-form"),"id").value));
+  $("#package-history-close").addEventListener("click",closePackageHistory);
+  $("#package-history-refresh").addEventListener("click",()=>historyFor(historyPackageID));
+  $("#package-history-older").addEventListener("click",()=>historyFor(historyPackageID,true));
+  $("#package-history-dialog").addEventListener("close",()=>{
+    historyRequest++;historyPackageID="";historyOffset=0;
+  });
   document.querySelectorAll("[data-close-package]").forEach(b=>b.addEventListener("click",()=>$("#package-dialog").close()));
   document.querySelectorAll("[data-close-package-email]").forEach(b=>b.addEventListener("click",()=>$("#package-email-dialog").close()));
   $("#package-email-dialog").addEventListener("close",()=>{$("#package-email-token-value").value=""});
@@ -457,6 +545,10 @@
     if(enabled()&&state.currentPage==="packages"){
       if(!loading)load(true);
       loadTrackerHealth();
+      if(historyPackageID&&$("#package-history-dialog").open&&$("#package-history-older").classList.contains("hidden")){
+        // Refresh newest events only while the timeline is on its first page.
+        historyFor(historyPackageID);
+      }
     }
   },30000);
   window.caldenPackages={load,render,renderNav,enter,onToggle,calendarForDay,bindCalendar};

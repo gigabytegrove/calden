@@ -69,3 +69,27 @@ func TestTrackerReadinessIdentifiesMissingRuntime(t *testing.T){
  ready,browser,message:=trackerRuntimeReadiness(context.Background())
  if ready||browser||!strings.Contains(strings.ToLower(message),"preparing"){t.Fatalf("missing local engine not detected: %v %v %q",ready,browser,message)}
 }
+
+func TestCarrierHistoryKeepsUnclassifiedEventsAndProvenance(t *testing.T){
+ unknown:=localScan{
+  Stage:"arrived_at_facility",
+  Description:"Arrived at a regional hub",
+  Location:"Tallahassee, FL",
+  LocalTime:"2026-10-28 10:30",
+ }
+ code,detail,received:=localHistoryCheckpoint(unknown)
+ if code!="unknown"{t.Fatalf("carrier event was silently dropped or invented a state: %q",code)}
+ if !strings.Contains(detail,"Arrived at a regional hub")||!strings.Contains(detail,"Tallahassee, FL"){
+  t.Fatalf("carrier description or location lost: %q",detail)
+ }
+ if !strings.Contains(detail,"scan time not verified")||!strings.Contains(detail,"carrier time zone not provided"){
+  t.Fatalf("unzoned carrier time was represented as a verified timestamp: %q",detail)
+ }
+ if received.IsZero(){t.Fatal("checkpoint must have a Calden receipt time")}
+ absolute:=localScan{Stage:"out_for_delivery",Description:"Out for delivery",Instant:"2026-10-28T14:22:00Z"}
+ code,detail,occurred:=localHistoryCheckpoint(absolute)
+ if code!="out_for_delivery"||!occurred.Equal(time.Date(2026,10,28,14,22,0,0,time.UTC)){
+  t.Fatalf("verified timestamp/status was not preserved: %q, %q, %v",code,detail,occurred)
+ }
+ if strings.Contains(detail,"scan time not verified"){t.Fatal("verified carrier timestamp was incorrectly marked unverified")}
+}

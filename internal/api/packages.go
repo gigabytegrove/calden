@@ -5,6 +5,7 @@ import (
  "net/http"
  "net/url"
  "regexp"
+ "strconv"
  "strings"
  "time"
 
@@ -82,6 +83,9 @@ func packageTrackingURL(carrier,number string)string{
  }
 }
 func (s *server) requirePackages(w http.ResponseWriter,r *http.Request)bool{
+ // Child accounts cannot access package metadata or tracking history,
+ // regardless of a stale client, direct URL, or shared package flag.
+ if currentActor(r).IsChild {writeError(w,http.StatusForbidden,"Package tracking is unavailable to child accounts");return false}
  var enabled bool
  err:=s.db.QueryRow(r.Context(),"SELECT COALESCE((SELECT value='true' FROM app_settings WHERE key='packages_enabled'),false)").Scan(&enabled)
  if err!=nil {writeError(w,500,"Could not check package tracking settings");return false}
@@ -191,7 +195,18 @@ func (s *server) deletePackage(w http.ResponseWriter,r *http.Request){
 }
 func (s *server) packageHistory(w http.ResponseWriter,r *http.Request){
  id,ok:=s.packageByID(w,r,false);if !ok{return}
- rows,err:=s.db.Query(r.Context(),"SELECT status,detail,source,occurred_at FROM package_checkpoints WHERE shipment_id=$1 ORDER BY occurred_at DESC,id DESC LIMIT 100",id)
+ // Pagination ensures older carrier events are not silently truncated.
+ // Always validate access before querying the shipment's checkpoints.
+ offset:=0
+ if value:=r.URL.Query().Get("offset");value!=""{
+  var err error
+  offset,err=strconv.Atoi(value)
+  if err!=nil||offset<0||offset>100000{
+   writeError(w,400,"Invalid history offset");return
+  }
+ }
+ rows,err:=s.db.Query(r.Context(),`SELECT status,detail,source,occurred_at FROM package_checkpoints
+  WHERE shipment_id=$1 ORDER BY occurred_at DESC,id DESC LIMIT 101 OFFSET $2`,id,offset)
  if err!=nil{writeError(w,500,"Could not load tracking history");return}
  defer rows.Close()
  type checkpoint struct {
@@ -200,11 +215,13 @@ func (s *server) packageHistory(w http.ResponseWriter,r *http.Request){
   Source string `json:"source"`
   OccurredAt time.Time `json:"occurred_at"`
  }
- items:=make([]checkpoint,0)
+ items:=make([]checkpoint,0,101)
  for rows.Next(){var c checkpoint
   if rows.Scan(&c.Status,&c.Detail,&c.Source,&c.OccurredAt)!=nil{writeError(w,500,"Could not load history");return}
   items=append(items,c)
  }
  if rows.Err()!=nil{writeError(w,500,"Could not load tracking history");return}
- writeJSON(w,200,map[string]any{"items":items})
+ hasMore:=len(items)>100
+ if hasMore{items=items[:100]}
+ writeJSON(w,200,map[string]any{"items":items,"has_more":hasMore,"next_offset":offset+len(items)})
 }
