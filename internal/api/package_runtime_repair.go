@@ -243,16 +243,18 @@ func parcelStartupVerify(ctx context.Context,query parcelSettingsQuerier){
  // locally, before accepting web requests. Downloads never block startup.
  probeCtx,stop:=context.WithTimeout(ctx,25*time.Second)
  defer stop()
- if parcelExists("/opt/calden-parcel/node_modules/universal-parcel-scraper/dist/cli/index.js")&&parcelNativeProbe(probeCtx){
-  parcelChooseManaged(false)
-  parcelSetState("ready","Calden's existing tracking runtime is ready.")
-  if err:=parcelRememberReady("native");err!=nil{log.Printf("tracker: native readiness receipt: %v",err)}
-  return
- }
+ // Prefer an already repaired persistent runtime. Old Alpine containers
+ // may still contain a broken legacy CLI, which must not delay recovery.
  if parcelExists(parcelBundledCLI())&&parcelProbe(probeCtx,filepath.Join(parcelStoreRoot(),"current")){
   parcelChooseManaged(true)
   parcelSetState("ready","Calden's existing tracking runtime is ready.")
   if err:=parcelRememberReady("managed");err!=nil{log.Printf("tracker: managed readiness receipt: %v",err)}
+  return
+ }
+ if parcelExists("/opt/calden-parcel/node_modules/universal-parcel-scraper/dist/cli/index.js")&&parcelNativeProbe(probeCtx){
+  parcelChooseManaged(false)
+  parcelSetState("ready","Calden's existing tracking runtime is ready.")
+  if err:=parcelRememberReady("native");err!=nil{log.Printf("tracker: native readiness receipt: %v",err)}
   return
  }
  parcelForgetReceipt()
