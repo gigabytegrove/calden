@@ -92,6 +92,15 @@ jobs:
           npm install --no-save playwright@1.56.1
           npx playwright install --with-deps chromium
 
+      - name: Compile production styles and test all web interaction contracts
+        run: |
+          set -euo pipefail
+          npm run build:css
+          npm run test:web
+          test -s web/styles.css
+          grep -Fq -- "--ui-surface:" web/styles.css
+          grep -Fq -- ".package-history-timeline" web/styles.css
+
       - name: Verify the first-run wizard in a real browser
         run: |
           node <<'NODE'
