@@ -10,13 +10,14 @@ RUN npm install --no-audit --no-fund --ignore-scripts --no-save \
 RUN node node_modules/universal-parcel-scraper/dist/cli/index.js detect 1Z999AA10123456784 > /tmp/detect.json \
     && grep -qi UPS /tmp/detect.json
 RUN set -eux; \
-    mkdir -p /out/runtime/{lib,chromium,parcel,share,etc}; \
+    mkdir -p /out/runtime/lib /out/runtime/chromium /out/runtime/parcel /out/runtime/share /out/runtime/etc; \
     cp -a /usr/lib/. /out/runtime/lib/; \
     cp /usr/local/bin/node /out/runtime/node; \
     cp -a /opt/calden-parcel/node_modules /out/runtime/parcel/node_modules; \
     cp -a /usr/share/. /out/runtime/share/; \
     cp -a /etc/fonts /out/runtime/etc/fonts; \
-    if test -x /usr/lib/chromium/chromium; then cp /usr/lib/chromium/chromium /out/runtime/chromium/chromium; \
+    cp -a /usr/lib/chromium/. /out/runtime/chromium/; \
+    if test -x /usr/lib/chromium/chromium; then :; \
     elif test -x /usr/lib/chromium/chrome; then cp /usr/lib/chromium/chrome /out/runtime/chromium/chromium; \
     else echo 'Chrome executable not found' >&2; exit 1; fi; \
     test -x /out/runtime/node; \
