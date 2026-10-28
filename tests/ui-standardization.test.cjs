@@ -14,7 +14,7 @@ test("approved light and dark appearances preserve unified module controls",()=>
 });
 test("package list exposes activity and a usable history route",()=>{
   assert.match(packages,/data-package-history/);
-  assert.match(packages,/View full history/);
+  assert.match(packages,/Tracking history/);
   assert.match(packages,/Latest carrier activity:/);
   assert.match(packages,/No verified carrier scans recorded yet/);
   assert.match(packages,/openPackageHistory\(history\.dataset\.packageHistory\)/);
