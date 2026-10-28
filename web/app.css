@@ -33,7 +33,7 @@ fieldset{border:0;padding:0;margin:0}legend{font-size:.88rem;font-weight:750;col
 
 /* Main application shell */
 .app-shell{min-height:100vh;display:grid;grid-template-columns:238px minmax(0,1fr)}
-.sidebar{height:100vh;position:sticky;top:0;background:#0f172a;color:#f1f5f9;border-right:1px solid #334155;display:flex;flex-direction:column;padding:21px 15px;z-index:20}
+.sidebar{height:100vh;position:sticky;top:0;background:#fff;border-right:1px solid #e1e5eb;display:flex;flex-direction:column;padding:21px 15px;z-index:20}
 .sidebar-brand{padding:0 8px 23px}.sidebar-brand img{display:block;width:150px;max-width:100%;height:auto}
 .primary-nav{display:grid;gap:3px}.nav-item{width:100%;border:0;background:transparent;color:#536075;text-align:left;padding:10px 12px;border-radius:6px;font-weight:690}.nav-item:hover{background:#f4f6f9;color:#253146}.nav-item.active{background:#e9edf3;color:#172033;font-weight:800}
 .sidebar-account{margin-top:auto;border-top:1px solid #e8ebf0;padding:16px 7px 0;display:grid;grid-template-columns:36px 1fr;gap:8px 10px;align-items:center}.account-badge{width:36px;height:36px;border-radius:50%;background:#e6ebf1;display:grid;place-items:center;font-size:.78rem;font-weight:850}.account-copy{display:grid;min-width:0}.account-copy strong{font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.account-copy span{font-size:.75rem;color:#7a8493}.sidebar-account .text-button{grid-column:2}
