@@ -22,11 +22,21 @@ import (
  "github.com/jackc/pgx/v5"
  "github.com/jackc/pgx/v5/pgxpool"
 )
-const parcelRuntimeTag="v1.5.0-alpha.16"
+const parcelRuntimeTag="v1.5.0-alpha.17"
 const parcelDownloadLimit int64=1200<<20
 const parcelExpandedLimit int64=4096<<20
 
 var parcelInstallMu sync.Mutex
+// A legacy engine may exist but be broken. A repaired managed installation
+// must win over an unusable legacy CLI.
+var parcelRuntimeSelection struct { sync.RWMutex; managed bool }
+func parcelChooseManaged(managed bool) {
+ parcelRuntimeSelection.Lock(); parcelRuntimeSelection.managed=managed; parcelRuntimeSelection.Unlock()
+}
+func parcelManagedSelected() bool {
+ parcelRuntimeSelection.RLock(); defer parcelRuntimeSelection.RUnlock()
+ return parcelRuntimeSelection.managed
+}
 var parcelInstallStatus=struct{sync.RWMutex;state,detail string}{state:"pending",detail:"Calden is preparing tracking automatically."}
 
 func parcelStoreRoot()string{
@@ -123,25 +133,44 @@ func parcelRuntimeEnv(root string)[]string{
   "SCRAPER_PROVIDERS=ParcelsApp,Ship24,17TRACK,Postal Ninja,UPU",
  }
 }
+// Probe actual executable behavior offline; never send a real tracking number.
+func parcelProbeExecutables(ctx context.Context,node,cli,browser string,env []string)bool{
+ if !parcelExists(node)||!parcelExists(cli)||!parcelExists(browser){return false}
+ probeCtx,cancel:=context.WithTimeout(ctx,25*time.Second);defer cancel()
+ cmd:=exec.CommandContext(probeCtx,node,cli,"detect","1Z999AA10123456784")
+ cmd.Env=env
+ out,err:=cmd.Output()
+ if err!=nil||!strings.Contains(strings.ToLower(string(out)),"ups"){return false}
+ browserCmd:=exec.CommandContext(probeCtx,browser,"--version")
+ browserCmd.Env=env
+ return browserCmd.Run()==nil
+}
+func parcelNativeProbe(ctx context.Context)bool{
+ node,err:=exec.LookPath("node");if err!=nil{return false}
+ return parcelProbeExecutables(ctx,node,
+  "/opt/calden-parcel/node_modules/universal-parcel-scraper/dist/cli/index.js",
+  "/usr/bin/chromium",
+  []string{"PATH="+os.Getenv("PATH"),"HOME="+os.Getenv("HOME"),"LANG=C.UTF-8","NODE_OPTIONS=--max-old-space-size=512"})
+}
 func parcelProbe(ctx context.Context,root string)bool{
  cli:=filepath.Join(root,"runtime","parcel","node_modules","universal-parcel-scraper","dist","cli","index.js")
  node:=filepath.Join(root,"runtime","node")
  browser:=filepath.Join(root,"runtime","chromium","chromium")
- if !parcelExists(cli)||!parcelExists(node)||!parcelExists(browser){return false}
- checkCtx,cancel:=context.WithTimeout(ctx,25*time.Second);defer cancel()
- cmd:=exec.CommandContext(checkCtx,node,cli,"detect","1Z999AA10123456784")
- cmd.Env=parcelRuntimeEnv(root)
- out,err:=cmd.Output()
- return err==nil&&strings.Contains(strings.ToLower(string(out)),"ups")
+ return parcelProbeExecutables(ctx,node,cli,browser,parcelRuntimeEnv(root))
 }
 func parcelRepair(ctx context.Context)error{
  parcelInstallMu.Lock();defer parcelInstallMu.Unlock()
- if parcelExists("/opt/calden-parcel/node_modules/universal-parcel-scraper/dist/cli/index.js")&&parcelExists("/usr/bin/chromium"){
-  parcelSetState("ready","Calden's integrated tracking runtime is ready.")
+ if parcelNativeProbe(ctx){
+  parcelChooseManaged(false)
+  parcelSetState("ready","Calden's integrated tracking runtime passed its offline checks.")
   return nil
  }
  root:=parcelStoreRoot();current:=filepath.Join(root,"current")
- if parcelProbe(ctx,current){parcelSetState("ready","Calden's tracking runtime is ready.");return nil}
+ if parcelProbe(ctx,current){
+  parcelChooseManaged(true)
+  parcelSetState("ready","Calden's managed tracking runtime passed its offline checks.")
+  return nil
+ }
  parcelSetState("installing","Calden is automatically repairing its tracking runtime.")
  if err:=os.MkdirAll(root,0700);err!=nil{return err}
  temp,err:=os.MkdirTemp(root,".prepare-");if err!=nil{return err};defer os.RemoveAll(temp)
@@ -159,7 +188,8 @@ func parcelRepair(ctx context.Context)error{
   return err
  }
  _=os.RemoveAll(old)
- parcelSetState("ready","Calden repaired its tracking runtime automatically.")
+ parcelChooseManaged(true)
+ parcelSetState("ready","Calden repaired and verified its tracking runtime automatically.")
  return nil
 }
 // The package feature is opt-in. Do not download a large browser runtime
@@ -174,8 +204,11 @@ func parcelTrackingEnabled(ctx context.Context,query parcelSettingsQuerier)(bool
  return enabled,err
 }
 func parcelRuntimePresent()bool{
- if parcelExists("/opt/calden-parcel/node_modules/universal-parcel-scraper/dist/cli/index.js")&&parcelExists("/usr/bin/chromium"){return true}
- return parcelExists(parcelBundledCLI())&&parcelExists(parcelBundledNode())&&parcelExists(parcelBundledChromium())
+ if parcelManagedSelected(){
+  return parcelExists(parcelBundledCLI())&&parcelExists(parcelBundledNode())&&parcelExists(parcelBundledChromium())
+ }
+ node,err:=exec.LookPath("node")
+ return err==nil&&parcelExists(node)&&parcelExists("/opt/calden-parcel/node_modules/universal-parcel-scraper/dist/cli/index.js")&&parcelExists("/usr/bin/chromium")
 }
 // A missing keyless runtime is a pending installation, not a carrier failure.
 // Explicit test/operator CLI overrides and an optional configured API provider
@@ -205,7 +238,12 @@ func StartParcelRuntimeRepair(ctx context.Context,db *pgxpool.Pool){
    // earlier failed attempt when the feature was subsequently disabled.
    if !previouslyEnabled{nextRetry=time.Time{}}
    previouslyEnabled=true
-   if state,_:=parcelInstallSnapshot();state=="ready"&&parcelRuntimePresent(){return}
+   if state,_:=parcelInstallSnapshot();state=="ready"&&parcelRuntimePresent(){
+    // Detect executables damaged by a partial container or volume update.
+    if parcelManagedSelected(){
+     if parcelProbe(ctx,filepath.Join(parcelStoreRoot(),"current")){return}
+    }else if parcelNativeProbe(ctx){return}
+   }
    if !nextRetry.IsZero()&&time.Now().Before(nextRetry){return}
    if err:=parcelRepair(ctx);err!=nil{
     nextRetry=time.Now().Add(10*time.Minute)
