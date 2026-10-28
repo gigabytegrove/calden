@@ -63,6 +63,35 @@ const assert=require("node:assert/strict");
       themeActive:document.body.classList.contains("calden-family-dark"),
       token:getComputedStyle(document.body).getPropertyValue("--ui-surface").trim(),
       panel:computed(".panel").backgroundColor,
+      panelToken:computed(".panel").getPropertyValue("--ui-surface").trim(),
+      panelInline:el(".panel").getAttribute("style"),
+      panelMatches:el(".panel").matches("body.calden-family-dark .workspace .app-page .panel"),
+      fieldToken:computed("input").getPropertyValue("--ui-field").trim(),
+      fieldMatches:el("input").matches("body.calden-family-dark .workspace .app-page input:not([type=checkbox])"),
+      matchedRules:(()=>{
+       const output=[];
+       const target=el(".panel");
+       const walk=rules=>{
+        for(const rule of rules){
+         if(rule.selectorText&&rule.selectorText.includes(".panel")){
+          try{
+           if(target.matches(rule.selectorText)&&
+            (rule.style?.background||rule.style?.backgroundColor))
+             output.push({
+              selector:rule.selectorText.slice(0,180),
+              bg:rule.style.background||rule.style.backgroundColor,
+              priority:rule.style.getPropertyPriority("background")
+             });
+          }catch{}
+         }
+         if(rule.cssRules)walk(rule.cssRules);
+        }
+       };
+       for(const sheet of document.styleSheets){
+        try{walk(sheet.cssRules)}catch{}
+       }
+       return output.slice(-16);
+      })(),
       field:computed("input").backgroundColor,
       widget:computed(".family-widget").backgroundColor,
       card:computed(".package-entry").backgroundColor,
