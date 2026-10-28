@@ -86,7 +86,7 @@ func TestPackageProviderDatabaseIntegration(t *testing.T){
  if pendingResponse.Code!=http.StatusAccepted||!strings.Contains(pendingResponse.Body.String(),`"status":"repairing"`){
   t.Fatalf("manual refresh should report recovery without lookup: %d %s",pendingResponse.Code,pendingResponse.Body.String())
  }
- var last,next time.Time
+ var last time.Time
  if err=db.QueryRow(ctx,"SELECT last_tracking_check_at,next_tracking_check_at FROM package_shipments WHERE id=$1",id).Scan(&last,&next);err!=nil{t.Fatal(err)}
  if !last.Equal(before){t.Fatalf("repairing consumed manual cooldown: %v != %v",last,before)}
  if next.After(time.Now().Add(time.Minute)){t.Fatalf("repairing postponed carrier check: %v",next)}
