@@ -16,7 +16,7 @@ concurrency:
 jobs:
   portable-arm64:
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 40
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -25,9 +25,15 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p compat/arm64 dist
-          docker buildx build --platform linux/arm64 \
-            -f Dockerfile.tracker-compat --target export \
-            --output type=local,dest=compat/arm64 .
+          # Avoid buildx --output=type=local, which hung during arm64 export.
+          # Build a local tagged image, then stream its runtime via Docker.
+          docker build --platform linux/arm64 -f Dockerfile.tracker-compat \
+            --target export -t calden-tracker-export:arm64 .
+          cid="$(docker create calden-tracker-export:arm64 /bin/true)"
+          trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
+          docker cp "$cid:/runtime" compat/arm64/runtime
+          docker rm -f "$cid" >/dev/null
+          trap - EXIT
           test -x compat/arm64/runtime/node
           test -x compat/arm64/runtime/chromium/chromium
           test -f compat/arm64/runtime/parcel/node_modules/universal-parcel-scraper/dist/cli/index.js
@@ -153,9 +159,13 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p compat/amd64
-          docker buildx build --platform linux/amd64 \
-            -f Dockerfile.tracker-compat --target export \
-            --output type=local,dest=compat/amd64 .
+          docker build --platform linux/amd64 -f Dockerfile.tracker-compat \
+            --target export -t calden-tracker-export:amd64 .
+          cid="$(docker create calden-tracker-export:amd64 /bin/true)"
+          trap 'docker rm -f "$cid" >/dev/null 2>&1 || true' EXIT
+          docker cp "$cid:/runtime" compat/amd64/runtime
+          docker rm -f "$cid" >/dev/null
+          trap - EXIT
           test -x compat/amd64/runtime/node
           test -x compat/amd64/runtime/chromium/chromium
           test -f compat/amd64/runtime/parcel/node_modules/universal-parcel-scraper/dist/cli/index.js
