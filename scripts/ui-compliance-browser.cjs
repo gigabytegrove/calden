@@ -8,7 +8,8 @@ const assert=require("node:assert/strict");
   for(const width of [360,768,1280]){
    const page=await browser.newPage({viewport:{width,height:900}});
    try{
-    await page.goto("http://127.0.0.1:8787/",{waitUntil:"domcontentloaded"});
+    await page.goto("http://127.0.0.1:8787/",{waitUntil:"networkidle"});
+    await page.locator("#setup-form").waitFor({state:"visible"});
     await page.evaluate(()=>{
      const host=document.createElement("main");
      host.id="ui-contract-fixture";
@@ -53,10 +54,11 @@ const assert=require("node:assert/strict");
     assert.ok(light.inputHeight>=40,width+" input too small");
     assert.ok(light.buttonHeight>=39,width+" button too small");
     assert.ok(light.scrollWidth<=light.clientWidth+1,width+" packages page overflow");
-    const dark=await page.evaluate(()=>{
-     // Evaluate the theme switch and its computed styles atomically. The
-     // first-run application can apply dashboard preferences asynchronously.
+    const dark=await page.evaluate(async()=>{
+     // Legacy controls animate background-color for 160ms. Verify the
+     // settled appearance rather than asserting on the initial white frame.
      document.body.classList.add("calden-family-dark");
+     await new Promise(resolve=>setTimeout(resolve,275));
      const el=s=>document.querySelector("#ui-contract-fixture "+s);
      const computed=s=>getComputedStyle(el(s));
      return {
@@ -106,6 +108,7 @@ const assert=require("node:assert/strict");
     assert.notEqual(dark.card,light.panel,width+" package card stayed white in dark");
     assert.equal(dark.overflow,false,width+" dark packages overflow");
     const history=await page.evaluate(()=>{
+     document.body.classList.add("calden-family-dark");
      const dialog=document.getElementById("package-history-dialog");
      dialog.showModal();
      const result={background:getComputedStyle(dialog).backgroundColor};
