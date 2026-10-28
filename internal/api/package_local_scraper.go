@@ -9,6 +9,7 @@ import (
  "errors"
  "fmt"
  "io"
+ "net/http"
  "os"
  "os/exec"
  "regexp"
@@ -81,6 +82,35 @@ func localScannerExecutable()string{
  // Docker includes the engine in its own image; no separate service.
  if custom:=strings.TrimSpace(os.Getenv("CALDEN_LOCAL_PARCEL_CLI"));custom!=""{return custom}
  return "/opt/calden-parcel/node_modules/universal-parcel-scraper/dist/cli/index.js"
+}
+// trackerRuntimeReadiness performs only offline checks and never sends a
+// household tracking number to an external website.
+func trackerRuntimeReadiness(ctx context.Context)(bool,bool,string){
+ path:=localScannerExecutable()
+ info,err:=os.Stat(path)
+ if err!=nil||!info.Mode().IsRegular(){return false,false,"The built-in tracking engine is not installed in this container."}
+ node,err:=exec.LookPath("node")
+ if err!=nil{return false,false,"Node.js, required by the built-in tracking engine, is missing from this container."}
+ chromium:=false
+ if info,err:=os.Stat("/usr/bin/chromium");err==nil&&!info.IsDir()&&info.Mode()&0111!=0{chromium=true}
+ probeCtx,cancel:=context.WithTimeout(ctx,6*time.Second)
+ defer cancel()
+ cmd:=exec.CommandContext(probeCtx,node,path,"detect","1Z999AA10123456784")
+ cmd.Env=[]string{"PATH="+os.Getenv("PATH"),"LANG=C.UTF-8","HOME="+os.Getenv("HOME"),"NODE_OPTIONS=--max-old-space-size=512"}
+ cmd.Stderr=io.Discard
+ out:=&limitedTrackingBuffer{cap:128<<10}
+ cmd.Stdout=out
+ if cmd.Run()!=nil||!strings.Contains(strings.ToLower(out.String()),"ups"){
+  return false,chromium,"The bundled tracking engine failed its offline startup test."
+ }
+ if !chromium{return true,false,"The tracker is available, but Chromium is missing; browser-only carriers may fail."}
+ return true,true,"The bundled tracking engine and Chromium are ready. Carrier access varies by provider."
+}
+func (s *server) packageTrackerHealth(w http.ResponseWriter,r *http.Request){
+ if !s.requirePackages(w,r){return}
+ if currentActor(r).IsChild{writeError(w,http.StatusForbidden,"Package tracking is unavailable to child accounts");return}
+ ready,browser,message:=trackerRuntimeReadiness(r.Context())
+ writeJSON(w,http.StatusOK,map[string]any{"ready":ready,"browser_ready":browser,"message":message})
 }
 func invokeLocalScraper(ctx context.Context,number,carrier string)(localResult,error){
  var empty localResult
