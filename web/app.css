@@ -1438,3 +1438,298 @@ body.calden-family-dark .recipecove-integration-card code{color:#bfdbfe}
 /* Carrier runtime readiness is a functional warning, not a tracking status. */
 .package-runtime-health{padding:12px 14px;margin:10px 0 12px;background:#fff4d6;color:#654308;border-left:4px solid #946200;line-height:1.55;font-size:.91rem}
 .package-runtime-health.package-tracker-warning{background:#fff2f0;color:#8d211c;border-left-color:#b42318}
+
+
+/* Shared Calden UI contract (alpha.15).
+   All modules use the SAME surfaces, spacing, focus, and readable colors.
+   Layouts, calendar color and member avatar semantics remain untouched. */
+:root{
+  --ui-surface:var(--panel,#fff);
+  --ui-surface-raised:#f8fafc;
+  --ui-surface-selected:#eaf3ff;
+  --ui-field:#fff;
+  --ui-foreground:var(--ink,#172033);
+  --ui-subtext:var(--muted,#64748b);
+  --ui-border:var(--panel-border,#dfe4eb);
+  --ui-border-strong:#b9c6d8;
+  --ui-focus:var(--family-accent,#2563eb);
+  --ui-radius:12px;
+  --ui-control-height:42px;
+  --ui-content-gap:18px;
+  --ui-danger-fg:#a32925;
+  --ui-danger-bg:#fff1ef;
+  --ui-danger-border:#e5a8a3;
+  --ui-success-fg:#155c38;
+  --ui-success-bg:#e6f5eb;
+  --ui-warning-fg:#725012;
+  --ui-warning-bg:#fff4d9;
+}
+body.calden-family-dark{
+  --ui-surface:#1a2638;
+  --ui-surface-raised:#22324a;
+  --ui-surface-selected:#244467;
+  --ui-field:#111d2d;
+  --ui-foreground:#eaf2ff;
+  --ui-subtext:#bfd0e6;
+  --ui-border:#425672;
+  --ui-border-strong:#657994;
+  --ui-focus:#93c5fd;
+  --ui-danger-fg:#fecaca;
+  --ui-danger-bg:#4a2834;
+  --ui-danger-border:#b76a74;
+  --ui-success-fg:#a9e4bc;
+  --ui-success-bg:#1e4035;
+  --ui-warning-fg:#ffe1a1;
+  --ui-warning-bg:#45391f;
+}
+.workspace .app-page{min-width:0}
+.workspace .app-page :is(.panel,.family-widget,.management-card,.routine-card,
+  .rewards-balance-card,.rewards-item,.family-child-entry,.family-appearance-row,
+  .meals-entry,.family-shopping-row,.family-list-choice,.package-entry,.bill-stat,
+  .notification-stat,.scheduled-reminder,.notification-inbox-row,.saved-backup-row){
+  border-color:var(--ui-border);
+  border-radius:var(--ui-radius);
+}
+.workspace .app-page :is(.panel,.family-widget,.management-card,.routine-card,
+  .rewards-balance-card,.family-child-entry,.family-appearance-row,.bill-stat,
+  .notification-stat){
+  background:var(--ui-surface);color:var(--ui-foreground);
+}
+.workspace .app-page :is(.rewards-item,.meals-entry,.family-shopping-row,
+  .family-list-choice,.routine-step,.family-widget-list li,.package-total,
+  .package-entry,.family-child-choice,.family-care-page [data-care-subject-form],
+  .family-care-page [data-care-item-form]){
+  background:var(--ui-surface-raised);
+  color:var(--ui-foreground);
+  border-color:var(--ui-border);
+}
+.workspace .app-page :is(.family-list-choice.active,.family-shopping-row:focus-within,
+  .routine-step:focus-within){
+  border-color:var(--ui-focus);
+  background:var(--ui-surface-selected);
+}
+.workspace .app-page :is(.family-widget-list li span,.family-shopping-meta,
+  .family-list-choice small,.rewards-balance-numbers span,.rewards-item small,
+  .family-child-entry small,.package-entry-description span,
+  .package-entry-description small,.package-delivery,.package-total span,
+  .package-history li span,.package-history li small,.meals-entry small,
+  .family-section-title,.package-toolbar label,.routine-toolbar label){
+  color:var(--ui-subtext);
+}
+.workspace .app-page :is(.family-widget h3,.family-widget-list strong,
+  .family-shopping-name,.rewards-item strong,.rewards-balance-numbers strong,
+  .package-entry-description strong,.package-total strong,.package-empty h3,
+  .family-sidebar-heading h3,.routine-card h3,.meals-day-heading,
+  .family-appearance-row strong){
+  color:var(--ui-foreground);
+}
+.workspace .app-page :is(.package-totals,.family-shopping-history,.family-school-terms,
+  .family-appearance-form,.package-inbound-section,.integration-group-title,
+  .bill-payment-history-row>.bill-payment-history-actions){
+  border-color:var(--ui-border);
+}
+/* Use one control density and form language, including the newer household modules. */
+.workspace .app-page :is(input:not([type=checkbox]):not([type=radio]):not([type=color]),
+  select,textarea){
+  min-height:var(--ui-control-height);
+  min-width:0;
+  max-width:100%;
+  background:var(--ui-field);
+  color:var(--ui-foreground);
+  border:1px solid var(--ui-border-strong);
+  border-radius:10px;
+}
+.workspace .app-page :is(input,select,textarea)::placeholder{
+  color:var(--ui-subtext);opacity:1;
+}
+.workspace .app-page :is(.button,.family-shopping-actions button,
+  .family-widget-tools button){
+  min-height:var(--ui-control-height);
+  border-radius:10px;
+  line-height:1.25;
+}
+.workspace .app-page .button.compact{min-height:38px}
+.workspace .app-page .button:disabled{box-shadow:none;transform:none}
+.workspace .app-page :is(.form-actions,.package-form-actions,.rewards-controls,
+  .meals-actions,.package-head-actions,.saved-backup-actions,
+  .bill-payment-history-actions,.family-shopping-actions){
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0;
+}
+.workspace .app-page :is(.form-actions,.package-form-actions) .button{
+  flex-shrink:0;
+}
+.workspace .app-page :is(.settings-content,.settings-pane,.integration-stack,
+  .family-shopping-main,.family-meals-layout,.family-rewards-layout,
+  .family-child-grid,.routine-cards,.package-list,.package-entry-main){
+  min-width:0;
+}
+.workspace .app-page :is(.family-shopping-name,.rewards-item,.meals-entry,
+  .package-entry,.management-copy,.family-child-entry,.integration-card-copy,
+  .saved-backup-row){
+  overflow-wrap:anywhere;
+}
+.workspace .app-page :is(.family-low-stock,.package-status-exception){
+  background:var(--ui-warning-bg);color:var(--ui-warning-fg);
+}
+.workspace .app-page :is(.package-status-delivered,.package-status-out_for_delivery){
+  background:var(--ui-success-bg);color:var(--ui-success-fg);
+}
+.workspace .app-page .package-status-exception{
+  background:var(--ui-danger-bg);color:var(--ui-danger-fg);
+}
+.workspace .app-page .package-tracking-issue{
+  color:var(--ui-danger-fg);opacity:1;line-height:1.45;
+}
+.workspace .app-page .package-totals{
+  background:var(--ui-border);border-color:var(--ui-border);
+}
+.workspace .app-page .package-entry{
+  padding:16px;gap:16px;
+  border:1px solid var(--ui-border);
+  margin-block:10px;
+  border-radius:var(--ui-radius);
+}
+.workspace .app-page .package-list{border-top:0}
+.workspace .app-page .package-entry-icon{
+  background:var(--ui-surface-selected);
+  color:var(--ui-focus);
+}
+.workspace .app-page .package-runtime-health{
+  background:var(--ui-warning-bg);
+  color:var(--ui-warning-fg);
+  border-color:var(--ui-border);
+  border-left:4px solid currentColor;
+  border-radius:10px;
+}
+.workspace .app-page .package-runtime-health.package-tracker-warning{
+  background:var(--ui-danger-bg);color:var(--ui-danger-fg);
+}
+body.calden-family-dark .workspace .app-page :is(.button.secondary,.date-nav,
+  .settings-nav-item){
+  color:var(--ui-foreground);
+  background:var(--ui-surface-raised);
+  border-color:var(--ui-border-strong);
+}
+body.calden-family-dark .workspace .app-page .button.danger{
+  background:var(--ui-danger-bg);
+  color:var(--ui-danger-fg);
+  border-color:var(--ui-danger-border);
+}
+body.calden-family-dark .workspace .app-page :is(.notification-inbox-row,
+  .scheduled-reminder,.agenda-event,.package-entry,.family-list-choice,
+  .family-shopping-row,.rewards-item,.meals-entry,.routine-step,
+  .family-widget-list li,.family-child-choice){
+  background:var(--ui-surface-raised);
+  color:var(--ui-foreground);
+  border-color:var(--ui-border);
+}
+body.calden-family-dark .workspace .app-page :is(.family-list-choice.active,
+  .family-shopping-row:focus-within,.routine-step:focus-within,
+  .notification-inbox-row.unread){
+  background:var(--ui-surface-selected);border-color:var(--ui-focus);
+}
+body.calden-family-dark .workspace .app-page .package-total{
+  background:var(--ui-surface);color:var(--ui-foreground);
+}
+body.calden-family-dark .workspace .app-page :is(.package-toolbar input,
+  .package-toolbar select,.family-page input,.family-page select){
+  background:var(--ui-field);color:var(--ui-foreground);
+  border-color:var(--ui-border-strong);
+}
+/* Modal dialogs are outside the workspace DOM. They must share the same contract. */
+dialog:is(.package-dialog,.scope-dialog,#event-dialog,#event-details-dialog){
+  max-width:calc(100vw - 24px);
+  max-height:calc(100dvh - 24px);
+  border-radius:16px;
+  background:var(--ui-surface);
+  color:var(--ui-foreground);
+  border-color:var(--ui-border);
+}
+dialog:is(.package-dialog,.scope-dialog,#event-dialog,#event-details-dialog) :is(
+  input:not([type=checkbox]):not([type=radio]):not([type=color]),select,textarea){
+  min-height:var(--ui-control-height);
+  min-width:0;
+  max-width:100%;
+  background:var(--ui-field);
+  color:var(--ui-foreground);
+  border:1px solid var(--ui-border-strong);
+  border-radius:10px;
+}
+body.calden-family-dark .package-dialog .package-form :is(input:not([type=checkbox]),
+  select,textarea),body.calden-family-dark .package-dialog #package-mailbox-form :is(
+  input:not([type=checkbox]),select,textarea){
+  background:var(--ui-field);color:var(--ui-foreground);
+  border-color:var(--ui-border-strong);
+}
+dialog .package-inbound-section>summary,
+dialog .package-inbound-section code,
+dialog .package-history li :is(span,small){
+  color:var(--ui-foreground);
+}
+dialog .package-inbound-section code{
+  background:var(--ui-surface-raised);
+  overflow-wrap:anywhere;
+}
+dialog .package-inbound-section{border-color:var(--ui-border)}
+dialog .package-form-actions{display:flex;gap:10px;flex-wrap:wrap}
+body.calden-family-dark dialog .button.danger{
+  background:var(--ui-danger-bg);color:var(--ui-danger-fg);
+  border-color:var(--ui-danger-border);
+}
+/* A single predictable focus contract across light/dark, buttons and details. */
+body :is(.app-shell,dialog,.auth-shell) :is(a[href],button,summary,
+  input,select,textarea,[tabindex]):focus-visible{
+  outline:3px solid var(--ui-focus);
+  outline-offset:2px;
+}
+body :is(.app-shell,dialog,.auth-shell) :is(
+  input,select,textarea):focus-visible{
+  border-color:var(--ui-focus);
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--ui-focus) 20%,transparent);
+}
+body :is(.app-shell,dialog,.auth-shell) :is(button,input,select,textarea)[disabled]{
+  cursor:not-allowed;opacity:.62;
+}
+/* Dense tabs and household controls must stay usable in the approved layouts. */
+@media(max-width:900px){
+  .workspace .app-page .page-header{gap:12px;flex-wrap:wrap}
+  .workspace .app-page .page-header>:last-child:not(:first-child){max-width:100%}
+  .workspace .app-page :is(.package-entry,.rewards-item,.meals-entry,
+    .family-child-entry,.family-shopping-row){min-width:0}
+}
+@media(max-width:620px){
+  :root{--ui-content-gap:12px;--ui-control-height:44px}
+  .workspace .app-page :is(.family-widgets,.routine-cards,.family-child-grid,
+    .family-meals-layout,.family-shopping-layout,.family-rewards-layout,
+    .settings-grid,.integration-layout,.update-layout,.package-form-row,
+    .family-pref-grid,.family-choice-grid,.family-item-form){grid-template-columns:minmax(0,1fr)}
+  .workspace .app-page .package-totals{grid-template-columns:repeat(3,minmax(0,1fr));margin-block:14px}
+  .workspace .app-page .package-total{padding:12px 8px;min-width:0}
+  .workspace .app-page .package-total strong{font-size:1.4rem}
+  .workspace .app-page .package-total span{font-size:.76rem;overflow-wrap:anywhere}
+  .workspace .app-page .package-entry{padding:13px;gap:12px}
+  .workspace .app-page .package-entry-side{align-items:flex-start;justify-content:flex-start}
+  .workspace .app-page :is(.package-toolbar label,.package-toolbar label:has(input),
+    .package-toolbar input,.package-toolbar select){min-width:0;max-width:none;width:100%}
+  .workspace .app-page :is(.form-actions,.package-form-actions,
+    .rewards-controls,.meals-actions,.package-head-actions){
+    width:100%;justify-content:flex-start;
+  }
+  .workspace .app-page :is(.form-actions,.package-form-actions,
+    .rewards-controls,.meals-actions,.package-head-actions) .button{
+    min-height:44px;flex:1 1 auto;white-space:normal;
+  }
+  .workspace .app-page .family-item-form .form-actions{grid-column:1}
+  dialog:is(.package-dialog,.scope-dialog,#event-dialog,#event-details-dialog){
+    width:calc(100vw - 18px);
+    max-width:calc(100vw - 18px);
+    max-height:calc(100dvh - 18px);
+    margin:auto;
+  }
+  dialog .package-form{padding:16px;max-height:calc(100dvh - 24px)}
+  dialog .package-form-actions .button{min-height:44px;flex:1 1 auto}
+}
+@media(prefers-reduced-motion:reduce){
+  .workspace .app-page :is(.button,.management-card,.agenda-event,.routine-meter span,
+    .package-entry,.nav-item){transition:none!important;transform:none!important}
+}
