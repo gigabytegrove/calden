@@ -12,7 +12,9 @@
   const carriers={auto:"Auto-detect",amazon:"Amazon",usps:"USPS",ups:"UPS",fedex:"FedEx",other:"Other"};
   let shipments=[];
   let loading=false;
+  let trackerState="unknown";
   const checking=new Set();
+  const trackerPreparing=()=>["pending","installing","retrying"].includes(trackerState);
   const checkTime=v=>v?new Date(v).toLocaleString():"Pending";
   let visible=localStorage.getItem("calden_packages_calendar")!=="false";
   const enabled=()=>state.settings?.packages_enabled===true&&!state.me?.is_child;
@@ -39,18 +41,20 @@
   }
   async function loadTrackerHealth(){
     const box=$("#packages-tracker-health");
-    if(!enabled()){box.classList.add("hidden");return}
+    if(!enabled()){trackerState="disabled";box.classList.add("hidden");return}
     try{
       const result=await api("/api/packages/tracker-health");
+      trackerState=result.ready===true?"ready":String(result.state||"unavailable");
       box.classList.toggle("hidden",result.ready===true&&result.browser_ready===true);
-      box.classList.toggle("package-tracker-warning",result.ready!==true&&result.message.toLowerCase().includes("retrying"));
-      box.textContent=result.ready===true
-        ?(result.browser_ready===true?"":result.message)
-        :result.message;
+      box.classList.toggle("package-tracker-warning",trackerState==="retrying"||trackerState==="unavailable");
+      box.textContent=result.ready===true&&result.browser_ready===true?"":String(result.message||"Calden is preparing tracking automatically.");
+      render();
     }catch(error){
+      trackerState="unavailable";
       box.classList.remove("hidden");
       box.classList.add("package-tracker-warning");
       box.textContent="Could not verify the tracking engine: "+error.message;
+      render();
     }
   }
   async function load(quiet=false){
@@ -99,7 +103,7 @@
       '<small>'+esc(p.shared?"Shared with household":"Private")+' · '+esc(p.status_source==="manual"?"Manually maintained":p.status_source==="email"?"Imported from email":p.provider_slug?.startsWith("local:")?"Carrier scans":p.provider_slug?.startsWith("public:")?"From public carrier page":"Carrier API update")+'</small>'+(p.latest_scan?'<small class="package-latest-scan">📍 '+esc(p.latest_scan)+'</small>':'')+ '<small>Last checked: '+(p.last_tracking_check?esc(checkTime(p.last_tracking_check)):'Never')+' · Next: '+esc(checkTime(p.next_tracking_check))+'</small>'+(p.tracking_error?'<small class="package-tracking-issue" role="status">Carrier check failed: '+esc(p.tracking_error)+'</small>':'')+'</div></div>'+
       '<div class="package-entry-side"><span class="package-status package-status-'+attr(p.status)+'">'+esc(labelStatus(p.status))+'</span>'+
       '<span class="package-delivery">'+esc(p.expected_date?safeDate(p.expected_date):"Delivery date unknown")+'</span>'+
-      (p.can_edit&&p.status!=="delivered"?'<button class="button secondary compact" type="button" data-package-check="'+attr(p.id)+'" '+(checking.has(p.id)?'disabled':'')+'>'+(checking.has(p.id)?'Checking…':'Check tracking now')+'</button>':'')+
+      (p.can_edit&&p.status!=="delivered"?'<button class="button secondary compact" type="button" data-package-check="'+attr(p.id)+'" '+(checking.has(p.id)||trackerPreparing()?'disabled':'')+'>'+(checking.has(p.id)?'Checking…':trackerPreparing()?'Preparing tracker…':'Check tracking now')+'</button>':'')+
       (p.can_edit?'<button class="button danger compact" type="button" data-package-delete="'+attr(p.id)+'" aria-label="Delete '+attr(p.label)+' permanently">Delete</button>':'')+
       '<button class="button secondary compact" type="button" data-package-open="'+attr(p.id)+'">'+(p.can_edit?"Open / edit":"View")+'</button></div></article>'
     ).join("");
@@ -178,11 +182,12 @@
       });
       $("#package-dialog").close();
       await load();
-      status("#packages-status",(id?"Package updated. ":"Package added. ")+"Checking carrier tracking in the background…");
+      status("#packages-status",(id?"Package updated. ":"Package added. ")+(trackerPreparing()?"Calden will check tracking after its engine is ready.":"Checking carrier tracking in the background…"));
       api("/api/packages/"+encodeURIComponent(id||result.id)+"/refresh",{method:"POST",body:"{}"})
         .then(async outcome=>{
           await load();
-          status("#packages-status",outcome.status==="updated"?"Carrier scans retrieved and saved.":outcome.status==="unavailable"?"Tracking is saved; no new carrier scan was returned. Automatic retry is scheduled.":outcome.message||"Carrier tracking scheduled.");
+          status("#packages-status",outcome.status==="updated"?"Carrier scans retrieved and saved.":outcome.status==="repairing"?"Package saved. Calden will check it automatically when the tracker is ready.":outcome.status==="unavailable"?"Tracking is saved; no new carrier scan was returned. Automatic retry is scheduled.":outcome.message||"Carrier tracking scheduled.");
+          if(outcome.status==="repairing")loadTrackerHealth();
         })
         .catch(async error=>{
           await load();
@@ -346,7 +351,7 @@
       const outcome=await api("/api/packages/"+encodeURIComponent(id)+"/refresh",{method:"POST",body:"{}"});
       await load();
       status("#packages-status",outcome.status==="updated"?"Carrier scans updated.":outcome.message||"No new verified carrier scan available.");
-      if(outcome.status==="unavailable")loadTrackerHealth();
+      if(outcome.status==="unavailable"||outcome.status==="repairing")loadTrackerHealth();
     }catch(error){
       await load();
       loadTrackerHealth();
@@ -364,7 +369,7 @@
       const updated=shipments.find(item=>item.id===id);
       if(updated)openPackage(id);
       status("#package-tracking-details",result.status==="updated"?"Status retrieved from carrier tracking.":result.message);
-      if(result.status==="unavailable")loadTrackerHealth();
+      if(result.status==="unavailable"||result.status==="repairing")loadTrackerHealth();
     }catch(e){status("#package-tracking-details","Could not refresh carrier data: "+e.message)}
     finally{button.disabled=false}
   }
@@ -399,7 +404,7 @@
   function onToggle(){
     renderNav();
     if(enabled())loadTrackerHealth();
-    if(enabled()){load()}else{shipments=[];render();renderCalendar()}
+    if(enabled()){load()}else{trackerState="disabled";shipments=[];render();renderCalendar()}
   }
   function enter(page){
     if(page==="packages"&&enabled()){load();loadTrackerHealth()}
@@ -446,9 +451,13 @@
     localStorage.setItem("calden_packages_calendar",String(visible));
     renderCalendar();
   });
-  // Keep carrier and mailbox discoveries visible without making users reload.
+  // Carrier/repair progress is an actual background workflow. Refresh the
+  // visible package statuses and readiness automatically without user clicks.
   window.setInterval(()=>{
-    if(enabled()&&state.currentPage==="packages"&&!loading)load(true);
-  },60000);
+    if(enabled()&&state.currentPage==="packages"){
+      if(!loading)load(true);
+      loadTrackerHealth();
+    }
+  },30000);
   window.caldenPackages={load,render,renderNav,enter,onToggle,calendarForDay,bindCalendar};
 })();
