@@ -19,6 +19,7 @@ import (
  "strings"
  "sync"
  "time"
+ "github.com/jackc/pgx/v5"
  "github.com/jackc/pgx/v5/pgxpool"
 )
 const parcelRuntimeTag="v1.5.0-alpha.13"
@@ -161,21 +162,72 @@ func parcelRepair(ctx context.Context)error{
  parcelSetState("ready","Calden repaired its tracking runtime automatically.")
  return nil
 }
+// The package feature is opt-in. Do not download a large browser runtime
+// while Package Tracking is disabled, even on a legacy binary-only install.
+type parcelSettingsQuerier interface {
+ QueryRow(context.Context,string,...any)pgx.Row
+}
+func parcelTrackingEnabled(ctx context.Context,query parcelSettingsQuerier)(bool,error){
+ var enabled bool
+ err:=query.QueryRow(ctx,`SELECT COALESCE(
+  (SELECT value='true' FROM app_settings WHERE key='packages_enabled'),false)`).Scan(&enabled)
+ return enabled,err
+}
+func parcelRuntimePresent()bool{
+ if parcelExists("/opt/calden-parcel/node_modules/universal-parcel-scraper/dist/cli/index.js")&&parcelExists("/usr/bin/chromium"){return true}
+ return parcelExists(parcelBundledCLI())&&parcelExists(parcelBundledNode())&&parcelExists(parcelBundledChromium())
+}
+// A missing keyless runtime is a pending installation, not a carrier failure.
+// Explicit test/operator CLI overrides and an optional configured API provider
+// bypass the managed runtime without ever requiring an extra service.
+func parcelTrackingPending(providerKey string)bool{
+ if providerKey!=""||strings.TrimSpace(os.Getenv("CALDEN_LOCAL_PARCEL_CLI"))!=""{return false}
+ state,_:=parcelInstallSnapshot()
+ return state!="ready"||!parcelRuntimePresent()
+}
 func StartParcelRuntimeRepair(ctx context.Context,db *pgxpool.Pool){
  go func(){
+  var nextRetry time.Time
+  previouslyEnabled:=false
   repair:=func(){
-   if err:=parcelRepair(ctx);err!=nil{
-    parcelSetState("retrying","Calden is retrying automatic tracking repair.")
-   }else{
-    _,_=db.Exec(ctx,"UPDATE package_shipments SET next_tracking_check_at=now() WHERE NOT archived AND status!='delivered' AND status_source!='provider'")
+   enabled,err:=parcelTrackingEnabled(ctx,db)
+   if err!=nil{
+    parcelSetState("retrying","Calden will retry checking Package Tracking settings.")
+    return
    }
+   if !enabled{
+    previouslyEnabled=false
+    nextRetry=time.Time{}
+    parcelSetState("disabled","Package Tracking is off.")
+    return
+   }
+   // A household enabling Packages should not inherit the backoff of an
+   // earlier failed attempt when the feature was subsequently disabled.
+   if !previouslyEnabled{nextRetry=time.Time{}}
+   previouslyEnabled=true
+   if state,_:=parcelInstallSnapshot();state=="ready"&&parcelRuntimePresent(){return}
+   if !nextRetry.IsZero()&&time.Now().Before(nextRetry){return}
+   if err:=parcelRepair(ctx);err!=nil{
+    nextRetry=time.Now().Add(10*time.Minute)
+    parcelSetState("retrying","Calden is retrying automatic tracking repair.")
+    return
+   }
+   nextRetry=time.Time{}
+   // Earlier polling attempts may have claimed a three-hour slot while the
+   // runtime was missing. Queue ALL active shipments once the repair succeeds,
+   // including shipments with an earlier provider-verified status.
+   _,_=db.Exec(ctx,`UPDATE package_shipments SET next_tracking_check_at=now()
+      WHERE NOT archived AND status!='delivered'
+      AND COALESCE((SELECT value='true' FROM app_settings WHERE key='packages_enabled'),false)`)
   }
   repair()
-  timer:=time.NewTicker(10*time.Minute);defer timer.Stop()
+  // React to an enabled feature in at most 30 seconds without repeatedly
+  // downloading ~800MB on every tick after a network/storage failure.
+  timer:=time.NewTicker(30*time.Second);defer timer.Stop()
   for {
    select{
    case <-ctx.Done():return
-   case <-timer.C:if state,_:=parcelInstallSnapshot();state!="ready"{repair()}
+   case <-timer.C:repair()
    }
   }
  }()

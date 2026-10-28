@@ -48,3 +48,18 @@ test("the Packages page diagnoses an unavailable scraper instead of redirecting 
  assert.match(provider,/last_tracking_check_at <= now\(\)-interval '2 minutes'/);
  assert.doesNotMatch(provider,/return publicErr/);
 });
+
+test("repair is an actionable in-app state, never a fake failed carrier request",()=>{
+ const provider=fs.readFileSync("internal/api/package_provider.go","utf8");
+ const runtime=fs.readFileSync("internal/api/package_runtime_repair.go","utf8");
+ assert.match(provider,/parcelTrackingPending\(key\)/);
+ assert.match(provider,/http\.StatusAccepted/);
+ assert.match(provider,/"status":"repairing"/);
+ assert.match(provider,/if parcelTrackingPending\(key\)\{return\}/);
+ assert.match(runtime,/parcelTrackingEnabled\(ctx,db\)/);
+ assert.match(runtime,/nextRetry=time\.Now\(\)\.Add\(10\*time\.Minute\)/);
+ assert.match(ui,/trackerPreparing\(\)/);
+ assert.match(ui,/Preparing tracker…/);
+ assert.match(ui,/outcome\.status==="repairing"/);
+ assert.match(ui,/loadTrackerHealth\(\)/);
+});

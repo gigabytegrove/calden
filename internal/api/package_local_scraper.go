@@ -117,8 +117,16 @@ func trackerRuntimeReadiness(ctx context.Context)(bool,bool,string){
 func (s *server) packageTrackerHealth(w http.ResponseWriter,r *http.Request){
  if !s.requirePackages(w,r){return}
  if currentActor(r).IsChild{writeError(w,http.StatusForbidden,"Package tracking is unavailable to child accounts");return}
+ state,detail:=parcelInstallSnapshot()
+ if state=="installing"||state=="retrying"||state=="pending"{
+  // A download can take time. The UI should show background recovery, not
+  // probe half-extracted binaries or present a carrier lookup error.
+  writeJSON(w,http.StatusOK,map[string]any{"ready":false,"browser_ready":false,"state":state,"message":detail})
+  return
+ }
  ready,browser,message:=trackerRuntimeReadiness(r.Context())
- writeJSON(w,http.StatusOK,map[string]any{"ready":ready,"browser_ready":browser,"message":message})
+ if ready{state="ready"}
+ writeJSON(w,http.StatusOK,map[string]any{"ready":ready,"browser_ready":browser,"state":state,"message":message})
 }
 func invokeLocalScraper(ctx context.Context,number,carrier string)(localResult,error){
  var empty localResult
