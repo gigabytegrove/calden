@@ -59,7 +59,8 @@ test("tracking history is exposed directly from package rows and the editor",asy
   assert.ok(row,"list row missing");
   const history=row.querySelector("[data-package-history]");
   assert.ok(history,"first-class tracking history control missing");
-  assert.equal(history.textContent,"Tracking history");
+  assert.equal(history.textContent,"View full history");
+  assert.match(row.textContent,/Latest carrier activity:.*Arrived at hub/);
   assert.equal(row.querySelector("[data-package-delete]"),null,"read-only shared viewer unexpectedly has delete");
   history.click();
   await ticks();
