@@ -1434,3 +1434,7 @@ body.calden-family-dark .recipecove-integration-card code{color:#bfdbfe}
 .package-inbound-section[open] > summary{margin-bottom:12px}
 #package-mailbox-form .package-form-actions{flex-wrap:wrap}
 #package-email-dialog .package-inbound-section{margin-block:12px}
+
+/* Carrier runtime readiness is a functional warning, not a tracking status. */
+.package-runtime-health{padding:12px 14px;margin:10px 0 12px;background:#fff4d6;color:#654308;border-left:4px solid #946200;line-height:1.55;font-size:.91rem}
+.package-runtime-health.package-tracker-warning{background:#fff2f0;color:#8d211c;border-left-color:#b42318}
