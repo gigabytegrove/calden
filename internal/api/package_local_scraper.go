@@ -97,7 +97,9 @@ func trackerRuntimeReadiness(ctx context.Context)(bool,bool,string){
   return false,false,message
  }
  node:="node"
- if parcelExists(parcelBundledNode()){node=parcelBundledNode()}
+ // Do not accidentally execute the healthy embedded CLI with a stale Node
+ // binary left in the managed directory after a failed earlier repair.
+ if path==parcelBundledCLI(){node=parcelBundledNode()}
  if _,err:=exec.LookPath(node);err!=nil{return false,false,"Calden is automatically preparing tracking."}
  chromium:=false
  if info,err:=os.Stat("/usr/bin/chromium");err==nil&&!info.IsDir()&&info.Mode()&0111!=0{chromium=true}
