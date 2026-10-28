@@ -1,0 +1,23 @@
+# A musl-compatible, relocatable runtime for legacy Alpine Calden images.
+# This is NOT a second service. Alpha's in-app updater installs this bundle
+# automatically in the existing /data volume, as the existing calden user.
+FROM node:26.12.1-alpine3.22
+RUN apk add --no-cache chromium fontconfig freetype harfbuzz nss \
+    ttf-freefont ca-certificates coreutils
+WORKDIR /opt/calden-parcel
+RUN npm install --no-audit --no-fund --ignore-scripts --no-save \
+    universal-parcel-scraper@0.637.1 playwright-core@1.63.0 sharp@0.35.5 onnxruntime-web@1.30.0
+RUN node node_modules/universal-parcel-scraper/dist/cli/index.js detect 1Z999AA10123456784 > /tmp/detect.json \
+    && grep -qi UPS /tmp/detect.json
+RUN set -eux; \
+    mkdir -p /out/runtime/{lib,chromium,parcel,share,etc}; \
+    cp -a /usr/lib/. /out/runtime/lib/; \
+    cp /usr/local/bin/node /out/runtime/node; \
+    cp -a /opt/calden-parcel/node_modules /out/runtime/parcel/node_modules; \
+    cp -a /usr/share/. /out/runtime/share/; \
+    cp -a /etc/fonts /out/runtime/etc/fonts; \
+    if test -x /usr/lib/chromium/chromium; then cp /usr/lib/chromium/chromium /out/runtime/chromium/chromium; \
+    elif test -x /usr/lib/chromium/chrome; then cp /usr/lib/chromium/chrome /out/runtime/chromium/chromium; \
+    else echo 'Chrome executable not found' >&2; exit 1; fi; \
+    test -x /out/runtime/node; \
+    test -x /out/runtime/chromium/chromium
