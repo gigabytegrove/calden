@@ -184,7 +184,8 @@ jobs:
             exit 1
           fi
           gh release create "$TAG" \
-            dist/calden-linux-amd64.tar.gz dist/calden-linux-arm64.tar.gz dist/SHA256SUMS \
+            dist/calden-linux-amd64.tar.gz dist/calden-linux-arm64.tar.gz \
+            dist/calden-tracker-linux-amd64.tar.gz dist/calden-tracker-linux-arm64.tar.gz dist/SHA256SUMS \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "Calden 1.5.0-alpha.13 — Free Keyless Package Tracking" \
