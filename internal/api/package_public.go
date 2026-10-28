@@ -16,7 +16,7 @@ import (
 // URL does not imply that the carrier exposes machine-readable status.
 // This adapter makes one ordinary unauthenticated HTTPS request, never
 // solves challenges, submits credentials, or calls private app endpoints.
-const publicTrackingUnavailable = "Live status is not available from this carrier's public page. Use Track with carrier for the official details."
+const publicTrackingUnavailable = "The official carrier page did not return a verified status. Calden will retry automatically."
 const publicTrackingMaxBody = 768 * 1024
 
 var publicTrackingTag = regexp.MustCompile("(?s)<[^>]{1,512}>")
