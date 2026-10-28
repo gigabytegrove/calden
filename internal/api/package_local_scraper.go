@@ -189,6 +189,29 @@ func localScanTime(value string)time.Time{
  }
  return time.Time{}
 }
+// localHistoryCheckpoint keeps every real carrier observation, including
+// stages the status enum cannot yet classify. Missing timezone does not become
+// a fabricated carrier scan timestamp; it is explicitly marked as receipt time.
+func localHistoryCheckpoint(e localScan)(string,string,time.Time){
+ code:=normalizeLocalStage(e.Stage)
+ if code==""{code="unknown"}
+ desc:=strings.TrimSpace(e.Description)
+ if loc:=strings.TrimSpace(e.Location);loc!=""{
+  if desc!=""{desc+=" · "}
+  desc+=loc
+ }
+ if desc==""{desc="Carrier event: "+strings.TrimSpace(e.Stage)}
+ eventAt:=localScanTime(e.Instant)
+ if eventAt.IsZero(){eventAt=localScanTime(e.Time)}
+ if eventAt.IsZero(){
+  local:=strings.TrimSpace(e.LocalTime)
+  if local==""{local=strings.TrimSpace(e.Time)}
+  if local!=""{desc+=" ("+local+"; carrier time zone not provided)"}
+  desc+=" [Recorded by Calden; scan time not verified]"
+  eventAt=time.Now().UTC()
+ }
+ return code,cleanText(desc,480),eventAt
+}
 func(s *server) syncLocalScraperTracking(ctx context.Context,job dueTracking)error{
  response,err:=invokeLocalScraper(ctx,job.Number,job.Carrier)
  if err!=nil{return err}
@@ -218,28 +241,7 @@ func(s *server) syncLocalScraperTracking(ctx context.Context,job dueTracking)err
  if tag.RowsAffected()!=1{return errors.New("Shipment changed before carrier update completed")}
  eventsSaved:=0
  for _,e:=range response.Result.Events{
-  // Preserve the carrier's actual history even when its event-stage vocabulary
-  // is newer than Calden's shipment status mapping. Unknown stages are
-  // historical observations, not fabricated delivery status transitions.
-  code:=normalizeLocalStage(e.Stage)
-  if code==""{code="unknown"}
-  desc:=strings.TrimSpace(e.Description)
-  if loc:=strings.TrimSpace(e.Location);loc!=""{
-   if desc!=""{desc+=" · "}
-   desc+=loc
-  }
-  if desc==""{desc="Carrier event: "+strings.TrimSpace(e.Stage)}
-  eventAt:=localScanTime(e.Instant)
-  if eventAt.IsZero(){eventAt=localScanTime(e.Time)}
-  // Unzoned carrier times are descriptions, not absolute timestamps.
-  if eventAt.IsZero(){
-   local:=strings.TrimSpace(e.LocalTime)
-   if local==""{local=strings.TrimSpace(e.Time)}
-   if local!=""{desc+=" ("+local+"; carrier time zone not provided)"}
-   desc+=" [Recorded by Calden; scan time not verified]"
-   eventAt=time.Now().UTC()
-  }
-  desc=cleanText(desc,480)
+  code,desc,eventAt:=localHistoryCheckpoint(e)
   _,err=tx.Exec(ctx,`INSERT INTO package_checkpoints(shipment_id,status,detail,source,occurred_at,provider_ref)
   VALUES($1,$2,$3,'provider',$4,$5) ON CONFLICT DO NOTHING`,
   job.ID,code,desc,eventAt,localScanRef(e))
