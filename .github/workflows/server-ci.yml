@@ -243,7 +243,7 @@ jobs:
             );
             if (!sidebarLogoLoaded) throw new Error('Sidebar logo did not load');
             const sidebarBackground = await page.locator('#sidebar').evaluate(el => getComputedStyle(el).backgroundColor);
-            if (sidebarBackground !== 'rgb(15, 23, 42)') {
+            if (sidebarBackground !== 'rgb(255, 255, 255)') {
               throw new Error('Tailwind product shell was not applied: ' + sidebarBackground);
             }
             if (!await page.locator('link[href^="/styles.css"]').count()) {
