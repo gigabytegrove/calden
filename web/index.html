@@ -442,6 +442,7 @@
         <label>Status <select id="packages-filter"><option value="active">Incoming</option><option value="all">All</option><option value="delivered">Delivered</option></select></label>
         <label>Search <input id="packages-search" type="search" placeholder="Package, carrier or tracking number"></label>
       </div>
+      <p id="packages-tracker-health" class="package-runtime-health hidden" role="status" aria-live="polite"></p>
       <p id="packages-status" class="status-line" role="status" aria-live="polite"></p>
       <div id="packages-list" class="package-list" aria-live="polite"></div>
       <p class="muted package-disclaimer">Calden automatically checks actual carrier scans approximately every three hours using its bundled local tracking engine. No paid plan, API key, or extra server is required. Some carriers restrict automated status access or require account-specific details; Calden never invents scans.</p>
