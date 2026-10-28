@@ -41,8 +41,9 @@ function fixture({pages}={}){
    const entries=pages||[
     {items:[
       {status:"in_transit",source:"provider",detail:"Arrived at processing hub · Tallahassee, FL",occurred_at:"2026-10-28T11:23:00Z"},
+      {status:"in_transit",source:"provider_status",detail:"Current status with no carrier scan",occurred_at:"2026-10-28T11:20:00Z"},
       {status:"unknown",source:"manual",detail:"Package added",occurred_at:"2026-10-26T09:11:00Z"}
-    ],has_more:false,next_offset:2}
+    ],has_more:false,next_offset:3}
    ];
    return entries[offset===0?0:1]||{items:[],has_more:false,next_offset:offset};
   }
@@ -68,8 +69,9 @@ test("tracking history is exposed directly from package rows and the editor",asy
   assert.equal(dialog.open,true,"history dialog did not open");
   assert.equal(dialog.getAttribute("aria-labelledby"),"package-history-title");
   assert.equal(f.w.document.getElementById("package-history-name").textContent,packageData.label);
-  assert.equal(f.w.document.querySelectorAll(".package-history-event").length,2);
+  assert.equal(f.w.document.querySelectorAll(".package-history-event").length,3);
   assert.match(f.w.document.getElementById("package-history").textContent,/Carrier scan/);
+  assert.match(f.w.document.getElementById("package-history").textContent,/Carrier status/);
   assert.match(f.w.document.getElementById("package-history").textContent,/Entered in Calden/);
   assert.match(f.w.document.getElementById("package-history").textContent,/Tallahassee, FL/);
   assert.ok(f.requested.some(x=>x.includes("/history?offset=0")));
