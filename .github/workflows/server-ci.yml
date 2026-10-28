@@ -168,6 +168,9 @@ jobs:
           })();
           NODE
 
+      - name: Verify real Chromium light/dark appearance and mobile layout
+        run: node scripts/ui-compliance-browser.cjs
+
       - name: Verify first-run state
         run: |
           python - <<'PY'
