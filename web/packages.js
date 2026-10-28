@@ -84,6 +84,7 @@
       '<div class="package-entry-side"><span class="package-status package-status-'+attr(p.status)+'">'+esc(labelStatus(p.status))+'</span>'+
       '<span class="package-delivery">'+esc(p.expected_date?safeDate(p.expected_date):"Delivery date unknown")+'</span>'+
       (p.can_edit&&p.status!=="delivered"?'<button class="button secondary compact" type="button" data-package-check="'+attr(p.id)+'" '+(checking.has(p.id)?'disabled':'')+'>'+(checking.has(p.id)?'Checking…':'Check tracking now')+'</button>':'')+
+      (p.can_edit?'<button class="button danger compact" type="button" data-package-delete="'+attr(p.id)+'" aria-label="Delete '+attr(p.label)+' permanently">Delete</button>':'')+
       '<button class="button secondary compact" type="button" data-package-open="'+attr(p.id)+'">'+(p.can_edit?"Open / edit":"View")+'</button></div></article>'
     ).join("");
   }
@@ -134,7 +135,8 @@
     const writable=canWrite()&&(!p||p.can_edit);
     form.querySelectorAll("input,select,textarea").forEach(el=>{el.disabled=!writable});
     $("#package-save").classList.toggle("hidden",!writable);
-    $("#package-archive").classList.toggle("hidden",!p||!writable);
+    $("#package-delete").classList.toggle("hidden",!p||!writable);
+    $("#package-more-details").open=false;
     $("#package-update-status").classList.toggle("hidden",!p||!writable||p.status==="delivered");
     $("#package-form-heading").textContent=p?(writable?"Edit package":"Package details"):"Add package";
     const link=$("#package-track-link");
@@ -173,32 +175,55 @@
     }catch(err){status("#package-form-error",err.message)}
     finally{button.disabled=false}
   }
-  async function archive(){
-    const id=formValue($("#package-form"),"id").value;
-    if(!id||!confirm("Archive this package? It will disappear from the calendar and package list, but its record will be retained."))return;
-    const b=$("#package-archive");b.disabled=true;
+  async function deletePackage(id){
+    const pkg=shipments.find(p=>p.id===id);
+    if(!pkg||!pkg.can_edit)return;
+    if(!confirm('Permanently delete "'+pkg.label+'"? Its tracking history will be erased and this cannot be undone.'))return;
+    const button=$("#package-delete");
+    if(button)button.disabled=true;
+    status("#packages-status","Deleting "+pkg.label+"…");
     try{
       await api("/api/packages/"+encodeURIComponent(id),{method:"DELETE"});
-      $("#package-dialog").close();await load();
-      status("#packages-status","Package archived.");
-    }catch(err){status("#package-form-error",err.message)}
-    finally{b.disabled=false}
+      const form=$("#package-form");
+      if(formValue(form,"id").value===id&&$("#package-dialog").open)$("#package-dialog").close();
+      await load();
+      status("#packages-status","Package deleted. You can add this tracking number again.");
+    }catch(err){
+      status("#packages-status","Could not delete package: "+err.message);
+      status("#package-form-error","Could not delete package: "+err.message);
+    }finally{if(button)button.disabled=false}
   }
   async function loadMailboxSettings(){
     const form=$("#package-mailbox-form");
     const label=$("#package-mailbox-status");
     label.textContent="Checking mailbox connection…";
     const result=await api("/api/packages/mailbox");
-    form.elements.namedItem("hostname").value=result.hostname||"imap.gmail.com";
+    const isGmail=!result.hostname||result.hostname==="imap.gmail.com";
+    $("#package-email-provider").value=isGmail?"gmail":"other";
+    form.elements.namedItem("hostname").value=isGmail?"auto":result.hostname;
+    $("#package-mailbox-advanced").open=!isGmail;
+    updateEmailProvider(false);
     form.elements.namedItem("username").value=result.username||"";
     form.elements.namedItem("password").value="";
-    form.elements.namedItem("enabled").checked=Boolean(result.enabled);
+    form.elements.namedItem("enabled").checked=result.configured?Boolean(result.enabled):true;
     label.textContent=!result.configured?"No mailbox connected. Enter a username and app password to start.":(
       (result.enabled?"Automatic inbox checks enabled. ":"Inbox checks paused. ")+
       (result.last_scan?"Last scan: "+new Date(result.last_scan).toLocaleString()+". ":"First scan pending. ")+
       (result.last_error?"Last error: "+result.last_error+". ":"")+
       (result.last_scan?"Messages examined: "+Number(result.last_imported||0)+".":"")
     );
+  }
+  function updateEmailProvider(resetHost=true){
+    const gmail=$("#package-email-provider").value==="gmail";
+    const form=$("#package-mailbox-form");
+    $("#package-mailbox-advanced").open=!gmail;
+    if(resetHost)form.elements.namedItem("hostname").value=gmail?"auto":"";
+    const help=$("#package-email-account-hint");
+    help.textContent=gmail
+      ?"Calden chooses Gmail's secure server automatically. Use a Google app password, not your account password."
+      :"Ask your Calden administrator which mail server is approved. Microsoft 365 and Outlook require OAuth and are not supported yet.";
+    $("#package-mailbox-password-help").classList.toggle("hidden",!gmail);
+    form.elements.namedItem("password").placeholder=gmail?"Paste a Google app password":"Enter the mailbox app password";
   }
   async function saveMailboxSettings(event){
     event.preventDefault();
@@ -211,7 +236,7 @@
       await api("/api/packages/mailbox",{method:"PUT",body:JSON.stringify(fields)});
       form.elements.namedItem("password").value="";
       await loadMailboxSettings();
-      status("#package-mailbox-status","Mailbox saved. Enabled connections are checked shortly and then about every 15 minutes.");
+      status("#package-mailbox-status","Inbox settings saved. Calden will verify the connection on its next scan and check automatically every 15 minutes.");
     }catch(err){status("#package-mailbox-status",err.message)}
     finally{button.disabled=false}
   }
@@ -376,17 +401,20 @@
   $("#packages-list").addEventListener("click",event=>{
     const check=event.target.closest("[data-package-check]");
     if(check){checkPackage(check.dataset.packageCheck);return}
+    const remove=event.target.closest("[data-package-delete]");
+    if(remove){deletePackage(remove.dataset.packageDelete);return}
     const button=event.target.closest("[data-package-open]");
     if(button)openPackage(button.dataset.packageOpen);
   });
   $("#package-form").addEventListener("submit",save);
-  $("#package-archive").addEventListener("click",archive);
+  $("#package-delete").addEventListener("click",()=>deletePackage(formValue($("#package-form"),"id").value));
   document.querySelectorAll("[data-close-package]").forEach(b=>b.addEventListener("click",()=>$("#package-dialog").close()));
   document.querySelectorAll("[data-close-package-email]").forEach(b=>b.addEventListener("click",()=>$("#package-email-dialog").close()));
   $("#package-email-dialog").addEventListener("close",()=>{$("#package-email-token-value").value=""});
   $("#package-email-form").addEventListener("submit",importEmail);
   $("#package-token-generate").addEventListener("click",generateToken);
   $("#package-token-revoke").addEventListener("click",revokeToken);
+  $("#package-email-provider").addEventListener("change",()=>updateEmailProvider());
   $("#package-mailbox-form").addEventListener("submit",saveMailboxSettings);
   $("#package-mailbox-check").addEventListener("click",requestMailboxScan);
   $("#package-mailbox-reload").addEventListener("click",()=>loadMailboxSettings().catch(err=>status("#package-mailbox-status",err.message)));
