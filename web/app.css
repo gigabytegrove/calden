@@ -1953,3 +1953,19 @@ body.calden-family-dark dialog .dialog-close:hover{
   .workspace .app-page .bill-payment-summary,
   .workspace .app-page .bill-breakdown-grid{grid-template-columns:minmax(0,1fr)}
 }
+
+/* Package history is part of the main workflow, not an advanced configuration. */
+.workspace .app-page .package-latest-scan{display:block;color:var(--ui-foreground);opacity:1;line-height:1.5}
+.workspace .app-page .package-latest-scan strong{font-weight:750;color:var(--ui-foreground)}
+.workspace .app-page .package-no-scans{color:var(--ui-subtext);font-style:normal}
+.workspace .app-page [data-package-history]{font-weight:750;border-color:var(--ui-border-strong)}
+.package-history-dialog .package-history-overview,.package-history-dialog .package-history-event{
+  background:var(--ui-surface-raised);color:var(--ui-foreground);border-color:var(--ui-border)
+}
+.package-history-dialog :is(.package-history-source,.package-history-body time,.package-history-body p,
+  .package-history-empty p){color:var(--ui-subtext)}
+.package-history-dialog .package-history-dot{border-color:var(--ui-focus)}
+@media(max-width:620px){
+  .workspace .app-page [data-package-history]{order:-1}
+  .package-history-dialog .package-form{overflow-y:auto}
+}
