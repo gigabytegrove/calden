@@ -76,6 +76,8 @@ jobs:
           --health-retries 12
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Inspect existing release before publishing any mutable Docker tag
         id: existing_release
         env:
@@ -114,9 +116,20 @@ jobs:
               *) echo "Beta baseline changed unexpectedly: $changed" >&2; exit 1 ;;
             esac
           done < /tmp/beta-change-list
-          git diff --unified=0 "$BASE" "$GITHUB_SHA" -- cmd/calden/main.go web/index.html internal/api/package_runtime_repair.go VERSION |
-            grep -E '^[+-][^+-]' | grep -Ev '^[+-].*1\\.5\\.0-(alpha\\.18|beta)' |
-            grep . && { echo "Non-version production source changes are forbidden" >&2; exit 1; } || true
+          # Parse actual changed source lines, not context. Reject any source
+          # edit other than swapping the exact alpha18 identity for beta.
+          python3 - <<'PY'
+          import subprocess
+          base="b29edf4381761ffbb4d83a4d719253eb5b8ed4fb"
+          paths=["VERSION","cmd/calden/main.go","web/index.html","internal/api/package_runtime_repair.go"]
+          for path in paths:
+              original=subprocess.check_output(["git","show",f"{base}:{path}"],text=True)
+              promoted=subprocess.check_output(["git","show",f"HEAD:{path}"],text=True)
+              expected=original.replace("1.5.0-alpha.18","1.5.0-beta")
+              if "1.5.0-alpha.18" not in original or expected!=promoted:
+                  raise SystemExit(f"Unapproved production change in {path}")
+          print("Frozen production sources match alpha18 exactly except beta version identity")
+          PY
           grep -Fq 'const parcelRuntimeTag="v1.5.0-beta"' internal/api/package_runtime_repair.go
       - name: Verify beta version and preserved screens
         shell: bash
