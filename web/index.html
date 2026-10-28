@@ -1342,7 +1342,7 @@
     <div class="package-dialog-head">
       <div>
         <p class="eyebrow">Shipment activity</p>
-        <h2 id="package-history-title">Tracking history</h2>
+        <h2 id="package-history-title" tabindex="-1">Tracking history</h2>
         <p id="package-history-description" class="muted">Verified carrier scans and changes made in Calden are shown separately.</p>
       </div>
       <button type="button" class="button secondary compact" id="package-history-close" aria-label="Close tracking history">Close</button>
@@ -1358,6 +1358,7 @@
     </div>
     <p id="package-history-feedback" class="status-line" role="status" aria-live="polite"></p>
     <div id="package-history" class="package-history-content" aria-live="polite"></div>
+    <button type="button" class="button secondary hidden" id="package-history-older">Show older activity</button>
   </div>
 </dialog>
 
