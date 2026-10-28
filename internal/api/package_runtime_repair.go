@@ -115,7 +115,7 @@ func parcelRuntimeEnv(root string)[]string{
  return []string{
   "PATH="+os.Getenv("PATH"),"HOME="+os.Getenv("HOME"),"LANG=C.UTF-8",
   "NODE_OPTIONS=--max-old-space-size=512",
-  "LD_LIBRARY_PATH="+lib+":"+filepath.Join(root,"runtime","chromium"),
+  "LD_LIBRARY_PATH="+lib+":"+filepath.Join(lib,"pulseaudio")+":"+filepath.Join(root,"runtime","chromium"),
   "TRACKING_CHROMIUM_PATH="+filepath.Join(root,"runtime","chromium","chromium"),
   "FONTCONFIG_PATH="+filepath.Join(root,"runtime","etc","fonts"),
   "XDG_DATA_DIRS="+filepath.Join(root,"runtime","share"),
