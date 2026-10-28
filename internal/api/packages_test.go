@@ -48,3 +48,21 @@ func TestPackageTrackingLinkHosts(t *testing.T){
  }
  if packageTrackingURL("other","abc")!=""{t.Fatal("unknown carrier needs no URL")}
 }
+
+func TestPackageMailboxSafeAutomaticHostSelection(t *testing.T) {
+ cases:=[]struct{host,user,want string}{
+  {"auto","user@gmail.com","imap.gmail.com"},
+  {"","user@googlemail.com","imap.gmail.com"},
+  {"auto","user@private.example",""},
+  {"imap.gmail.com","user@gmail.com","imap.gmail.com"},
+  {"custom.example","user@private.example","custom.example"},
+ }
+ for _,tc:=range cases{
+  if got:=resolvePackageIMAPHost(tc.host,tc.user);got!=tc.want {
+   t.Errorf("resolve host(%q,%q)=%q, want %q",tc.host,tc.user,got,tc.want)
+  }
+ }
+ if allowedPackageIMAPHost("127.0.0.1")||allowedPackageIMAPHost("169.254.169.254") {
+  t.Fatal("unsafe arbitrary IMAP destinations accepted")
+ }
+}
