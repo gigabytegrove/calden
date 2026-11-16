@@ -95,8 +95,9 @@ jobs:
             chmod 0755 "stage/$arch/calden"
             cp -a web "stage/$arch/web"
             (cd "stage/$arch" && tar -czf "../../dist/calden-linux-$arch.tar.gz" calden web)
-            tar -tzf "dist/calden-linux-$arch.tar.gz" | grep -Fxq calden
-            tar -tzf "dist/calden-linux-$arch.tar.gz" | grep -Fxq web/index.html
+            tar -tzf "dist/calden-linux-$arch.tar.gz" > "dist/$arch.contents"
+            grep -Fxq calden "dist/$arch.contents"
+            grep -Fxq web/index.html "dist/$arch.contents"
           done
           ( cd dist && sha256sum calden-linux-amd64.tar.gz calden-linux-arm64.tar.gz > SHA256SUMS && sha256sum -c SHA256SUMS )
       - uses: docker/setup-qemu-action@v3

@@ -106,3 +106,18 @@ func TestApprovedBetaPromotesAlpha18AndPreservesUpdaterChannels(t *testing.T) {
     t.Fatal("beta must not be falsely advertised as stable or release-candidate")
   }
 }
+
+func TestSecurityBetaPatchUpgradesWithoutDowngrade(t *testing.T) {
+    previous := "1.5.0-beta"
+    security := "1.5.0-beta.1"
+    if compareVersions(security, previous) <= 0 {
+        t.Fatalf("security beta %s must supersede previous beta %s",security,previous)
+    }
+    if releaseChannel(security)!="beta" || defaultChannelForVersion(security)!="beta" {
+        t.Fatal("security patch must remain in beta update channel")
+    }
+    release:=testReadyRelease(t,"v"+security,time.Now())
+    if !releaseReadyForInstall(release) || !eligibleForChannel(&release,"beta") {
+        t.Fatal("installable security beta must be offered in beta channel")
+    }
+}
