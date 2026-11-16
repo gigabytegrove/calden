@@ -41,7 +41,8 @@ jobs:
         run: go build ./cmd/calden
 
   compose-smoke:
-    runs-on: ubuntu-latest
+    # Playwright 1.56.1 requires Ubuntu 24.04; ubuntu-latest now uses unsupported 26.04.
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out source
         uses: actions/checkout@v4
