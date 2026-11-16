@@ -121,3 +121,19 @@ func TestSecurityBetaPatchUpgradesWithoutDowngrade(t *testing.T) {
         t.Fatal("installable security beta must be offered in beta channel")
     }
 }
+
+func TestProduction150SupersedesSecurityBeta(t *testing.T) {
+    for _, previous := range []string{"1.4.12", "1.5.0-beta", "1.5.0-beta.1"} {
+        if compareVersions("1.5.0",previous)<=0 {
+            t.Fatalf("stable 1.5.0 must supersede %s",previous)
+        }
+    }
+    if releaseChannel("1.5.0")!="stable" || defaultChannelForVersion("1.5.0")!="stable" {
+        t.Fatal("1.5.0 must default to stable update channel")
+    }
+    stable:=testReadyRelease(t,"v1.5.0",time.Now())
+    stable.Prerelease=false
+    if !releaseReadyForInstall(stable) || !eligibleForChannel(&stable,"stable") {
+        t.Fatal("qualified 1.5.0 production must appear in stable channel")
+    }
+}

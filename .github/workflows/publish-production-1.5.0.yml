@@ -1,0 +1,169 @@
+name: Calden 1.5.0 — Production release
+
+on:
+  push:
+    branches: ["release/1.5.0-production"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: calden-production-1.5.0
+  cancel-in-progress: false
+
+jobs:
+  qualify-publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 105
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: calden_test
+          POSTGRES_PASSWORD: calden_test_only
+          POSTGRES_DB: calden_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U calden_test -d calden_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Check out immutable beta feature lineage
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate approved baseline and release identity
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git merge-base --is-ancestor 8263b6f85d058a3e2729e958b8197d6182f9c181 "$GITHUB_SHA"
+          test "$(cat VERSION)" = "1.5.0"
+          grep -Fxq 'go 1.27.4' go.mod
+          grep -Fq 'github.com/jackc/pgx/v5 v5.13.0' go.mod
+          grep -Fq 'golang:1.27.4-alpine' Dockerfile
+          grep -Fq 'const parcelRuntimeTag="v1.5.0"' internal/api/package_runtime_repair.go
+          test -f internal/api/package_local_scraper.go
+          test -f web/packages.js
+          grep -Fq 'name="calden-version" content="1.5.0"' web/index.html
+          test -s docs/releases/v1.5.0.md
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.4'
+      - name: Go tests and real PostgreSQL integration
+        env:
+          CALDEN_TEST_DATABASE_URL: postgres://calden_test:calden_test_only@127.0.0.1:5432/calden_test?sslmode=disable
+        run: |
+          set -Eeuo pipefail
+          test "$(go env GOVERSION)" = go1.27.4
+          go mod download
+          go test -count=1 ./...
+          go vet ./...
+      - name: Browser contract regressions and static assets
+        run: |
+          set -Eeuo pipefail
+          npm install --no-audit --no-fund
+          npm run build:css
+          npm run test:web
+          node --check web/app.js
+          node --check web/packages.js
+      - name: Obtain and checksum-verify approved immutable tracker recovery assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          mkdir -p imported-tracker
+          gh release download v1.5.0-beta -R "$GITHUB_REPOSITORY" -D imported-tracker \
+            -p 'calden-tracker-linux-*.tar.gz' -p SHA256SUMS
+          test -s imported-tracker/SHA256SUMS
+          for arch in amd64 arm64; do
+            test -s "imported-tracker/calden-tracker-linux-$arch.tar.gz"
+          done
+          (
+            cd imported-tracker
+            awk '$2 ~ /^calden-tracker-linux-(amd64|arm64)\\.tar\\.gz$/ {print; found++} END {if(found!=2) exit 1}' SHA256SUMS > tracker-checksums
+            sha256sum -c tracker-checksums
+          )
+      - name: Package new installable AMD64 and ARM64 binaries
+        run: |
+          set -Eeuo pipefail
+          mkdir -p dist
+          for arch in amd64 arm64; do
+            mkdir -p "stage/$arch"
+            CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath \
+              -ldflags="-s -w -X main.version=1.5.0" \
+              -o "stage/$arch/calden" ./cmd/calden
+            chmod 0755 "stage/$arch/calden"
+            cp -a web "stage/$arch/web"
+            (cd "stage/$arch" && tar -czf "../../dist/calden-linux-$arch.tar.gz" calden web)
+            tar -tzf "dist/calden-linux-$arch.tar.gz" > "dist/$arch.contents"
+            grep -Fxq calden "dist/$arch.contents"
+            grep -Fxq web/index.html "dist/$arch.contents"
+          done
+          cp imported-tracker/calden-tracker-linux-amd64.tar.gz dist/
+          cp imported-tracker/calden-tracker-linux-arm64.tar.gz dist/
+          ( cd dist && sha256sum calden-linux-amd64.tar.gz calden-linux-arm64.tar.gz \
+              calden-tracker-linux-amd64.tar.gz calden-tracker-linux-arm64.tar.gz \
+              > SHA256SUMS && sha256sum -c SHA256SUMS )
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Build integrated AMD64 beta image with contract tests
+        run: |
+          set -Eeuo pipefail
+          docker build --platform linux/amd64 --build-arg CALDEN_RUN_TESTS=1 -t calden-150:qualify .
+          docker run --rm --entrypoint node calden-150:qualify \
+            /opt/calden-parcel/node_modules/universal-parcel-scraper/dist/cli/index.js detect 1Z999AA10123456784 > /tmp/carrier.json
+          grep -qi ups /tmp/carrier.json
+          docker run --rm --entrypoint sh calden-150:qualify -c \
+            'test -x /usr/bin/chromium && test -x /app/calden && test -f /app/web/index.html'
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish isolated multiarchitecture security beta image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            CALDEN_RUN_TESTS=1
+          tags: |
+            ghcr.io/gigabytegrove/calden:1.5.0
+            ghcr.io/gigabytegrove/calden:latest
+          labels: |
+            org.opencontainers.image.title=Calden
+            org.opencontainers.image.version=1.5.0
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/gigabytegrove/calden
+      - name: Publish immutable beta security update
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          tag=v1.5.0
+          if gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Existing $tag release detected; refusing overwrite" >&2
+            exit 1
+          fi
+          gh release create "$tag" \
+            dist/calden-linux-amd64.tar.gz dist/calden-linux-arm64.tar.gz \
+            dist/calden-tracker-linux-amd64.tar.gz dist/calden-tracker-linux-arm64.tar.gz dist/SHA256SUMS \
+            -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Calden 1.5.0 — Production" \
+            --notes-file docs/releases/v1.5.0.md --latest
+          gh release view "$tag" -R "$GITHUB_REPOSITORY" --json assets \
+            --jq '.assets[].name' > /tmp/beta1-assets
+          for name in calden-linux-amd64.tar.gz calden-linux-arm64.tar.gz \
+                      calden-tracker-linux-amd64.tar.gz calden-tracker-linux-arm64.tar.gz SHA256SUMS; do
+            grep -Fxq "$name" /tmp/beta1-assets
+          done

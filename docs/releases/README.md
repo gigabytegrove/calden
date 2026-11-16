@@ -1,8 +1,8 @@
 # CalDen release notes
 
-Current beta security baseline: **v1.5.0-beta.1** (inherits the approved v1.5.0-beta feature lock; not stable/GA).
+Current production baseline: **v1.5.0** (promoted from the security-qualified 1.5.0-beta.1 feature set).
 
-- [v1.5.0-beta.1](v1.5.0-beta.1.md) — security rebuild on the approved 1.5.0 Beta with patched Go and PostgreSQL driver; original tracker recovery runtime retained
+- [v1.5.0](v1.5.0.md) — production release with complete 1.5.0 family and parcel tracking features, Go 1.27.4, patched PostgreSQL driver, self-contained tracker recovery artifacts\n- [v1.5.0-beta.1](v1.5.0-beta.1.md) — security rebuild on the approved 1.5.0 Beta with patched Go and PostgreSQL driver; original tracker recovery runtime retained
 - [v1.5.0-beta](v1.5.0-beta.md) — locked v1.5.0 feature baseline, updater-ready archives, multiarch Docker and integrated carrier runtime
 
 Historical stable releases are listed below.
