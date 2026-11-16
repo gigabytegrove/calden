@@ -1,7 +1,8 @@
 # CalDen release notes
 
-Current beta baseline: **v1.5.0-beta** (approved feature lock, not stable/GA).
+Current beta security baseline: **v1.5.0-beta.1** (inherits the approved v1.5.0-beta feature lock; not stable/GA).
 
+- [v1.5.0-beta.1](v1.5.0-beta.1.md) — security rebuild on the approved 1.5.0 Beta with patched Go and PostgreSQL driver; original tracker recovery runtime retained
 - [v1.5.0-beta](v1.5.0-beta.md) — locked v1.5.0 feature baseline, updater-ready archives, multiarch Docker and integrated carrier runtime
 
 Historical stable releases are listed below.

@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM --platform=$BUILDPLATFORM node:22-alpine AS webbuild
+FROM --platform=$BUILDPLATFORM node:22.23.4-alpine AS webbuild
 
 WORKDIR /src
 COPY package.json ./
@@ -13,7 +13,7 @@ RUN npm run build:css
 ARG CALDEN_RUN_TESTS=0
 RUN if [ "$CALDEN_RUN_TESTS" = "1" ]; then npm run test:web; fi
 
-FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.27.4-alpine AS build
 
 ARG TARGETOS=linux
 ARG TARGETARCH
