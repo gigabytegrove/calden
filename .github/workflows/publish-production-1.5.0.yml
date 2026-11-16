@@ -87,7 +87,7 @@ jobs:
           done
           (
             cd imported-tracker
-            awk '$2 ~ /^calden-tracker-linux-(amd64|arm64)\\.tar\\.gz$/ {print; found++} END {if(found!=2) exit 1}' SHA256SUMS > tracker-checksums
+            awk '$2 ~ /^calden-tracker-linux-(amd64|arm64)\.tar\.gz$/ {print; found++} END {if(found!=2) exit 1}' SHA256SUMS > tracker-checksums
             sha256sum -c tracker-checksums
           )
       - name: Package new installable AMD64 and ARM64 binaries
